@@ -2,8 +2,6 @@
 
 The app uses **SQLite** (`DATABASE_URL`). Data survives container restarts only if the database file lives on a **persistent volume** or disk mount. Serverless hosts without a writable disk (default Vercel) are not suitable unless you switch the database (for example Postgres or Turso).
 
-**Oracle Cloud + Ubuntu 22.04:** see [OCI_UBUNTU.md](./OCI_UBUNTU.md) (subnets, security lists, Docker, git/rsync, Compose).
-
 **DigitalOcean droplet (prebuilt image, no build on server):** see [DIGITALOCEAN_DROPLET.md](./DIGITALOCEAN_DROPLET.md).
 
 ## Docker Compose (fastest locally)

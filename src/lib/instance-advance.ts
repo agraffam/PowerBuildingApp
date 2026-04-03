@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/prisma";
 
-/** Advance cursor after completing or skipping a template day. */
-export async function advanceProgramInstance(instanceId: string, userId: string) {
+/** Advance cursor after completing a session (uses completed day) or skipping (linear from cursor). */
+export async function advanceProgramInstance(
+  instanceId: string,
+  userId: string,
+  options?: { completedProgramDaySortOrder: number },
+) {
   const instance = await prisma.programInstance.findUnique({
     where: { id: instanceId },
     include: { program: { select: { durationWeeks: true, days: true } } },
@@ -11,11 +15,22 @@ export async function advanceProgramInstance(instanceId: string, userId: string)
   const nDays = instance.program.days.length;
   if (nDays === 0) return;
 
-  let nextOrder = instance.nextDaySortOrder + 1;
+  let nextOrder: number;
   let week = instance.weekIndex;
-  if (nextOrder >= nDays) {
-    nextOrder = 0;
-    week += 1;
+
+  if (options != null) {
+    const c = options.completedProgramDaySortOrder;
+    nextOrder = c + 1;
+    if (nextOrder >= nDays) {
+      nextOrder = 0;
+      week += 1;
+    }
+  } else {
+    nextOrder = instance.nextDaySortOrder + 1;
+    if (nextOrder >= nDays) {
+      nextOrder = 0;
+      week += 1;
+    }
   }
 
   const completed = week >= instance.program.durationWeeks;

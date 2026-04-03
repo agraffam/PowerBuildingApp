@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { BlockType } from "@prisma/client";
 import { validateMesocycleBlocks } from "@/lib/program-periodization";
+import { validateSupersetSets } from "@/lib/program-superset-validation";
 import { requireUserId } from "@/lib/auth/require-user";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,7 @@ type WizardBody = {
       targetRpe: number;
       pctOf1rm?: number | null;
       restSec?: number | null;
+      supersetGroup?: string | null;
     }[];
   }[];
 };
@@ -60,6 +62,11 @@ export async function POST(req: Request) {
   const period = validateMesocycleBlocks(body.durationWeeks, body.blocks ?? []);
   if (!period.ok) {
     return NextResponse.json({ error: period.error }, { status: 400 });
+  }
+
+  const sup = validateSupersetSets(body.days);
+  if (!sup.ok) {
+    return NextResponse.json({ error: sup.error }, { status: 400 });
   }
 
   try {
@@ -94,6 +101,7 @@ export async function POST(req: Request) {
                   return {
                     exerciseId: exRow.id,
                     sortOrder: ei,
+                    supersetGroup: ex.supersetGroup?.trim() || null,
                     sets: ex.sets,
                     repTarget: ex.repTarget,
                     targetRpe: ex.targetRpe,

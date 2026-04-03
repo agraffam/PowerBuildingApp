@@ -1,6 +1,6 @@
 # Deploy from Git
 
-Everything needed to **build and run** the app lives in this repository **except secrets** (you create `.env` locally or set env vars on the server). Use Git to ship code to your VM (e.g. Oracle Cloud Ubuntu), then Docker Compose to run it.
+Everything needed to **build and run** the app lives in this repository **except secrets** (you create `.env` locally or set env vars on the server). Use Git to ship code to your VM, then Docker Compose to run it.
 
 ## What is (and is not) in Git
 
@@ -28,9 +28,9 @@ git push -u origin main
 - **SSH:** `git remote set-url origin git@github.com:agraffam/PowerBuildingApp.git` (add your SSH key in GitHub → Settings → SSH keys), then `git push -u origin main`
 - **HTTPS + Personal Access Token:** when prompted for password, paste a [fine-grained or classic token](https://github.com/settings/tokens) with `repo` scope
 
-## Server (OCI / any Linux) — first deploy
+## Server (Linux) — first deploy
 
-1. **Install Docker** (see [OCI_UBUNTU.md](./OCI_UBUNTU.md) or Docker’s docs).
+1. **Install Docker** ([Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) or your distro’s docs).
 
 2. **Clone** (HTTPS with a [personal access token](https://github.com/settings/tokens), or SSH):
 
@@ -102,10 +102,9 @@ git pull origin main
 
 ## Optional: GitHub Actions (CI only)
 
-Running tests on every push is easy; **deploying** to OCI from Actions usually means **SSH** from the runner to your VM using a **stored private key** as a GitHub secret—do that only if you’re comfortable with that model. This repo does not require Actions for a simple Git pull + Compose workflow on the VM.
+Running tests on every push is easy; **deploying** from Actions to a VM usually means **SSH** from the runner using a **stored private key** as a GitHub secret—only if you want that model. This repo does not require it for Git pull + Compose on the server, and the **Docker publish** workflow only pushes to GHCR.
 
 ## Related
 
 - [DIGITALOCEAN_DROPLET.md](./DIGITALOCEAN_DROPLET.md) — DigitalOcean droplet + prebuilt GHCR image.
-- [OCI_UBUNTU.md](./OCI_UBUNTU.md) — Oracle Cloud + Ubuntu + Docker.
 - [DEPLOY.md](./DEPLOY.md) — Compose behaviour, SQLite volume, seed, restarts.

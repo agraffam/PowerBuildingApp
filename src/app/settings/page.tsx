@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,6 +14,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { RPE_REST_KEYS } from "@/lib/rest-by-rpe";
+
+type SettingsPatchBody = {
+  preferredWeightUnit?: "KG" | "LB";
+  defaultRestSec?: number;
+  plateIncrementLb?: number;
+  plateIncrementKg?: number;
+  restDurationsByRpe?: Record<string, number> | null;
+};
 
 export default function SettingsPage() {
   const qc = useQueryClient();
@@ -28,12 +39,21 @@ export default function SettingsPage() {
         defaultRestSec: number;
         plateIncrementLb: number;
         plateIncrementKg: number;
+        restDurationsByRpe: Record<string, number>;
       }>;
     },
   });
 
+  const [rpeRestDraft, setRpeRestDraft] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    if (data?.restDurationsByRpe) {
+      setRpeRestDraft({ ...data.restDurationsByRpe });
+    }
+  }, [data?.restDurationsByRpe]);
+
   const save = useMutation({
-    mutationFn: async (body: Partial<typeof data>) => {
+    mutationFn: async (body: SettingsPatchBody) => {
       const r = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -121,6 +141,10 @@ export default function SettingsPage() {
                   save.mutate({ defaultRestSec: Number(e.target.value) || data.defaultRestSec })
                 }
               />
+              <p className="text-muted-foreground text-xs">
+                Baseline for RPE-based rests (RPE 8 in the table below). Also used when a program exercise has no
+                prescribed rest and the RPE map has no entry.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Default bar increment (lb)</Label>
@@ -161,6 +185,68 @@ export default function SettingsPage() {
           {save.isError && (
             <p className="text-destructive text-sm">Could not save.</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rest timer by RPE</CardTitle>
+          <CardDescription>
+            After a set, rest length when your program does not set a fixed <span className="font-medium">rest</span>{" "}
+            per exercise. If any lift in a superset has a prescribed rest (program editor), that still wins (longest
+            in the group). Otherwise we use the RPE from your log (or target RPE) to pick a duration.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {rpeRestDraft && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {RPE_REST_KEYS.map((k) => {
+                const sk = String(k);
+                return (
+                  <div key={sk} className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">RPE {sk}</Label>
+                    <Input
+                      type="number"
+                      className="rounded-xl"
+                      min={15}
+                      max={3600}
+                      value={rpeRestDraft[sk] ?? ""}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        if (!Number.isFinite(n)) return;
+                        setRpeRestDraft((prev) => (prev ? { ...prev, [sk]: n } : prev));
+                      }}
+                      onBlur={() => {
+                        if (!rpeRestDraft) return;
+                        save.mutate({ restDurationsByRpe: { ...rpeRestDraft } });
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              disabled={save.isPending}
+              onClick={() => {
+                save.mutate(
+                  { restDurationsByRpe: null },
+                  {
+                    onSuccess: (j) => {
+                      const row = j as { restDurationsByRpe?: Record<string, number> };
+                      if (row.restDurationsByRpe) setRpeRestDraft({ ...row.restDurationsByRpe });
+                    },
+                  },
+                );
+              }}
+            >
+              Reset to defaults
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -15,6 +15,7 @@ import {
   loadSwapMapsForSession,
   resolveEffectiveFromMaps,
 } from "@/lib/exercise-swaps";
+import { buildSessionCompletionSummary } from "@/lib/session-completion-summary";
 
 export async function GET(
   _req: Request,
@@ -59,6 +60,7 @@ export async function GET(
           ...pe,
           exercise: {
             ...pe.exercise,
+            muscleTags: pe.exercise.muscleTags,
             effectiveBarIncrementLb: barByEffectiveId.get(pe.exerciseId) ?? null,
           },
         };
@@ -70,6 +72,7 @@ export async function GET(
           name: ex.name,
           slug: ex.slug,
           barIncrementLb: ex.barIncrementLb,
+          muscleTags: ex.muscleTags,
           effectiveBarIncrementLb: barByEffectiveId.get(effId) ?? null,
         },
       };
@@ -121,7 +124,9 @@ export async function PATCH(
         programExerciseId: string;
         replacementExerciseId: string;
         scope: "session" | "program";
-      };
+      }
+    | { action: "reorderExercises"; orderedProgramExerciseIds: string[] }
+    | { action: "updateMetadata"; performedAt: string };
 
   const session = await prisma.workoutSession.findUnique({
     where: { id: sessionId },
@@ -193,10 +198,60 @@ export async function PATCH(
     });
     return NextResponse.json({ ok: true });
   }
+  if (body.action === "updateMetadata") {
+    if (session.status !== "COMPLETED" && session.status !== "CANCELLED") {
+      return NextResponse.json({ error: "Can only edit date on completed or cancelled workouts" }, { status: 409 });
+    }
+    const iso = body.performedAt;
+    if (typeof iso !== "string") {
+      return NextResponse.json({ error: "performedAt required" }, { status: 400 });
+    }
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+    }
+    await prisma.workoutSession.update({
+      where: { id: sessionId },
+      data: { performedAt: d },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
 
   if (session.status === "COMPLETED" || session.status === "CANCELLED") {
     return NextResponse.json({ error: "Session is no longer active" }, { status: 409 });
   }
+
+  
+  if (body.action === "reorderExercises") {
+    if (session.status !== "PLANNED" && session.status !== "IN_PROGRESS") {
+      return NextResponse.json({ error: "Cannot reorder now" }, { status: 409 });
+    }
+    const ids = body.orderedProgramExerciseIds;
+    if (!Array.isArray(ids) || !ids.every((x) => typeof x === "string")) {
+      return NextResponse.json({ error: "orderedProgramExerciseIds must be string[]" }, { status: 400 });
+    }
+    const day = await prisma.programDay.findUnique({
+      where: { id: session.programDayId },
+      include: { exercises: { select: { id: true } } },
+    });
+    if (!day) return NextResponse.json({ error: "Day not found" }, { status: 404 });
+    const expected = new Set(day.exercises.map((e) => e.id));
+    if (ids.length !== expected.size) {
+      return NextResponse.json({ error: "Order must include every exercise once" }, { status: 400 });
+    }
+    for (const id of ids) {
+      if (!expected.has(id)) {
+        return NextResponse.json({ error: "Unknown programExerciseId in order" }, { status: 400 });
+      }
+    }
+    await prisma.workoutSession.update({
+      where: { id: sessionId },
+      data: { exerciseOrder: ids },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
 
   if (body.action === "readiness") {
     const m = readinessToIntensityScalar(body.sleep, body.stress, body.soreness);
@@ -209,6 +264,7 @@ export async function PATCH(
           soreness: body.soreness,
           intensityMultiplier: m,
           status: "IN_PROGRESS",
+          ...(session.workoutStartedAt == null && { workoutStartedAt: new Date() }),
         },
       }),
       prisma.readinessEntry.upsert({
@@ -252,12 +308,29 @@ export async function PATCH(
   }
 
   if (body.action === "complete") {
+    const withDay = await prisma.workoutSession.findUnique({
+      where: { id: sessionId },
+      include: { programDay: { select: { sortOrder: true } } },
+    });
+    if (!withDay?.programDay) {
+      return NextResponse.json({ error: "Session day missing" }, { status: 500 });
+    }
+    const completedAt = new Date();
     await prisma.workoutSession.update({
       where: { id: sessionId },
-      data: { status: "COMPLETED" },
+      data: { status: "COMPLETED", workoutCompletedAt: completedAt },
     });
-    await advanceProgramInstance(session.programInstanceId, userId);
-    return NextResponse.json({ ok: true });
+    await advanceProgramInstance(session.programInstanceId, userId, {
+      completedProgramDaySortOrder: withDay.programDay.sortOrder,
+    });
+    let summary: Awaited<ReturnType<typeof buildSessionCompletionSummary>>;
+    try {
+      summary = await buildSessionCompletionSummary(userId, sessionId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, summary });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

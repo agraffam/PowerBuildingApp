@@ -7,6 +7,8 @@ export type WizardExercise = {
   targetRpe: number;
   pctOf1rm?: number | null;
   restSec?: number | null;
+  /** Same label on consecutive exercises = superset (e.g. A, B). */
+  supersetGroup?: string | null;
 };
 
 export type WizardDay = { label: string; exercises: WizardExercise[] };

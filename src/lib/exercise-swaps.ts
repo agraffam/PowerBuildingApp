@@ -82,6 +82,10 @@ async function propagateProgramReplacementToOpenSessions(
     where: { programExerciseId, workoutSessionId: { in: ids } },
     data: { loggedExerciseId: replacementExerciseId },
   });
+  await prisma.loggedSet.updateMany({
+    where: { programExerciseId, workoutSessionId: { in: ids }, done: false },
+    data: { weight: 0 },
+  });
   for (const sid of ids) {
     await prefillPctWeightsForSession(sid, userId);
     await prefillHistoryWeightsForSession(sid, userId);
@@ -202,6 +206,11 @@ export async function applyExerciseSwap(args: {
     data: { loggedExerciseId: args.replacementExerciseId },
   });
 
+  await prisma.loggedSet.updateMany({
+    where: { workoutSessionId: args.sessionId, programExerciseId: args.programExerciseId, done: false },
+    data: { weight: 0 },
+  });
+
   await prefillPctWeightsForSession(args.sessionId, args.userId);
   await prefillHistoryWeightsForSession(args.sessionId, args.userId);
 }
@@ -247,6 +256,7 @@ export async function enrichProgramDaysWithInstanceReplacements(
           name: nx.name,
           slug: nx.slug,
           barIncrementLb: nx.barIncrementLb,
+          muscleTags: nx.muscleTags,
         },
       };
     }),

@@ -16,7 +16,7 @@ Open [http://localhost:3500](http://localhost:3500). For LAN access: `npm run de
 
 **Docs:** [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (setup, scripts, layout), [docs/TESTING.md](docs/TESTING.md), [docs/MOBILE_QA.md](docs/MOBILE_QA.md).
 
-**Git + server deploy:** [docs/GIT_DEPLOY.md](docs/GIT_DEPLOY.md) · **Oracle Cloud (Ubuntu):** [docs/OCI_UBUNTU.md](docs/OCI_UBUNTU.md) · **Docker / Compose:** [docs/DEPLOY.md](docs/DEPLOY.md).
+**Git + server deploy:** [docs/GIT_DEPLOY.md](docs/GIT_DEPLOY.md) · **DigitalOcean droplet (prebuilt image):** [docs/DIGITALOCEAN_DROPLET.md](docs/DIGITALOCEAN_DROPLET.md) · **Docker / Compose:** [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Testing
 
@@ -29,3 +29,4 @@ npm run test:e2e   # Playwright (install browsers: npx playwright install chromi
 
 - **Docker Compose:** [docs/DEPLOY.md](docs/DEPLOY.md)
 - **Push code with Git, pull on a VM, run Compose:** [docs/GIT_DEPLOY.md](docs/GIT_DEPLOY.md)
+- **Droplet + GHCR (no build on server):** [docs/DIGITALOCEAN_DROPLET.md](docs/DIGITALOCEAN_DROPLET.md)

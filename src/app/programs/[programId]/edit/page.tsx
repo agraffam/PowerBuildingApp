@@ -20,6 +20,7 @@ type ProgramDetail = {
       targetRpe: number;
       pctOf1rm: number | null;
       restSec: number | null;
+      supersetGroup: string | null;
       exercise: { slug: string };
     }[];
   }[];
@@ -43,6 +44,7 @@ function toWizard(p: ProgramDetail): ProgramWizardPayload {
         targetRpe: e.targetRpe,
         pctOf1rm: e.pctOf1rm,
         restSec: e.restSec,
+        supersetGroup: e.supersetGroup,
       })),
     })),
   };

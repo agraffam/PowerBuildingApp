@@ -130,6 +130,20 @@ export function rpeRepsToPct1rm(rpe: number, reps: number): number {
   return pctAt(reps, rpe);
 }
 
+/** Estimated 1RM from one logged set (same unit as `weight`). Uses RPE×reps % chart. */
+export function estimateOneRmFromSet(
+  weight: number,
+  reps: number | null | undefined,
+  rpe: number | null | undefined,
+): number | null {
+  if (!(weight > 0) || !Number.isFinite(weight)) return null;
+  if (reps == null || !(reps >= 1) || !Number.isFinite(reps)) return null;
+  if (rpe == null || !Number.isFinite(rpe)) return null;
+  const pct = rpeRepsToPct1rm(rpe, reps);
+  if (!(pct > 0)) return null;
+  return weight / (pct / 100);
+}
+
 export function normalizeWeightToKg(weight: number, unit: WeightUnit): number {
   return unit === "LB" ? weight * KG_PER_LB : weight;
 }

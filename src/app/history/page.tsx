@@ -1,11 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { browserApiFetchInit } from "@/lib/browser-api-fetch";
 
@@ -26,6 +26,7 @@ type HistoryPayload = {
 };
 
 export default function HistoryPage() {
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["training-history"],
     queryFn: async () => {
@@ -37,6 +38,25 @@ export default function HistoryPage() {
       if (!r.ok) throw new Error("Failed");
       return r.json() as Promise<HistoryPayload>;
     },
+  });
+
+  const del = useMutation({
+    mutationFn: async (sessionId: string) => {
+      const r = await fetch(`/api/training/sessions/${sessionId}`, {
+        method: "DELETE",
+        ...browserApiFetchInit,
+      });
+      if (r.status === 401) {
+        window.location.assign("/login?next=/history");
+        throw new Error("Unauthorized");
+      }
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? "Delete failed");
+      }
+      return r.json();
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["training-history"] }),
   });
 
   if (q.isLoading) {
@@ -62,8 +82,8 @@ export default function HistoryPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-heading">Workout history</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Open a session to edit sets. Deleting removes it from history and analytics; it does not change your
-          current program week or next day.
+          Open a session to edit sets or the workout date. Deleting removes it from history and analytics;
+          it does not change your current program week or next day.
         </p>
       </div>
 
@@ -82,10 +102,10 @@ export default function HistoryPage() {
       ) : (
         <ul className="space-y-2">
           {sessions.map((s) => (
-            <li key={s.id}>
+            <li key={s.id} className="flex gap-2 items-stretch">
               <Link
                 href={`/workout/${s.id}`}
-                className="block rounded-2xl border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
+                className="flex-1 min-w-0 rounded-2xl border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
               >
                 <div className="font-medium text-sm">{s.programName}</div>
                 <div className="text-muted-foreground text-xs mt-0.5">
@@ -93,13 +113,37 @@ export default function HistoryPage() {
                   {format(new Date(s.performedAt), "EEE MMM d, yyyy")}
                 </div>
               </Link>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0 rounded-xl h-auto min-h-[4.5rem] border-destructive/30 text-destructive hover:bg-destructive/10"
+                disabled={del.isPending}
+                aria-label="Delete workout"
+                onClick={() => {
+                  if (!window.confirm("Delete this workout from history? This cannot be undone.")) return;
+                  del.mutate(s.id);
+                }}
+              >
+                {del.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+              </Button>
             </li>
           ))}
         </ul>
       )}
 
+      {del.isError && (
+        <p className="text-destructive text-sm">{(del.error as Error).message}</p>
+      )}
+
       {total > sessions.length && (
-        <p className="text-muted-foreground text-xs">Showing {sessions.length} of {total} workouts.</p>
+        <p className="text-muted-foreground text-xs">
+          Showing {sessions.length} of {total} workouts.
+        </p>
       )}
     </div>
   );

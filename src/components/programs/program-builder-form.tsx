@@ -58,6 +58,7 @@ function emptyExercise(): WizardExercise {
     targetRpe: 8,
     pctOf1rm: null,
     restSec: 120,
+    supersetGroup: null,
   };
 }
 
@@ -424,7 +425,7 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                   {day.exercises.map((ex, ei) => (
                     <li
                       key={ei}
-                      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 items-end rounded-xl border bg-card p-3"
+                      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end rounded-xl border bg-card p-3"
                     >
                       <div className="lg:col-span-2 space-y-1">
                         <Label className="text-xs">Exercise</Label>
@@ -492,6 +493,27 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                         />
                       </div>
                       <div className="space-y-1">
+                        <Label className="text-xs">Superset</Label>
+                        <Select
+                          value={ex.supersetGroup ?? "none"}
+                          onValueChange={(v) =>
+                            updateEx(di, ei, { supersetGroup: v === "none" ? null : v })
+                          }
+                          disabled={structureLocked}
+                        >
+                          <SelectTrigger className="rounded-lg">
+                            <SelectValue placeholder="None" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="A">A</SelectItem>
+                            <SelectItem value="B">B</SelectItem>
+                            <SelectItem value="C">C</SelectItem>
+                            <SelectItem value="D">D</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
                         <Label className="text-xs">Rest (s)</Label>
                         <Input
                           type="number"
@@ -506,7 +528,7 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                         />
                       </div>
                       {!structureLocked && (
-                        <div className="lg:col-span-6 flex justify-end">
+                        <div className="lg:col-span-7 flex justify-end">
                           <Button variant="ghost" size="sm" onClick={() => removeExercise(di, ei)}>
                             Remove exercise
                           </Button>

@@ -52,6 +52,8 @@ model UserSettings {
   defaultRestSec       Int        @default(120)
   plateIncrementLb     Float      @default(2.5)
   plateIncrementKg     Float      @default(2.5)
+  /** Optional overrides: { "6": sec, "6.5": sec, ... "10": sec } — merged with defaults from defaultRestSec. */
+  restDurationsByRpe   Json?
   updatedAt            DateTime   @updatedAt
 }
 
@@ -139,6 +141,8 @@ model ProgramExercise {
   exerciseId      String
   exercise        Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   sortOrder       Int
+  /** Same non-null value on consecutive exercises = superset (interleaved in workout UI). */
+  supersetGroup   String?
   sets            Int
   repTarget       Int
   targetRpe       Float
@@ -160,6 +164,8 @@ model ProgramInstance {
   weekIndex        Int                     @default(0)
   nextDaySortOrder Int                     @default(0)
   startedAt        DateTime                @default(now())
+  /** { [programDayId]: programExerciseId[] } — order for Train preview / next session for that day. */
+  plannedExerciseOrderByDay Json?
   sessions         WorkoutSession[]
   exerciseReplacements ProgramInstanceExerciseReplacement[]
 
@@ -210,6 +216,12 @@ model WorkoutSession {
   stress              Int?
   soreness            Int?
   intensityMultiplier Float            @default(1)
+  /** First time user submitted readiness for this session (workout clock start). */
+  workoutStartedAt    DateTime?
+  /** Set when session is marked completed. */
+  workoutCompletedAt  DateTime?
+  /** Permutation of programExercise ids for this day; null = template sortOrder. */
+  exerciseOrder       Json?
   readinessEntry      ReadinessEntry?
   sets                LoggedSet[]
   exerciseSwaps       WorkoutSessionExerciseSwap[]

@@ -11,6 +11,12 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.toLowerCase() ?? "";
   const tag = searchParams.get("tag")?.toLowerCase();
+  const tagsParam = searchParams.get("tags");
+  const tagTokens =
+    tagsParam
+      ?.split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean) ?? [];
 
   const exercises = await prisma.exercise.findMany({
     where: {
@@ -27,6 +33,11 @@ export async function GET(req: Request) {
         tag
           ? {
               muscleTags: { contains: tag },
+            }
+          : {},
+        tagTokens.length > 0
+          ? {
+              OR: tagTokens.map((tok) => ({ muscleTags: { contains: tok } })),
             }
           : {},
       ],

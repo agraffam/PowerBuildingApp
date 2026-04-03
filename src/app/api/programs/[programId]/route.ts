@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { BlockType } from "@prisma/client";
 import type { ProgramWizardPayload } from "@/lib/program-wizard-types";
 import { validateMesocycleBlocks, validateProgramDurationWeeks } from "@/lib/program-periodization";
+import { validateSupersetSets } from "@/lib/program-superset-validation";
 import { requireUserId } from "@/lib/auth/require-user";
 import { userCanEditProgramStructure, userCanViewProgram } from "@/lib/program-access";
 
@@ -124,6 +125,11 @@ export async function PATCH(
     return NextResponse.json({ error: period.error }, { status: 400 });
   }
 
+  const sup = validateSupersetSets(full.days);
+  if (!sup.ok) {
+    return NextResponse.json({ error: sup.error }, { status: 400 });
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
       const allExercises = await tx.exercise.findMany({
@@ -159,6 +165,7 @@ export async function PATCH(
                   return {
                     exerciseId: exRow.id,
                     sortOrder: ei,
+                    supersetGroup: ex.supersetGroup?.trim() || null,
                     sets: ex.sets,
                     repTarget: ex.repTarget,
                     targetRpe: ex.targetRpe,

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { WeightUnit } from "@prisma/client";
+import { mergeRestDurationsByRpe } from "@/lib/rest-by-rpe";
 
 export async function getUserSettings(userId: string) {
   return prisma.userSettings.findUnique({ where: { userId } });
@@ -47,7 +48,17 @@ export async function getSessionDetail(sessionId: string, userId: string) {
   if (session.programInstance.userId !== userId) return null;
   if (session.status === "CANCELLED") return null;
 
-  const settings = await getUserSettings(userId);
+  const settingsRaw = await getUserSettings(userId);
+  const settings =
+    settingsRaw != null
+      ? {
+          ...settingsRaw,
+          restDurationsByRpe: mergeRestDurationsByRpe(
+            settingsRaw.restDurationsByRpe,
+            settingsRaw.defaultRestSec,
+          ),
+        }
+      : null;
   const unit = settings?.preferredWeightUnit ?? "LB";
 
   const previousByExerciseId = new Map<

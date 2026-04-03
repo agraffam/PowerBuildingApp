@@ -15,6 +15,7 @@ const links = [
   { href: "/strength", label: "1RM" },
   { href: "/analytics", label: "Analytics" },
   { href: "/settings", label: "Settings" },
+  { href: "/help", label: "Help" },
 ];
 
 type MePayload = { user: { email: string; name: string | null } | null };

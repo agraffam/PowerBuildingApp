@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Check, Loader2, Replace, Trash2 } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Loader2, Replace, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -26,7 +26,29 @@ import { useWorkoutSessionStore } from "@/stores/workout-session-store";
 import { RestTimerRing } from "@/components/training/rest-timer";
 import { ExerciseLibrarySheet } from "@/components/training/exercise-library-sheet";
 import { ExerciseSwapDialog } from "@/components/training/exercise-swap-dialog";
+import {
+  SessionCompleteSplash,
+  type SessionCompleteSummaryPayload,
+} from "@/components/training/session-complete-splash";
 import { resolvePlateIncrementForSession, suggestNextWeekLoad, type WeightUnit } from "@/lib/calculators";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  clusterSupersetBlocks,
+  flattenBlockOrder,
+  orderExercises,
+  parseExerciseOrderJson,
+} from "@/lib/workout-blocks";
+import { restSecForRpe } from "@/lib/rest-by-rpe";
+import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 
 type LoggedSetRow = {
   id: string;
@@ -42,6 +64,7 @@ type LoggedSetRow = {
 type ProgramExerciseRow = {
   id: string;
   sortOrder: number;
+  supersetGroup: string | null;
   sets: number;
   repTarget: number;
   targetRpe: number;
@@ -53,6 +76,7 @@ type ProgramExerciseRow = {
     slug: string;
     barIncrementLb: number | null;
     effectiveBarIncrementLb?: number | null;
+    muscleTags?: string;
   };
 };
 
@@ -65,6 +89,8 @@ type SessionPayload = {
     soreness: number | null;
     intensityMultiplier: number;
     weekIndex: number;
+    performedAt?: string;
+    exerciseOrder?: unknown;
     sets: LoggedSetRow[];
     programDay: {
       label: string;
@@ -76,6 +102,7 @@ type SessionPayload = {
     preferredWeightUnit: "KG" | "LB";
     plateIncrementLb: number;
     plateIncrementKg: number;
+    restDurationsByRpe: Record<string, number>;
   } | null;
   previousByExerciseId: Record<
     string,
@@ -84,14 +111,37 @@ type SessionPayload = {
   displayUnit: "KG" | "LB";
 };
 
+function toDatetimeLocalValue(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const router = useRouter();
   const qc = useQueryClient();
   const openLibrary = useWorkoutSessionStore((s) => s.openLibrary);
   const startRest = useWorkoutSessionStore((s) => s.startRest);
+  const clearRest = useWorkoutSessionStore((s) => s.clearRest);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [swapTarget, setSwapTarget] = useState<{ programExerciseId: string; name: string } | null>(null);
+  const [swapTarget, setSwapTarget] = useState<{
+    programExerciseId: string;
+    name: string;
+    muscleTags?: string;
+  } | null>(null);
+  const [completeSplash, setCompleteSplash] = useState<SessionCompleteSummaryPayload | null>(null);
+  const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
+  const toggleBlockCollapsed = useCallback((blockId: string) => {
+    setCollapsedBlockIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+  }, []);
 
   const q = useQuery({
     queryKey: ["session", sessionId],
@@ -114,6 +164,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     useWorkoutSessionStore.setState({ restDurationSec: q.data.settings.defaultRestSec });
   }, [q.data?.settings]);
 
+  useEffect(() => {
+    if (completeSplash) clearRest();
+  }, [completeSplash, clearRest]);
+
   const patch = useMutation({
     mutationFn: async (body: object) => {
       const r = await fetch(`/api/training/sessions/${sessionId}`, {
@@ -130,7 +184,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error ?? "Update failed");
       }
-      return r.json();
+      return (await r.json()) as unknown;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["session", sessionId] });
@@ -164,10 +218,14 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const byExercise = useMemo(() => {
     const session = q.data?.session;
     if (!session) return new Map<string, LoggedSetRow[]>();
-    const order = new Map(session.programDay.exercises.map((e) => [e.id, e.sortOrder]));
+    const ordered = orderExercises(
+      session.programDay.exercises,
+      parseExerciseOrderJson(session.exerciseOrder),
+    );
+    const pos = new Map(ordered.map((e, i) => [e.id, i]));
     const rows = [...session.sets].sort((a, b) => {
-      const ao = order.get(a.programExerciseId) ?? 0;
-      const bo = order.get(b.programExerciseId) ?? 0;
+      const ao = pos.get(a.programExerciseId) ?? 0;
+      const bo = pos.get(b.programExerciseId) ?? 0;
       if (ao !== bo) return ao - bo;
       return a.setIndex - b.setIndex;
     });
@@ -179,6 +237,96 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     for (const arr of m.values()) arr.sort((a, b) => a.setIndex - b.setIndex);
     return m;
   }, [q.data?.session]);
+  const sessionEarly = q.data?.session;
+  const [performedAtLocal, setPerformedAtLocal] = useState("");
+  useEffect(() => {
+    if (sessionEarly?.performedAt) {
+      setPerformedAtLocal(toDatetimeLocalValue(sessionEarly.performedAt));
+    }
+  }, [sessionEarly?.performedAt]);
+
+  const orderedExercises = useMemo(() => {
+    if (!sessionEarly) return [] as ProgramExerciseRow[];
+    return orderExercises(
+      sessionEarly.programDay.exercises,
+      parseExerciseOrderJson(sessionEarly.exerciseOrder),
+    );
+  }, [sessionEarly]);
+
+  const blocks = useMemo(() => clusterSupersetBlocks(orderedExercises), [orderedExercises]);
+  const blockIds = useMemo(() => blocks.map((b) => b.map((e) => e.id).join("|")), [blocks]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const commitSet = useCallback(
+    async (body: object) => {
+      await patch.mutateAsync(body);
+      const st = qc.getQueryData<SessionPayload>(["session", sessionId])?.session.status;
+      if (st === "COMPLETED") return;
+      const b = body as { action?: string; setId?: string; done?: boolean };
+      if (b.action !== "set" || b.done !== true) return;
+      await qc.refetchQueries({ queryKey: ["session", sessionId] });
+      const payload = qc.getQueryData<SessionPayload>(["session", sessionId]);
+      if (!payload || !payload.settings) return;
+      const sessSettings = payload.settings;
+      const row = payload.session.sets.find((s) => s.id === b.setId);
+      if (!row) return;
+      const setIndex = row.setIndex;
+      const ordered = orderExercises(
+        payload.session.programDay.exercises,
+        parseExerciseOrderJson(payload.session.exerciseOrder),
+      );
+      const blks = clusterSupersetBlocks(ordered);
+      const block = blks.find((blk) => blk.some((e) => e.id === row.programExerciseId));
+      if (!block) return;
+      const defaultRest = sessSettings.defaultRestSec ?? 120;
+      const rpeMap = sessSettings.restDurationsByRpe ?? {};
+      const hasPrescribedRest = block.some((ex) => ex.restSec != null);
+      const restSec = hasPrescribedRest
+        ? Math.max(
+            ...block.map((ex) => ex.restSec ?? defaultRest),
+            0,
+          )
+        : Math.max(
+            ...block.map((ex) => {
+              const rs = payload.session.sets
+                .filter((s) => s.programExerciseId === ex.id)
+                .sort((a, b) => a.setIndex - b.setIndex);
+              const setRow = rs[setIndex];
+              const rpeForRest = setRow?.rpe ?? ex.targetRpe;
+              return restSecForRpe(rpeMap, rpeForRest, defaultRest);
+            }),
+            0,
+          );
+      const allDone = block.every((ex) => {
+        const rs = payload.session.sets
+          .filter((s) => s.programExerciseId === ex.id)
+          .sort((a, b) => a.setIndex - b.setIndex);
+        return rs[setIndex]?.done === true;
+      });
+      if (allDone) startRest(restSec);
+    },
+    [patch, qc, sessionId, startRest],
+  );
+
+  const onDragEndBlocks = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const ids = blockIds;
+      const oldIndex = ids.indexOf(String(active.id));
+      const newIndex = ids.indexOf(String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return;
+      const next = arrayMove(blocks, oldIndex, newIndex);
+      const flat = flattenBlockOrder(next);
+      await patch.mutateAsync({ action: "reorderExercises", orderedProgramExerciseIds: flat });
+    },
+    [blockIds, blocks, patch],
+  );
+
 
   if (q.isLoading || (!q.data && !q.isError)) {
     return (
@@ -296,93 +444,313 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       )}
 
       {!readinessNeeded &&
-        session.programDay.exercises.map((ex) => {
-          const rows = byExercise.get(ex.id) ?? [];
-          const prev = previousByExerciseId[ex.id];
-          const restSec = ex.restSec ?? settings?.defaultRestSec ?? 120;
-          const plateInc = resolvePlateIncrementForSession(
-            unit as WeightUnit,
-            ex.exercise.effectiveBarIncrementLb ?? ex.exercise.barIncrementLb,
-            {
-              plateIncrementLb: settings?.plateIncrementLb ?? 2.5,
-              plateIncrementKg: settings?.plateIncrementKg ?? 2.5,
-            },
+        (() => {
+          const canReorderBlocks = canCancel && blocks.length > 1;
+
+          const blockSetProgress = (block: ProgramExerciseRow[]) => {
+            let done = 0;
+            let total = 0;
+            for (const ex of block) {
+              const rows = byExercise.get(ex.id) ?? [];
+              total += rows.length;
+              for (const r of rows) {
+                if (r.done) done += 1;
+              }
+            }
+            return { done, total };
+          };
+
+          const renderExerciseHeader = (ex: ProgramExerciseRow) => (
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-lg">{ex.exercise.name}</CardTitle>
+              <div className="flex items-center gap-1 shrink-0">
+                {canCancel && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground min-h-11 px-2 sm:px-3"
+                    onClick={() =>
+                    setSwapTarget({
+                      programExerciseId: ex.id,
+                      name: ex.exercise.name,
+                      muscleTags: ex.exercise.muscleTags,
+                    })
+                  }
+                    type="button"
+                  >
+                    <Replace className="size-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Swap</span>
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground min-h-11 min-w-11 shrink-0 px-3 sm:min-w-0"
+                  onClick={() => openLibrary(ex.exercise.slug)}
+                >
+                  History
+                </Button>
+              </div>
+            </div>
           );
-          return (
-            <Card key={ex.id} className="overflow-hidden rounded-2xl border shadow-sm">
-              <CardHeader className="bg-muted/40 space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-lg">{ex.exercise.name}</CardTitle>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {canCancel && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground min-h-11 px-2 sm:px-3"
-                        onClick={() =>
-                          setSwapTarget({ programExerciseId: ex.id, name: ex.exercise.name })
-                        }
-                        type="button"
-                      >
-                        <Replace className="size-4 sm:mr-1" />
-                        <span className="hidden sm:inline">Swap</span>
-                      </Button>
-                    )}
+
+          const renderSoloCard = (ex: ProgramExerciseRow, blockId: string) => {
+            const collapsed = collapsedBlockIds.has(blockId);
+            const rows = byExercise.get(ex.id) ?? [];
+            const prev = previousByExerciseId[ex.id];
+            const { done, total } = blockSetProgress([ex]);
+            const plateInc = resolvePlateIncrementForSession(
+              unit as WeightUnit,
+              ex.exercise.effectiveBarIncrementLb ?? ex.exercise.barIncrementLb,
+              {
+                plateIncrementLb: settings?.plateIncrementLb ?? 2.5,
+                plateIncrementKg: settings?.plateIncrementKg ?? 2.5,
+              },
+            );
+            return (
+              <Card className="overflow-hidden rounded-2xl border shadow-sm">
+                <CardHeader className="bg-muted/40 space-y-1">
+                  <div className="flex items-start gap-1">
                     <Button
+                      type="button"
                       variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground min-h-11 min-w-11 shrink-0 px-3 sm:min-w-0"
-                      onClick={() => openLibrary(ex.exercise.slug)}
+                      size="icon"
+                      className="shrink-0 size-9 rounded-lg mt-0.5"
+                      onClick={() => toggleBlockCollapsed(blockId)}
+                      aria-expanded={!collapsed}
+                      aria-label={collapsed ? "Expand exercise" : "Collapse exercise"}
                     >
-                      History
+                      <ChevronDown
+                        className={cn(
+                          "size-5 text-muted-foreground transition-transform",
+                          collapsed && "-rotate-90",
+                        )}
+                      />
                     </Button>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      {renderExerciseHeader(ex)}
+                      {collapsed ? (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            {done}/{total} sets done
+                          </span>
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          <Badge variant="secondary">{ex.sets} sets</Badge>
+                          <Badge variant="outline">
+                            Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE
+                          </Badge>
+                          {ex.pctOf1rm != null && <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <Badge variant="secondary">{ex.sets} sets</Badge>
-                  <Badge variant="outline">Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE</Badge>
-                  {ex.pctOf1rm != null && <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-4">
-                {rows.map((row, idx) => {
-                  const ghost = prev?.[idx];
-                  const prog = suggestNextWeekLoad({
-                    currentWeight: row.weight,
-                    repGoal: ex.repTarget,
-                    actualReps: row.reps ?? 0,
-                    prescribedRpe: ex.targetRpe,
-                    actualRpe: row.rpe ?? ex.targetRpe,
-                    plateIncrement: plateInc,
-                  });
-                  return (
-                    <SetRowEditor
-                      key={row.id}
-                      row={row}
-                      idx={idx}
-                      unit={unit}
-                      repTarget={ex.repTarget}
-                      targetRpe={ex.targetRpe}
-                      ghost={ghost}
-                      prog={prog}
-                      progressionStep={plateInc}
-                      onCommitSet={(body) =>
-                        patch.mutate(body, {
-                          onSuccess: () => {
-                            if (isHistorySession) return;
-                            const b = body as { action?: string; done?: boolean };
-                            if (b.action === "set" && b.done === true) startRest(restSec);
-                          },
-                        })
-                      }
-                    />
-                  );
-                })}
-                <Separator />
-              </CardContent>
-            </Card>
-          );
-        })}
+                </CardHeader>
+                {!collapsed && (
+                  <CardContent className="space-y-4 pt-4">
+                    {rows.map((row, idx) => {
+                      const ghost = prev?.[idx];
+                      const prog = suggestNextWeekLoad({
+                        currentWeight: row.weight,
+                        repGoal: ex.repTarget,
+                        actualReps: row.reps ?? 0,
+                        prescribedRpe: ex.targetRpe,
+                        actualRpe: row.rpe ?? ex.targetRpe,
+                        plateIncrement: plateInc,
+                      });
+                      return (
+                        <SetRowEditor
+                          key={row.id}
+                          row={row}
+                          idx={idx}
+                          unit={unit}
+                          repTarget={ex.repTarget}
+                          targetRpe={ex.targetRpe}
+                          ghost={ghost}
+                          prog={prog}
+                          progressionStep={plateInc}
+                          onCommitSet={(body) => void commitSet(body)}
+                        />
+                      );
+                    })}
+                    <Separator />
+                  </CardContent>
+                )}
+              </Card>
+            );
+          };
+
+          const renderSupersetCard = (block: ProgramExerciseRow[], blockId: string) => {
+            const label = block[0]?.supersetGroup ?? "Superset";
+            const nSets = block[0]!.sets;
+            const collapsed = collapsedBlockIds.has(blockId);
+            const { done, total } = blockSetProgress(block);
+            const names = block.map((e) => e.exercise.name).join(" · ");
+            return (
+              <Card className="overflow-hidden rounded-2xl border shadow-sm border-primary/25">
+                <CardHeader className="bg-primary/5 space-y-1">
+                  <div className="flex items-start gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 size-9 rounded-lg mt-0.5"
+                      onClick={() => toggleBlockCollapsed(blockId)}
+                      aria-expanded={!collapsed}
+                      aria-label={collapsed ? "Expand superset" : "Collapse superset"}
+                    >
+                      <ChevronDown
+                        className={cn(
+                          "size-5 text-muted-foreground transition-transform",
+                          collapsed && "-rotate-90",
+                        )}
+                      />
+                    </Button>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <CardTitle className="text-lg">Superset ({label})</CardTitle>
+                      {collapsed ? (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            {done}/{total} sets done
+                          </span>
+                          <span> · {names}</span>
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-muted-foreground text-xs">
+                            Alternate exercises each round, then rest when the full round is done.
+                          </p>
+                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <Badge variant="secondary">{nSets} rounds</Badge>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                {!collapsed && (
+                  <CardContent className="space-y-6 pt-4">
+                    {Array.from({ length: nSets }, (_, si) => (
+                      <div key={si} className="space-y-3">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          Round {si + 1}
+                        </p>
+                        {block.map((ex) => {
+                          const rows = byExercise.get(ex.id) ?? [];
+                          const row = rows[si];
+                          const prev = previousByExerciseId[ex.id];
+                          const ghost = prev?.[si];
+                          const plateInc = resolvePlateIncrementForSession(
+                            unit as WeightUnit,
+                            ex.exercise.effectiveBarIncrementLb ?? ex.exercise.barIncrementLb,
+                            {
+                              plateIncrementLb: settings?.plateIncrementLb ?? 2.5,
+                              plateIncrementKg: settings?.plateIncrementKg ?? 2.5,
+                            },
+                          );
+                          if (!row) return null;
+                          const prog = suggestNextWeekLoad({
+                            currentWeight: row.weight,
+                            repGoal: ex.repTarget,
+                            actualReps: row.reps ?? 0,
+                            prescribedRpe: ex.targetRpe,
+                            actualRpe: row.rpe ?? ex.targetRpe,
+                            plateIncrement: plateInc,
+                          });
+                          return (
+                            <div key={ex.id} className="rounded-xl border bg-muted/20 p-3 space-y-2">
+                              {renderExerciseHeader(ex)}
+                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline">
+                                  Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE
+                                </Badge>
+                                {ex.pctOf1rm != null && (
+                                  <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>
+                                )}
+                              </div>
+                              <SetRowEditor
+                                row={row}
+                                idx={si}
+                                unit={unit}
+                                repTarget={ex.repTarget}
+                                targetRpe={ex.targetRpe}
+                                ghost={ghost}
+                                prog={prog}
+                                progressionStep={plateInc}
+                                onCommitSet={(body) => void commitSet(body)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                    <Separator />
+                  </CardContent>
+                )}
+              </Card>
+            );
+          };
+
+          const items = blocks.map((block, bi) => {
+            const id = blockIds[bi]!;
+            const isSuperset = block.length > 1;
+            const card = isSuperset ? renderSupersetCard(block, id) : renderSoloCard(block[0]!, id);
+            if (!canReorderBlocks) {
+              return <div key={id}>{card}</div>;
+            }
+            return (
+              <SortableWorkoutBlock key={id} id={id}>
+                {(handle) => (
+                  <div className="flex gap-2 items-start">
+                    <div className="pt-3 shrink-0">{handle}</div>
+                    <div className="flex-1 min-w-0">{card}</div>
+                  </div>
+                )}
+              </SortableWorkoutBlock>
+            );
+          });
+
+          if (canReorderBlocks) {
+            return (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(e) => void onDragEndBlocks(e)}
+              >
+                <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-4">{items}</div>
+                </SortableContext>
+              </DndContext>
+            );
+          }
+          return <div className="space-y-4">{items}</div>;
+        })()}
+
+      {isHistorySession && (
+        <Card className="rounded-2xl border">
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Workout date</CardTitle>
+            <p className="text-muted-foreground text-xs">Adjust when you trained (saved automatically on change).</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label className="text-xs">Performed at</Label>
+            <Input
+              type="datetime-local"
+              className="rounded-xl max-w-xs"
+              value={performedAtLocal}
+              onChange={(e) => setPerformedAtLocal(e.target.value)}
+              onBlur={() => {
+                if (!performedAtLocal) return;
+                const d = new Date(performedAtLocal);
+                if (Number.isNaN(d.getTime())) return;
+                patch.mutate({ action: "updateMetadata", performedAt: d.toISOString() });
+              }}
+              disabled={patch.isPending}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {isHistorySession && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-3">
@@ -417,17 +785,18 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           {!readinessNeeded && (
             <Button
               className="h-12 w-full rounded-xl"
-              onClick={() => {
-                patch.mutate(
-                  { action: "complete" },
-                  {
-                    onSuccess: () => {
-                      void qc.invalidateQueries({ queryKey: ["training-active"] });
-                      void qc.invalidateQueries({ queryKey: ["training-history"] });
-                      window.location.href = "/";
-                    },
-                  },
-                );
+              onClick={async () => {
+                try {
+                  const res = (await patch.mutateAsync({ action: "complete" })) as {
+                    summary?: SessionCompleteSummaryPayload;
+                  };
+                  void qc.invalidateQueries({ queryKey: ["training-active"] });
+                  void qc.invalidateQueries({ queryKey: ["training-history"] });
+                  if (res.summary) setCompleteSplash(res.summary);
+                  else router.push("/");
+                } catch {
+                  /* PATCH error surfaced via mutation state */
+                }
               }}
               disabled={patch.isPending}
             >
@@ -515,9 +884,22 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         }}
         programExerciseId={swapTarget?.programExerciseId ?? ""}
         currentExerciseName={swapTarget?.name ?? ""}
+        currentExerciseMuscleTags={swapTarget?.muscleTags}
         sessionId={sessionId}
         onSuccess={() => qc.invalidateQueries({ queryKey: ["session", sessionId] })}
       />
+      {completeSplash && (
+        <SessionCompleteSplash
+          open
+          summary={completeSplash}
+          sessionId={sessionId}
+          onClose={() => {
+            setCompleteSplash(null);
+            void qc.invalidateQueries({ queryKey: ["session", sessionId] });
+            router.push("/");
+          }}
+        />
+      )}
     </div>
   );
 }

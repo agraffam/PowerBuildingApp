@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth/require-user";
 import { getBarIncrementLbForUser } from "@/lib/user-exercise-prefs";
 import { enrichProgramDaysWithInstanceReplacements } from "@/lib/exercise-swaps";
+import { getValidatedPlannedOrder, parsePlanOrderMap } from "@/lib/planned-exercise-order";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function GET() {
                 exercises: {
                   orderBy: { sortOrder: "asc" },
                   include: {
-                    exercise: { select: { id: true, name: true, slug: true, barIncrementLb: true } },
+                    exercise: { select: { id: true, name: true, slug: true, barIncrementLb: true, muscleTags: true } },
                   },
                 },
               },
@@ -55,7 +56,22 @@ export async function GET() {
       }
     }
 
-    const nextDay = daysWithSwaps[instance.nextDaySortOrder] ?? null;
+    const planMap = parsePlanOrderMap(instance.plannedExerciseOrderByDay);
+    const daysOrdered = daysWithSwaps.map((day) => {
+      const order = getValidatedPlannedOrder(
+        day.id,
+        day.exercises.map((e) => e.id),
+        planMap,
+      );
+      if (!order) return day;
+      const byId = new Map(day.exercises.map((e) => [e.id, e]));
+      return {
+        ...day,
+        exercises: order.map((id) => byId.get(id)!),
+      };
+    });
+
+    const nextDay = daysOrdered[instance.nextDaySortOrder] ?? null;
 
     const inProgressSession = await prisma.workoutSession.findFirst({
       where: {
@@ -86,7 +102,7 @@ export async function GET() {
 
     const instanceOut = {
       ...instance,
-      program: { ...instance.program, days: daysWithSwaps },
+      program: { ...instance.program, days: daysOrdered },
     };
 
     return NextResponse.json(
@@ -112,4 +128,59 @@ export async function GET() {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { ...noStoreJson, status: 500 });
   }
+}
+
+export async function PATCH(req: Request) {
+  const auth = await requireUserId();
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
+
+  const body = (await req.json().catch(() => null)) as {
+    action?: string;
+    programDayId?: string;
+    programExerciseIds?: unknown;
+  } | null;
+  if (!body || body.action !== "setPlannedOrder") {
+    return NextResponse.json({ error: "Invalid body" }, { ...noStoreJson, status: 400 });
+  }
+  const programDayId = typeof body.programDayId === "string" ? body.programDayId.trim() : "";
+  const ids = Array.isArray(body.programExerciseIds)
+    ? body.programExerciseIds.filter((x): x is string => typeof x === "string")
+    : [];
+  if (!programDayId || ids.length === 0) {
+    return NextResponse.json(
+      { error: "programDayId and programExerciseIds required" },
+      { ...noStoreJson, status: 400 },
+    );
+  }
+
+  const instance = await prisma.programInstance.findFirst({
+    where: { status: "ACTIVE", userId },
+    include: {
+      program: { include: { days: { include: { exercises: { select: { id: true } } } } } },
+    },
+  });
+  if (!instance) {
+    return NextResponse.json({ error: "No active program" }, { ...noStoreJson, status: 400 });
+  }
+
+  const day = instance.program.days.find((d) => d.id === programDayId);
+  if (!day) {
+    return NextResponse.json({ error: "Invalid training day" }, { ...noStoreJson, status: 400 });
+  }
+
+  const expected = new Set(day.exercises.map((e) => e.id));
+  if (ids.length !== expected.size || ids.some((id) => !expected.has(id))) {
+    return NextResponse.json({ error: "Invalid exercise order" }, { ...noStoreJson, status: 400 });
+  }
+
+  const parsed = parsePlanOrderMap(instance.plannedExerciseOrderByDay) ?? {};
+  const next = { ...parsed, [programDayId]: ids };
+
+  await prisma.programInstance.update({
+    where: { id: instance.id },
+    data: { plannedExerciseOrderByDay: next },
+  });
+
+  return NextResponse.json({ ok: true }, noStoreJson);
 }

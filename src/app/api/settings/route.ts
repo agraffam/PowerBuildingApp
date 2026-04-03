@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
+import { Prisma, type WeightUnit } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { WeightUnit } from "@prisma/client";
 import { coerceDefaultBarIncrementLb } from "@/lib/calculators";
 import { requireUserId } from "@/lib/auth/require-user";
+import {
+  mergeRestDurationsByRpe,
+  overridesFromMerged,
+  validateMergedRestMap,
+} from "@/lib/rest-by-rpe";
 
 export async function GET() {
   const auth = await requireUserId();
@@ -21,9 +26,11 @@ export async function GET() {
       },
     });
   }
+  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe, s.defaultRestSec);
   return NextResponse.json({
     ...s,
     plateIncrementLb: coerceDefaultBarIncrementLb(s.plateIncrementLb),
+    restDurationsByRpe: merged,
   });
 }
 
@@ -37,6 +44,8 @@ export async function PATCH(req: Request) {
     defaultRestSec?: number;
     plateIncrementLb?: number;
     plateIncrementKg?: number;
+    /** Full merged map, or null to clear overrides and use defaults only. */
+    restDurationsByRpe?: Record<string, number> | null;
   };
   let s = await prisma.userSettings.findUnique({ where: { userId } });
   if (!s) {
@@ -49,21 +58,43 @@ export async function PATCH(req: Request) {
         plateIncrementKg: body.plateIncrementKg ?? 2.5,
       },
     });
-  } else {
-    const nextLb =
-      body.plateIncrementLb != null ? coerceDefaultBarIncrementLb(body.plateIncrementLb) : undefined;
-    s = await prisma.userSettings.update({
-      where: { id: s.id },
-      data: {
-        ...(body.preferredWeightUnit != null && { preferredWeightUnit: body.preferredWeightUnit }),
-        ...(body.defaultRestSec != null && { defaultRestSec: body.defaultRestSec }),
-        ...(nextLb != null && { plateIncrementLb: nextLb }),
-        ...(body.plateIncrementKg != null && { plateIncrementKg: body.plateIncrementKg }),
-      },
-    });
   }
+
+  const nextDefaultRest =
+    body.defaultRestSec != null
+      ? Math.max(30, Math.min(600, Math.round(body.defaultRestSec)))
+      : s.defaultRestSec;
+
+  let restJson: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined;
+  if (body.restDurationsByRpe === null) {
+    restJson = Prisma.JsonNull;
+  } else if (body.restDurationsByRpe != null && typeof body.restDurationsByRpe === "object") {
+    const merged = validateMergedRestMap(body.restDurationsByRpe);
+    if (!merged) {
+      return NextResponse.json({ error: "Invalid restDurationsByRpe" }, { status: 400 });
+    }
+    const ov = overridesFromMerged(merged, nextDefaultRest);
+    restJson = ov ?? Prisma.JsonNull;
+  }
+
+  const nextLb =
+    body.plateIncrementLb != null ? coerceDefaultBarIncrementLb(body.plateIncrementLb) : undefined;
+
+  s = await prisma.userSettings.update({
+    where: { id: s.id },
+    data: {
+      ...(body.preferredWeightUnit != null && { preferredWeightUnit: body.preferredWeightUnit }),
+      ...(body.defaultRestSec != null && { defaultRestSec: nextDefaultRest }),
+      ...(nextLb != null && { plateIncrementLb: nextLb }),
+      ...(body.plateIncrementKg != null && { plateIncrementKg: body.plateIncrementKg }),
+      ...(restJson !== undefined && { restDurationsByRpe: restJson }),
+    },
+  });
+
+  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe, s.defaultRestSec);
   return NextResponse.json({
     ...s,
     plateIncrementLb: coerceDefaultBarIncrementLb(s.plateIncrementLb),
+    restDurationsByRpe: merged,
   });
 }

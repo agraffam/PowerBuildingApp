@@ -144,4 +144,3 @@ Put **Caddy** or **Nginx** in front on ports 80/443 with Let’s Encrypt, proxy 
 
 - [GIT_DEPLOY.md](./GIT_DEPLOY.md) — Git remotes, auth, generic pull + compose
 - [DEPLOY.md](./DEPLOY.md) — SQLite volume, seeds, `AUTH_SECRET`
-- [OCI_UBUNTU.md](./OCI_UBUNTU.md) — Same Docker patterns on Oracle Cloud (build-on-server variant)

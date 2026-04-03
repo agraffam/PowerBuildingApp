@@ -1,16 +1,28 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { WeightUnit } from "@prisma/client";
+import { Prisma, type WeightUnit } from "@prisma/client";
 import {
   prefillHistoryWeightsForSession,
   prefillPctWeightsForSession,
 } from "@/lib/prefill-session-weights";
 import { requireUserId } from "@/lib/auth/require-user";
+import { getValidatedPlannedOrder, parsePlanOrderMap } from "@/lib/planned-exercise-order";
 
-export async function POST() {
+export async function POST(req: Request) {
   const auth = await requireUserId();
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
+
+  let programDayId: string | undefined;
+  try {
+    const raw = await req.json().catch(() => ({}));
+    if (raw && typeof raw === "object" && "programDayId" in raw) {
+      const v = (raw as { programDayId?: unknown }).programDayId;
+      if (typeof v === "string" && v.trim()) programDayId = v.trim();
+    }
+  } catch {
+    /* empty body */
+  }
 
   const instance = await prisma.programInstance.findFirst({
     where: { status: "ACTIVE", userId },
@@ -38,7 +50,14 @@ export async function POST() {
   }
 
   const days = [...instance.program.days].sort((a, b) => a.sortOrder - b.sortOrder);
-  const day = days[instance.nextDaySortOrder];
+  let day = days[instance.nextDaySortOrder] ?? null;
+  if (programDayId != null) {
+    const picked = days.find((d) => d.id === programDayId);
+    if (!picked) {
+      return NextResponse.json({ error: "Invalid training day" }, { status: 400 });
+    }
+    day = picked;
+  }
   if (!day) {
     return NextResponse.json({ error: "Invalid program day cursor" }, { status: 400 });
   }
@@ -56,31 +75,55 @@ export async function POST() {
   });
   const repMap = new Map(replacements.map((r) => [r.programExerciseId, r.replacementExerciseId]));
 
-  const session = await prisma.workoutSession.create({
-    data: {
-      programInstanceId: instance.id,
-      programDayId: day.id,
-      weekIndex: instance.weekIndex,
-      status: "PLANNED",
-      intensityMultiplier: 1,
-      sets: {
-        create: exercises.flatMap((pe) => {
-          const alt = repMap.get(pe.id);
-          const loggedExerciseId =
-            alt != null && alt !== pe.exerciseId ? alt : undefined;
-          return Array.from({ length: pe.sets }, (_, setIndex) => ({
-            programExerciseId: pe.id,
-            loggedExerciseId,
-            setIndex,
-            weight: 0,
-            weightUnit: unit,
-            reps: pe.repTarget,
-            rpe: pe.targetRpe,
-            done: false,
-          }));
-        }),
+  const planMap = parsePlanOrderMap(instance.plannedExerciseOrderByDay);
+  const exerciseOrder = getValidatedPlannedOrder(
+    day.id,
+    exercises.map((e) => e.id),
+    planMap,
+  );
+
+  let planData: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined;
+  if (planMap && Object.prototype.hasOwnProperty.call(planMap, day.id)) {
+    const next = { ...planMap };
+    delete next[day.id];
+    planData = Object.keys(next).length > 0 ? next : Prisma.JsonNull;
+  }
+
+  const session = await prisma.$transaction(async (tx) => {
+    const ws = await tx.workoutSession.create({
+      data: {
+        programInstanceId: instance.id,
+        programDayId: day.id,
+        weekIndex: instance.weekIndex,
+        status: "PLANNED",
+        intensityMultiplier: 1,
+        ...(exerciseOrder ? { exerciseOrder } : {}),
+        sets: {
+          create: exercises.flatMap((pe) => {
+            const alt = repMap.get(pe.id);
+            const loggedExerciseId =
+              alt != null && alt !== pe.exerciseId ? alt : undefined;
+            return Array.from({ length: pe.sets }, (_, setIndex) => ({
+              programExerciseId: pe.id,
+              loggedExerciseId,
+              setIndex,
+              weight: 0,
+              weightUnit: unit,
+              reps: pe.repTarget,
+              rpe: pe.targetRpe,
+              done: false,
+            }));
+          }),
+        },
       },
-    },
+    });
+    if (planData !== undefined) {
+      await tx.programInstance.update({
+        where: { id: instance.id },
+        data: { plannedExerciseOrderByDay: planData },
+      });
+    }
+    return ws;
   });
 
   await prefillPctWeightsForSession(session.id, userId);
