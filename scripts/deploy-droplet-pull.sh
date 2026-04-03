@@ -3,6 +3,13 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+# Compose reads .env for YAML substitution; bash does not — load for preflight checks.
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
 if [[ ! -f docker-compose.droplet.yml ]]; then
   echo "docker-compose.droplet.yml missing (run from repo root)" >&2
   exit 1
