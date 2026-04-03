@@ -1,0 +1,26 @@
+# Droplet / production: pull a prebuilt image only (no `docker build` on the server).
+#
+# Prerequisites on the server:
+#   - .env next to this file with AUTH_SECRET and PB_IMAGE (copy from droplet.env.example)
+#   - For private GHCR images: `docker login ghcr.io` once (PAT with read:packages)
+#
+# Run:
+#   docker compose -f docker-compose.droplet.yml pull
+#   docker compose -f docker-compose.droplet.yml up -d
+#
+services:
+  web:
+    image: ${PB_IMAGE:?Set PB_IMAGE in .env — e.g. ghcr.io/your-org/your-repo:latest}
+    pull_policy: always
+    ports:
+      - "${HOST_PORT:-3500}:3000"
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env (min 16 chars)}
+      DATABASE_URL: file:/app/data/prod.db
+      PB_DATA_DIR: /app/data
+      START_SEED: ${START_SEED:-0}
+    volumes:
+      - pb-sqlite:/app/data
+
+volumes:
+  pb-sqlite:

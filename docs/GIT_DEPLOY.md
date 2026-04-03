@@ -63,9 +63,20 @@ git push -u origin main
    docker compose up --build -d
    ```
 
+## Prebuilt image (DigitalOcean / small VMs)
+
+To **avoid building on the server**, use GitHub Actions → **GHCR** and `docker-compose.droplet.yml`. See **[DIGITALOCEAN_DROPLET.md](./DIGITALOCEAN_DROPLET.md)** for the full droplet walkthrough.
+
+Summary:
+
+1. Push to `main` — **Docker publish** workflow pushes `ghcr.io/<owner>/<repo>:latest`.
+2. On the droplet: `.env` with `AUTH_SECRET` and `PB_IMAGE`, then `./scripts/deploy-droplet-pull.sh`.
+
 ## Updates — everything through Git
 
 On your laptop: edit, commit, push.
+
+### Option A — Build on the server (default `docker-compose.yml`)
 
 On the server:
 
@@ -81,11 +92,20 @@ Or use the helper script (after pull):
 ./scripts/deploy-pull-compose.sh
 ```
 
+### Option B — Prebuilt image (`docker-compose.droplet.yml`)
+
+```bash
+cd ~/powerbuilding
+git pull origin main
+./scripts/deploy-droplet-pull.sh
+```
+
 ## Optional: GitHub Actions (CI only)
 
 Running tests on every push is easy; **deploying** to OCI from Actions usually means **SSH** from the runner to your VM using a **stored private key** as a GitHub secret—do that only if you’re comfortable with that model. This repo does not require Actions for a simple Git pull + Compose workflow on the VM.
 
 ## Related
 
+- [DIGITALOCEAN_DROPLET.md](./DIGITALOCEAN_DROPLET.md) — DigitalOcean droplet + prebuilt GHCR image.
 - [OCI_UBUNTU.md](./OCI_UBUNTU.md) — Oracle Cloud + Ubuntu + Docker.
 - [DEPLOY.md](./DEPLOY.md) — Compose behaviour, SQLite volume, seed, restarts.
