@@ -12,20 +12,21 @@ Everything needed to **build and run** the app lives in this repository **except
 
 ## One-time: create the remote repository
 
-On GitHub (or GitLab, etc.): create an empty **private** repository.
+This project’s GitHub remote: **https://github.com/agraffam/PowerBuildingApp**
 
-On your laptop, from the project root:
+On your laptop, from the project root (first time only):
 
 ```bash
-git status
-git add -A
-git commit -m "Initial commit: Powerbuild app"
-git branch -M main
-git remote add origin https://github.com/YOUR_USER/YOUR_REPO.git
+git remote add origin https://github.com/agraffam/PowerBuildingApp.git
+# or: git remote set-url origin https://github.com/agraffam/PowerBuildingApp.git
 git push -u origin main
 ```
 
-Use **SSH** remote (`git@github.com:...`) if you prefer SSH keys.
+**Authentication:** GitHub no longer accepts account passwords over HTTPS. Use one of:
+
+- **GitHub CLI:** `gh auth login`, then `git push -u origin main`
+- **SSH:** `git remote set-url origin git@github.com:agraffam/PowerBuildingApp.git` (add your SSH key in GitHub → Settings → SSH keys), then `git push -u origin main`
+- **HTTPS + Personal Access Token:** when prompted for password, paste a [fine-grained or classic token](https://github.com/settings/tokens) with `repo` scope
 
 ## Server (OCI / any Linux) — first deploy
 
