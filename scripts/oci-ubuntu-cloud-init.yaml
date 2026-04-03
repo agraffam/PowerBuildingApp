@@ -1,0 +1,24 @@
+#cloud-config
+# Paste into OCI Compute "User data" (cloud-init) for Ubuntu 22.04, or save and pass
+# `cat oci-ubuntu-cloud-init.yaml | base64 -w0` if the API requires base64.
+#
+# Installs Docker Engine + Compose plugin from Docker's official Ubuntu repo.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+
+runcmd:
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - |
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu jammy stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - usermod -aG docker ubuntu
+
+final_message: "Docker installed. Re-login (or reboot) so user 'ubuntu' is in group docker."

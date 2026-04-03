@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum BlockType {
+  HYPERTROPHY
+  STRENGTH
+  PEAKING
+}
+
+enum SessionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum WeightUnit {
+  KG
+  LB
+}
+
+enum ProgramInstanceStatus {
+  ACTIVE
+  COMPLETED
+}
+
+model User {
+  id                 String                @id @default(cuid())
+  email              String                @unique
+  passwordHash       String
+  name               String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  settings           UserSettings?
+  ownedPrograms      Program[]             @relation("OwnedPrograms")
+  programInstances   ProgramInstance[]
+  strengthProfiles   UserStrengthProfile[]
+  exerciseLiftPrefs  UserExerciseLift[]
+}
+
+model UserSettings {
+  id                   String     @id @default(cuid())
+  userId               String     @unique
+  user                 User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferredWeightUnit  WeightUnit @default(LB)
+  defaultRestSec       Int        @default(120)
+  plateIncrementLb     Float      @default(2.5)
+  plateIncrementKg     Float      @default(2.5)
+  updatedAt            DateTime   @updatedAt
+}
+
+model Exercise {
+  id                 String                @id @default(cuid())
+  name               String
+  slug               String                @unique
+  muscleTags         String                @default("") // comma-separated
+  notes              String?
+  /** Library default bar step (lb). Per-user override in UserExerciseLift. */
+  barIncrementLb     Float?
+  createdAt          DateTime              @default(now())
+  programUses        ProgramExercise[]
+  userStrengthProfiles UserStrengthProfile[]
+  userLiftPrefs      UserExerciseLift[]
+  instanceReplacementPicks ProgramInstanceExerciseReplacement[] @relation("InstanceReplacementExercise")
+  sessionSwapPicks         WorkoutSessionExerciseSwap[]         @relation("SessionSwapExercise")
+  loggedSetOverrides       LoggedSet[]                          @relation("LoggedSetExerciseOverride")
+}
+
+model UserStrengthProfile {
+  id             String     @id @default(cuid())
+  userId         String
+  exerciseId     String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise       Exercise   @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  estimatedOneRm Float
+  weightUnit     WeightUnit
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([userId, exerciseId])
+  @@index([exerciseId])
+}
+
+/** Per-user bar increment override for an exercise (replaces PATCH on Exercise.barIncrementLb). */
+model UserExerciseLift {
+  id              String   @id @default(cuid())
+  userId          String
+  exerciseId      String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise        Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  barIncrementLb  Float?
+
+  @@unique([userId, exerciseId])
+}
+
+model Program {
+  id             String            @id @default(cuid())
+  name           String
+  durationWeeks  Int
+  createdAt      DateTime          @default(now())
+  ownerId        String?
+  owner          User?             @relation("OwnedPrograms", fields: [ownerId], references: [id], onDelete: SetNull)
+  blocks         ProgramBlock[]
+  days           ProgramDay[]
+  instances      ProgramInstance[]
+
+  @@index([ownerId])
+}
+
+model ProgramBlock {
+  id        String    @id @default(cuid())
+  programId String
+  program   Program   @relation(fields: [programId], references: [id], onDelete: Cascade)
+  blockType BlockType
+  sortOrder Int
+  startWeek Int
+  endWeek   Int
+}
+
+model ProgramDay {
+  id         String            @id @default(cuid())
+  programId  String
+  program    Program           @relation(fields: [programId], references: [id], onDelete: Cascade)
+  sortOrder  Int
+  label      String
+  exercises  ProgramExercise[]
+  sessions   WorkoutSession[]
+}
+
+model ProgramExercise {
+  id              String      @id @default(cuid())
+  programDayId    String
+  programDay      ProgramDay  @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  exerciseId      String
+  exercise        Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sortOrder       Int
+  sets            Int
+  repTarget       Int
+  targetRpe       Float
+  pctOf1rm        Float?
+  restSec         Int?
+  notes           String?
+  loggedSets      LoggedSet[]
+  instanceReplacements ProgramInstanceExerciseReplacement[]
+  sessionExerciseSwaps WorkoutSessionExerciseSwap[]
+}
+
+model ProgramInstance {
+  id               String                  @id @default(cuid())
+  userId           String
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId        String
+  program          Program                 @relation(fields: [programId], references: [id], onDelete: Cascade)
+  status           ProgramInstanceStatus   @default(ACTIVE)
+  weekIndex        Int                     @default(0)
+  nextDaySortOrder Int                     @default(0)
+  startedAt        DateTime                @default(now())
+  sessions         WorkoutSession[]
+  exerciseReplacements ProgramInstanceExerciseReplacement[]
+
+  @@index([userId])
+}
+
+/** Per user instance: replace template exercise in a slot for all future sessions (and current when applied). */
+model ProgramInstanceExerciseReplacement {
+  id                    String          @id @default(cuid())
+  programInstanceId     String
+  programInstance       ProgramInstance @relation(fields: [programInstanceId], references: [id], onDelete: Cascade)
+  programExerciseId     String
+  programExercise       ProgramExercise @relation(fields: [programExerciseId], references: [id], onDelete: Cascade)
+  replacementExerciseId String
+  replacementExercise   Exercise        @relation("InstanceReplacementExercise", fields: [replacementExerciseId], references: [id], onDelete: Cascade)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@unique([programInstanceId, programExerciseId])
+  @@index([programExerciseId])
+}
+
+/** Override template exercise for one workout session only (takes precedence over instance replacement). */
+model WorkoutSessionExerciseSwap {
+  id                    String         @id @default(cuid())
+  workoutSessionId      String
+  workoutSession        WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  programExerciseId     String
+  programExercise       ProgramExercise @relation(fields: [programExerciseId], references: [id], onDelete: Cascade)
+  replacementExerciseId String
+  replacementExercise   Exercise       @relation("SessionSwapExercise", fields: [replacementExerciseId], references: [id], onDelete: Cascade)
+  createdAt             DateTime       @default(now())
+
+  @@unique([workoutSessionId, programExerciseId])
+  @@index([programExerciseId])
+}
+
+model WorkoutSession {
+  id                  String           @id @default(cuid())
+  programInstanceId   String
+  programInstance     ProgramInstance  @relation(fields: [programInstanceId], references: [id], onDelete: Cascade)
+  programDayId        String
+  programDay          ProgramDay       @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  weekIndex           Int
+  performedAt         DateTime         @default(now())
+  status              SessionStatus    @default(PLANNED)
+  sleep               Int?
+  stress              Int?
+  soreness            Int?
+  intensityMultiplier Float            @default(1)
+  readinessEntry      ReadinessEntry?
+  sets                LoggedSet[]
+  exerciseSwaps       WorkoutSessionExerciseSwap[]
+}
+
+model ReadinessEntry {
+  id               String         @id @default(cuid())
+  workoutSessionId String         @unique
+  workoutSession   WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  sleep            Int
+  stress           Int
+  soreness         Int
+  createdAt        DateTime       @default(now())
+}
+
+model LoggedSet {
+  id                 String          @id @default(cuid())
+  workoutSessionId   String
+  workoutSession     WorkoutSession  @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  programExerciseId  String
+  programExercise    ProgramExercise @relation(fields: [programExerciseId], references: [id], onDelete: Cascade)
+  /** Lift being logged when user swapped the template exercise (null = use programExercise.exerciseId). */
+  loggedExerciseId   String?
+  loggedExercise     Exercise?       @relation("LoggedSetExerciseOverride", fields: [loggedExerciseId], references: [id], onDelete: SetNull)
+  setIndex           Int
+  weight             Float
+  weightUnit         WeightUnit
+  reps               Int?
+  rpe                Float?
+  done               Boolean         @default(false)
+  completedAt        DateTime?
+
+  @@unique([workoutSessionId, programExerciseId, setIndex])
+  @@index([programExerciseId])
+  @@index([loggedExerciseId])
+}

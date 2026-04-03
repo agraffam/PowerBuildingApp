@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+npm-debug.log*
+playwright-report
+test-results
+coverage
+.cursor
+*.md
+docs
+e2e
+.vscode

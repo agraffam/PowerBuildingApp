@@ -1,0 +1,226 @@
+import type { WeightUnit as PrismaWeightUnit } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import {
+  displayFromKg,
+  normalizeWeightToKg,
+  oneRmToWorkingWeight,
+  resolvePlateIncrementForSession,
+  roundToIncrement,
+  suggestNextWeekLoad,
+  type WeightUnit,
+} from "@/lib/calculators";
+import { getBarIncrementLbForUser } from "@/lib/user-exercise-prefs";
+
+function toPreferredUnit(weight: number, fromUnit: WeightUnit, preferred: WeightUnit): number {
+  const kg = normalizeWeightToKg(weight, fromUnit);
+  return displayFromKg(kg, preferred);
+}
+
+/** After %1RM prefill: fill still-empty sets from last completed session, with progression when rules say bump. */
+export async function prefillHistoryWeightsForSession(sessionId: string, userId: string) {
+  const session = await prisma.workoutSession.findUnique({
+    where: { id: sessionId },
+    include: { programInstance: true },
+  });
+  if (!session || session.programInstance.userId !== userId) return;
+
+  const full = await prisma.workoutSession.findUnique({
+    where: { id: sessionId },
+    include: {
+      sets: {
+        include: {
+          programExercise: { include: { exercise: true } },
+        },
+      },
+    },
+  });
+  if (!full) return;
+
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const preferred: WeightUnit =
+    settings?.preferredWeightUnit === "KG" ? "KG" : "LB";
+  const plateDefaults = {
+    plateIncrementLb: settings?.plateIncrementLb ?? 2.5,
+    plateIncrementKg: settings?.plateIncrementKg ?? 2.5,
+  };
+  const mNow = full.intensityMultiplier ?? 1;
+
+  const byPe = new Map<string, (typeof full.sets)[number][]>();
+  for (const row of full.sets) {
+    if (!byPe.has(row.programExerciseId)) byPe.set(row.programExerciseId, []);
+    byPe.get(row.programExerciseId)!.push(row);
+  }
+  for (const arr of byPe.values()) arr.sort((a, b) => a.setIndex - b.setIndex);
+
+  for (const rows of byPe.values()) {
+    if (rows.length === 0) continue;
+    const peId = rows[0]!.programExerciseId;
+    const pe = rows[0]!.programExercise;
+    const needFill = rows.some((r) => !r.done && !(r.weight > 0));
+    if (!needFill) continue;
+
+    const prevSession = await prisma.workoutSession.findFirst({
+      where: {
+        id: { not: sessionId },
+        status: "COMPLETED",
+        programInstance: { userId },
+        sets: { some: { programExerciseId: peId, done: true } },
+      },
+      orderBy: { performedAt: "desc" },
+      include: {
+        sets: { where: { programExerciseId: peId }, orderBy: { setIndex: "asc" } },
+      },
+    });
+
+    const effId = rows[0]!.loggedExerciseId ?? pe.exerciseId;
+    const barLb = await getBarIncrementLbForUser(effId, userId, pe.exercise.barIncrementLb);
+    const plateInc = resolvePlateIncrementForSession(
+      preferred,
+      barLb,
+      plateDefaults,
+    );
+
+    if (!prevSession || prevSession.sets.length === 0) continue;
+
+    const prevSets = prevSession.sets;
+    const last = prevSets[prevSets.length - 1]!;
+    const mPrev = prevSession.intensityMultiplier ?? 1;
+    const scale = mPrev > 0 ? mNow / mPrev : 1;
+    const wLast =
+      toPreferredUnit(last.weight, last.weightUnit as WeightUnit, preferred) * scale;
+    const wRounded = roundToIncrement(wLast, plateInc);
+
+    const prog = suggestNextWeekLoad({
+      currentWeight: wRounded,
+      repGoal: pe.repTarget,
+      actualReps: last.reps ?? 0,
+      prescribedRpe: pe.targetRpe,
+      actualRpe: last.rpe,
+      plateIncrement: plateInc,
+    });
+
+    const uniformWeight = prog.bumped && prog.suggested > 0 ? prog.suggested : null;
+    const perIndexWeights =
+      uniformWeight == null
+        ? rows.map((_, i) => {
+            const ps = prevSets[Math.min(i, prevSets.length - 1)]!;
+            const wi =
+              toPreferredUnit(ps.weight, ps.weightUnit as WeightUnit, preferred) * scale;
+            return roundToIncrement(wi, plateInc);
+          })
+        : null;
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i]!;
+      if (r.done || r.weight > 0) continue;
+      const w = uniformWeight ?? perIndexWeights![i]!;
+      if (!(w > 0)) continue;
+      await prisma.loggedSet.update({
+        where: { id: r.id },
+        data: {
+          weight: w,
+          weightUnit: preferred as PrismaWeightUnit,
+        },
+      });
+    }
+  }
+}
+
+/** Copy working weight to other incomplete sets in the same exercise that are still at 0. */
+export async function mirrorWorkingWeightToRemainingSets(
+  sessionId: string,
+  sourceSetId: string,
+  userId: string,
+) {
+  const row = await prisma.loggedSet.findUnique({
+    where: { id: sourceSetId },
+    include: { workoutSession: { include: { programInstance: true } } },
+  });
+  if (!row || row.workoutSession.programInstance.userId !== userId) return;
+  if (!row.done || !(row.weight > 0)) return;
+
+  await prisma.loggedSet.updateMany({
+    where: {
+      workoutSessionId: sessionId,
+      programExerciseId: row.programExerciseId,
+      done: false,
+      id: { not: sourceSetId },
+      weight: { lte: 0 },
+    },
+    data: {
+      weight: row.weight,
+      weightUnit: row.weightUnit,
+    },
+  });
+}
+
+/** Apply %1RM-based weights for sets that are not done yet. Respects session.intensityMultiplier. */
+export async function prefillPctWeightsForSession(sessionId: string, userId: string) {
+  const session = await prisma.workoutSession.findUnique({
+    where: { id: sessionId },
+    include: {
+      programInstance: true,
+      sets: {
+        include: {
+          programExercise: {
+            include: {
+              exercise: {
+                include: {
+                  userStrengthProfiles: { where: { userId } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!session || session.programInstance.userId !== userId) return;
+
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const preferred: WeightUnit =
+    settings?.preferredWeightUnit === "KG" ? "KG" : "LB";
+  const plateDefaults = {
+    plateIncrementLb: settings?.plateIncrementLb ?? 2.5,
+    plateIncrementKg: settings?.plateIncrementKg ?? 2.5,
+  };
+  const m = session.intensityMultiplier ?? 1;
+
+  for (const row of session.sets) {
+    if (row.done) continue;
+    const pe = row.programExercise;
+    const pct = pe.pctOf1rm;
+    const effId = row.loggedExerciseId ?? pe.exerciseId;
+    const profile =
+      effId === pe.exerciseId
+        ? (pe.exercise.userStrengthProfiles[0] ?? null)
+        : await prisma.userStrengthProfile.findUnique({
+            where: { userId_exerciseId: { userId, exerciseId: effId } },
+          });
+    if (pct == null || profile == null || !(profile.estimatedOneRm > 0)) continue;
+
+    const exForBar =
+      effId === pe.exerciseId ? pe.exercise : await prisma.exercise.findUnique({ where: { id: effId } });
+    if (!exForBar) continue;
+    const barLb = await getBarIncrementLbForUser(effId, userId, exForBar.barIncrementLb);
+    const plateIncrement = resolvePlateIncrementForSession(
+      preferred,
+      barLb,
+      plateDefaults,
+    );
+
+    const unit = profile.weightUnit as WeightUnit;
+    const e1Kg = normalizeWeightToKg(profile.estimatedOneRm, unit);
+    const e1Preferred = displayFromKg(e1Kg, preferred);
+    const effective1Rm = e1Preferred * m;
+    const w = oneRmToWorkingWeight(effective1Rm, pct, preferred, plateIncrement);
+
+    await prisma.loggedSet.update({
+      where: { id: row.id },
+      data: {
+        weight: w,
+        weightUnit: preferred as PrismaWeightUnit,
+      },
+    });
+  }
+}
