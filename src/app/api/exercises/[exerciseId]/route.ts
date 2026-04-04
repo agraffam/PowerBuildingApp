@@ -24,7 +24,7 @@ export async function PATCH(
   const { userId } = auth;
 
   const { exerciseId } = await ctx.params;
-  const body = (await req.json()) as { barIncrementLb?: unknown };
+  const body = (await req.json()) as { barIncrementLb?: unknown; isBodyweight?: unknown };
 
   let barIncrementLb: number | null | undefined;
   if ("barIncrementLb" in body) {
@@ -34,6 +34,14 @@ export async function PATCH(
       const msg = e instanceof Error ? e.message : "Invalid bar increment";
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+  }
+
+  let isBodyweight: boolean | undefined;
+  if ("isBodyweight" in body) {
+    if (typeof body.isBodyweight !== "boolean") {
+      return NextResponse.json({ error: "isBodyweight must be boolean" }, { status: 400 });
+    }
+    isBodyweight = body.isBodyweight;
   }
 
   const existing = await prisma.exercise.findUnique({ where: { id: exerciseId } });
@@ -51,12 +59,22 @@ export async function PATCH(
     });
   }
 
+  if (isBodyweight !== undefined) {
+    await prisma.exercise.update({
+      where: { id: exerciseId },
+      data: { isBodyweight },
+    });
+  }
+
   const pref = await prisma.userExerciseLift.findUnique({
     where: { userId_exerciseId: { userId, exerciseId } },
   });
 
+  const fresh = await prisma.exercise.findUnique({ where: { id: exerciseId } });
+  if (!fresh) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   return NextResponse.json({
-    ...existing,
-    barIncrementLb: pref?.barIncrementLb ?? existing.barIncrementLb,
+    ...fresh,
+    barIncrementLb: pref?.barIncrementLb ?? fresh.barIncrementLb,
   });
 }

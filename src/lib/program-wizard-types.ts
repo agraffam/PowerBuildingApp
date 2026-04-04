@@ -7,6 +7,8 @@ export type WizardExercise = {
   targetRpe: number;
   pctOf1rm?: number | null;
   restSec?: number | null;
+  /** null = use exercise library default; true/false overrides bodyweight for this slot. */
+  useBodyweight?: boolean | null;
   /** Same label on consecutive exercises = superset (e.g. A, B). */
   supersetGroup?: string | null;
 };

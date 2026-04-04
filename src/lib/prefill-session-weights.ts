@@ -9,6 +9,7 @@ import {
   suggestNextWeekLoad,
   type WeightUnit,
 } from "@/lib/calculators";
+import { effectiveUseBodyweight } from "@/lib/exercise-bodyweight";
 import { getBarIncrementLbForUser } from "@/lib/user-exercise-prefs";
 
 function toPreferredUnit(weight: number, fromUnit: WeightUnit, preferred: WeightUnit): number {
@@ -56,6 +57,14 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
     if (rows.length === 0) continue;
     const peId = rows[0]!.programExerciseId;
     const pe = rows[0]!.programExercise;
+    if (
+      effectiveUseBodyweight(
+        { useBodyweight: pe.useBodyweight },
+        { isBodyweight: pe.exercise.isBodyweight },
+      )
+    ) {
+      continue;
+    }
     const needFill = rows.some((r) => !r.done && !(r.weight > 0));
     if (!needFill) continue;
 
@@ -134,10 +143,18 @@ export async function mirrorWorkingWeightToRemainingSets(
 ) {
   const row = await prisma.loggedSet.findUnique({
     where: { id: sourceSetId },
-    include: { workoutSession: { include: { programInstance: true } } },
+    include: {
+      workoutSession: { include: { programInstance: true } },
+      programExercise: { include: { exercise: true } },
+    },
   });
   if (!row || row.workoutSession.programInstance.userId !== userId) return;
-  if (!row.done || !(row.weight > 0)) return;
+  if (!row.done) return;
+  const bw = effectiveUseBodyweight(
+    { useBodyweight: row.programExercise.useBodyweight },
+    { isBodyweight: row.programExercise.exercise.isBodyweight },
+  );
+  if (!bw && !(row.weight > 0)) return;
 
   await prisma.loggedSet.updateMany({
     where: {
@@ -189,6 +206,14 @@ export async function prefillPctWeightsForSession(sessionId: string, userId: str
   for (const row of session.sets) {
     if (row.done) continue;
     const pe = row.programExercise;
+    if (
+      effectiveUseBodyweight(
+        { useBodyweight: pe.useBodyweight },
+        { isBodyweight: pe.exercise.isBodyweight },
+      )
+    ) {
+      continue;
+    }
     const pct = pe.pctOf1rm;
     const effId = row.loggedExerciseId ?? pe.exerciseId;
     const profile =

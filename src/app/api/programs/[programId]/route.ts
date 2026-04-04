@@ -171,6 +171,7 @@ export async function PATCH(
                     targetRpe: ex.targetRpe,
                     pctOf1rm: ex.pctOf1rm ?? null,
                     restSec: ex.restSec ?? null,
+                    useBodyweight: ex.useBodyweight ?? null,
                   };
                 }),
               },

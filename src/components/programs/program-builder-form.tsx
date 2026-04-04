@@ -59,6 +59,7 @@ function emptyExercise(): WizardExercise {
     targetRpe: 8,
     pctOf1rm: null,
     restSec: 120,
+    useBodyweight: null,
     supersetGroup: null,
   };
 }
@@ -534,6 +535,33 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                           min={15}
                           max={3600}
                         />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Bodyweight</Label>
+                        <Select
+                          value={
+                            ex.useBodyweight === null || ex.useBodyweight === undefined
+                              ? "inherit"
+                              : ex.useBodyweight
+                                ? "yes"
+                                : "no"
+                          }
+                          onValueChange={(v) =>
+                            updateEx(di, ei, {
+                              useBodyweight: v === "inherit" ? null : v === "yes",
+                            })
+                          }
+                          disabled={structureLocked}
+                        >
+                          <SelectTrigger className="rounded-lg">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="inherit">Use library default</SelectItem>
+                            <SelectItem value="yes">Yes (BW)</SelectItem>
+                            <SelectItem value="no">No (load)</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       {!structureLocked && (
                         <div className="lg:col-span-7 flex justify-end">

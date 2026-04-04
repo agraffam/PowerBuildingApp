@@ -47,7 +47,8 @@ import {
   orderExercises,
   parseExerciseOrderJson,
 } from "@/lib/workout-blocks";
-import { restSecForRpe } from "@/lib/rest-by-rpe";
+import { effectiveUseBodyweight } from "@/lib/exercise-bodyweight";
+import { restSecForRpe, rpeToBandId } from "@/lib/rest-by-rpe";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 
 type LoggedSetRow = {
@@ -70,11 +71,13 @@ type ProgramExerciseRow = {
   targetRpe: number;
   pctOf1rm: number | null;
   restSec: number | null;
+  useBodyweight: boolean | null;
   exercise: {
     id: string;
     name: string;
     slug: string;
     barIncrementLb: number | null;
+    isBodyweight: boolean;
     effectiveBarIncrementLb?: number | null;
     muscleTags?: string;
   };
@@ -105,6 +108,7 @@ type SessionPayload = {
     plateIncrementKg: number;
     restDurationsByRpe: Record<string, number>;
   } | null;
+  canEditProgramRest: boolean;
   previousByExerciseId: Record<
     string,
     { weight: number; weightUnit: string; reps: number | null; rpe: number | null }[]
@@ -159,11 +163,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       return r.json() as Promise<SessionPayload>;
     },
   });
-
-  useEffect(() => {
-    if (!q.data?.settings) return;
-    useWorkoutSessionStore.setState({ restDurationSec: q.data.settings.defaultRestSec });
-  }, [q.data?.settings]);
 
   useEffect(() => {
     if (completeSplash) clearRest();
@@ -308,7 +307,16 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           .sort((a, b) => a.setIndex - b.setIndex);
         return rs[setIndex]?.done === true;
       });
-      if (allDone) startRest(restSec);
+      if (allDone) {
+        const peRow = payload.session.programDay.exercises.find((e) => e.id === row.programExerciseId);
+        const rpeBand = hasPrescribedRest ? null : rpeToBandId(row.rpe ?? peRow?.targetRpe ?? 8);
+        startRest(restSec, {
+          rpeBand,
+          prescribedRest: hasPrescribedRest,
+          programExerciseIds: block.map((e) => e.id),
+          canEditProgramRest: payload.canEditProgramRest,
+        });
+      }
     },
     [patch, qc, sessionId, startRest],
   );
@@ -572,6 +580,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           prog={prog}
                           progressionStep={plateInc}
                           savePending={patch.isPending}
+                          bodyweight={effectiveUseBodyweight(
+                            { useBodyweight: ex.useBodyweight },
+                            { isBodyweight: ex.exercise.isBodyweight },
+                          )}
                           onCommitSet={(body) => void commitSet(body)}
                         />
                       );
@@ -681,6 +693,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                 prog={prog}
                                 progressionStep={plateInc}
                                 savePending={patch.isPending}
+                                bodyweight={effectiveUseBodyweight(
+                                  { useBodyweight: ex.useBodyweight },
+                                  { isBodyweight: ex.exercise.isBodyweight },
+                                )}
                                 onCommitSet={(body) => void commitSet(body)}
                               />
                             </div>
@@ -891,7 +907,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         </DialogContent>
       </Dialog>
 
-      {!isHistorySession && <RestTimerRing />}
+      {!isHistorySession && <RestTimerRing sessionId={sessionId} />}
       <ExerciseLibrarySheet />
       <ExerciseSwapDialog
         open={swapTarget != null}
@@ -930,6 +946,7 @@ function SetRowEditor({
   prog,
   progressionStep,
   savePending,
+  bodyweight,
   onCommitSet,
 }: {
   row: LoggedSetRow;
@@ -941,6 +958,7 @@ function SetRowEditor({
   prog: ReturnType<typeof suggestNextWeekLoad>;
   progressionStep: number;
   savePending: boolean;
+  bodyweight: boolean;
   onCommitSet: (body: object) => void;
 }) {
   const [local, setLocal] = useState({
@@ -951,23 +969,27 @@ function SetRowEditor({
 
   useEffect(() => {
     setLocal({
-      weight: String(row.weight || ""),
+      weight: bodyweight ? "0" : String(row.weight || ""),
       reps: row.reps != null ? String(row.reps) : String(repTarget),
       rpe: row.rpe != null ? String(row.rpe) : String(targetRpe),
     });
-  }, [row.weight, row.reps, row.rpe, repTarget, targetRpe]);
+  }, [row.weight, row.reps, row.rpe, repTarget, targetRpe, bodyweight]);
 
-  const baselineWeight = String(row.weight || "");
+  const baselineWeight = bodyweight ? "0" : String(row.weight || "");
   const baselineReps = row.reps != null ? String(row.reps) : String(repTarget);
   const baselineRpe = row.rpe != null ? String(row.rpe) : String(targetRpe);
   const dirty =
-    local.weight !== baselineWeight || local.reps !== baselineReps || local.rpe !== baselineRpe;
+    local.reps !== baselineReps ||
+    local.rpe !== baselineRpe ||
+    (!bodyweight && local.weight !== baselineWeight);
+
+  const weightForCommit = bodyweight ? 0 : Number(local.weight) || 0;
 
   const saveFields = () => {
     onCommitSet({
       action: "set",
       setId: row.id,
-      weight: Number(local.weight) || 0,
+      weight: weightForCommit,
       weightUnit: unit,
       reps: local.reps === "" ? null : Number(local.reps),
       rpe: local.rpe === "" ? null : Number(local.rpe),
@@ -996,7 +1018,7 @@ function SetRowEditor({
                 onCommitSet({
                   action: "set",
                   setId: row.id,
-                  weight: Number(local.weight) || 0,
+                  weight: weightForCommit,
                   weightUnit: unit,
                   reps: local.reps === "" ? null : Number(local.reps),
                   rpe: local.rpe === "" ? null : Number(local.rpe),
@@ -1026,18 +1048,30 @@ function SetRowEditor({
           </span>
         </p>
       )}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Weight ({unit})</Label>
-          <Input
-            type="text"
-            inputMode="decimal"
-            className="rounded-lg"
-            value={local.weight}
-            placeholder={ghost ? `${ghost.weight}` : "0"}
-            onChange={(e) => setLocal((l) => ({ ...l, weight: e.target.value }))}
-          />
-        </div>
+      <div
+        className={
+          bodyweight ? "grid grid-cols-2 gap-3" : "grid grid-cols-3 gap-3"
+        }
+      >
+        {!bodyweight && (
+          <div className="space-y-1">
+            <Label className="text-xs">Weight ({unit})</Label>
+            <Input
+              type="text"
+              inputMode="decimal"
+              className="rounded-lg"
+              value={local.weight}
+              placeholder={ghost ? `${ghost.weight}` : "0"}
+              onChange={(e) => setLocal((l) => ({ ...l, weight: e.target.value }))}
+            />
+          </div>
+        )}
+        {bodyweight && (
+          <div className="space-y-1 col-span-2">
+            <Label className="text-xs">Load</Label>
+            <p className="text-sm font-medium rounded-lg border bg-muted/40 px-3 py-2">Bodyweight</p>
+          </div>
+        )}
         <div className="space-y-1">
           <Label className="text-xs">Reps</Label>
           <Input
@@ -1059,7 +1093,7 @@ function SetRowEditor({
           />
         </div>
       </div>
-      {prog.bumped && row.done && (
+      {!bodyweight && prog.bumped && row.done && (
         <p className="text-xs text-muted-foreground">
           Next week idea: ~{prog.suggested.toFixed(1)} {unit} (+{(prog.bumpPct * 100).toFixed(1)}%), nearest{" "}
           {progressionStep % 1 === 0 ? progressionStep.toFixed(0) : progressionStep.toFixed(1)} {unit} step

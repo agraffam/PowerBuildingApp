@@ -62,6 +62,7 @@ export async function GET(
           exercise: {
             ...pe.exercise,
             muscleTags: pe.exercise.muscleTags,
+            isBodyweight: pe.exercise.isBodyweight,
             effectiveBarIncrementLb: barByEffectiveId.get(pe.exerciseId) ?? null,
           },
         };
@@ -73,6 +74,7 @@ export async function GET(
           name: ex.name,
           slug: ex.slug,
           barIncrementLb: ex.barIncrementLb,
+          isBodyweight: ex.isBodyweight,
           muscleTags: ex.muscleTags,
           effectiveBarIncrementLb: barByEffectiveId.get(effId) ?? null,
         },
@@ -85,11 +87,16 @@ export async function GET(
     programDay: programDayEnriched,
   };
 
+  const prog = session.programInstance.program;
+  const canEditProgramRest =
+    prog.ownerId != null && prog.ownerId === userId;
+
   return NextResponse.json({
     session: sessionOut,
     settings,
     previousByExerciseId: prevObj,
     displayUnit,
+    canEditProgramRest,
   });
 }
 

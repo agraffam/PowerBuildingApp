@@ -44,6 +44,7 @@ type WizardBody = {
       targetRpe: number;
       pctOf1rm?: number | null;
       restSec?: number | null;
+      useBodyweight?: boolean | null;
       supersetGroup?: string | null;
     }[];
   }[];
@@ -107,6 +108,7 @@ export async function POST(req: Request) {
                     targetRpe: ex.targetRpe,
                     pctOf1rm: ex.pctOf1rm ?? null,
                     restSec: ex.restSec ?? null,
+                    useBodyweight: ex.useBodyweight ?? null,
                   };
                 }),
               },

@@ -63,6 +63,8 @@ model Exercise {
   slug               String                @unique
   muscleTags         String                @default("") // comma-separated
   notes              String?
+  /** Library default: log sets as bodyweight (weight stored as 0). */
+  isBodyweight       Boolean               @default(false)
   /** Library default bar step (lb). Per-user override in UserExerciseLift. */
   barIncrementLb     Float?
   createdAt          DateTime              @default(now())
@@ -148,6 +150,8 @@ model ProgramExercise {
   targetRpe       Float
   pctOf1rm        Float?
   restSec         Int?
+  /** null = follow Exercise.isBodyweight; true/false overrides for this slot. */
+  useBodyweight   Boolean?
   notes           String?
   loggedSets      LoggedSet[]
   instanceReplacements ProgramInstanceExerciseReplacement[]

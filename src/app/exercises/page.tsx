@@ -24,6 +24,7 @@ type CatalogExercise = {
   slug: string;
   muscleTags: string;
   barIncrementLb: number | null;
+  isBodyweight: boolean;
 };
 
 export default function ExercisesPage() {
@@ -42,12 +43,19 @@ export default function ExercisesPage() {
     },
   });
 
-  const patchBar = useMutation({
-    mutationFn: async ({ id, barIncrementLb }: { id: string; barIncrementLb: number | null }) => {
-      const r = await fetch(`/api/exercises/${id}`, {
+  const patchExercise = useMutation({
+    mutationFn: async (p: {
+      id: string;
+      barIncrementLb?: number | null;
+      isBodyweight?: boolean;
+    }) => {
+      const body: Record<string, unknown> = {};
+      if (p.barIncrementLb !== undefined) body.barIncrementLb = p.barIncrementLb;
+      if (p.isBodyweight !== undefined) body.isBodyweight = p.isBodyweight;
+      const r = await fetch(`/api/exercises/${p.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ barIncrementLb }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
@@ -154,11 +162,11 @@ export default function ExercisesPage() {
                       <Select
                         value={ex.barIncrementLb == null ? "default" : String(ex.barIncrementLb)}
                         onValueChange={(v) => {
-                          if (!v || patchBar.isPending) return;
+                          if (!v || patchExercise.isPending) return;
                           const barIncrementLb = v === "default" ? null : Number(v);
-                          patchBar.mutate({ id: ex.id, barIncrementLb });
+                          patchExercise.mutate({ id: ex.id, barIncrementLb });
                         }}
-                        disabled={patchBar.isPending}
+                        disabled={patchExercise.isPending}
                       >
                         <SelectTrigger className="rounded-xl h-9 text-sm">
                           <SelectValue placeholder="Increment" />
@@ -168,6 +176,25 @@ export default function ExercisesPage() {
                           <SelectItem value="2.5">2.5 lb</SelectItem>
                           <SelectItem value="5">5 lb</SelectItem>
                           <SelectItem value="10">10 lb</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Log as bodyweight</Label>
+                      <Select
+                        value={ex.isBodyweight ? "yes" : "no"}
+                        onValueChange={(v) => {
+                          if (!v || patchExercise.isPending) return;
+                          patchExercise.mutate({ id: ex.id, isBodyweight: v === "yes" });
+                        }}
+                        disabled={patchExercise.isPending}
+                      >
+                        <SelectTrigger className="rounded-xl h-9 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="no">Weighted</SelectItem>
+                          <SelectItem value="yes">Bodyweight</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

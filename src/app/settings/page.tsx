@@ -16,9 +16,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { NumericInput } from "@/components/ui/numeric-input";
 import {
-  RPE_REST_KEYS,
+  RPE_BAND_LABELS,
+  RPE_REST_BAND_IDS,
   RPE_REST_SEC_OPTIONS,
+  applyBandRestSec,
   defaultRestDurationsByRpe,
+  rpeKeysForBand,
+  rpeMapsEqual,
 } from "@/lib/rest-by-rpe";
 
 type SettingsPatchBody = {
@@ -28,14 +32,6 @@ type SettingsPatchBody = {
   plateIncrementKg?: number;
   restDurationsByRpe?: Record<string, number> | null;
 };
-
-function rpeMapsEqual(a: Record<string, number>, b: Record<string, number>) {
-  for (const k of RPE_REST_KEYS) {
-    const sk = String(k);
-    if ((a[sk] ?? 0) !== (b[sk] ?? 0)) return false;
-  }
-  return true;
-}
 
 export default function SettingsPage() {
   const qc = useQueryClient();
@@ -233,25 +229,25 @@ export default function SettingsPage() {
           <CardDescription>
             After a set, rest length when your program does not set a fixed <span className="font-medium">rest</span>{" "}
             per exercise. If any lift in a superset has a prescribed rest (program editor), that still wins (longest
-            in the group). Otherwise we use the RPE from your log (or target RPE) to pick a duration. Each row is one
-            of 30–210 seconds in 30s steps.
+            in the group). Otherwise we use the RPE from your log (or target RPE) to pick a duration. Four bands (6–6.5
+            through 9+) each use the same 30–210s steps; changing a band updates every half-step RPE in that range.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {rpeRestDraft && (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {RPE_REST_KEYS.map((k) => {
-                const sk = String(k);
+            <div className="grid gap-3 sm:grid-cols-2">
+              {RPE_REST_BAND_IDS.map((band) => {
+                const sk = String(rpeKeysForBand(band)[0]!);
                 const sec = rpeRestDraft[sk] ?? 60;
                 return (
-                  <div key={sk} className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">RPE {sk}</Label>
+                  <div key={band} className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{RPE_BAND_LABELS[band]}</Label>
                     <Select
                       value={String(sec)}
                       onValueChange={(v) => {
                         const n = Number(v);
                         if (!rpeRestDraft || !Number.isFinite(n)) return;
-                        setRpeRestDraft({ ...rpeRestDraft, [sk]: n });
+                        setRpeRestDraft(applyBandRestSec(rpeRestDraft, band, n));
                       }}
                     >
                       <SelectTrigger className="rounded-xl">

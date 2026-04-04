@@ -49,11 +49,13 @@ export async function POST(
             create: d.exercises.map((e) => ({
               exerciseId: e.exerciseId,
               sortOrder: e.sortOrder,
+              supersetGroup: e.supersetGroup,
               sets: e.sets,
               repTarget: e.repTarget,
               targetRpe: e.targetRpe,
               pctOf1rm: e.pctOf1rm,
               restSec: e.restSec,
+              useBodyweight: e.useBodyweight,
               notes: e.notes,
             })),
           },
