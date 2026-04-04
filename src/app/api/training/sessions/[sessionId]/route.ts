@@ -16,6 +16,7 @@ import {
   resolveEffectiveFromMaps,
 } from "@/lib/exercise-swaps";
 import { buildSessionCompletionSummary } from "@/lib/session-completion-summary";
+import { trainingSessionPatchBodySchema } from "@/lib/training-session-patch-schema";
 
 export async function GET(
   _req: Request,
@@ -101,32 +102,18 @@ export async function PATCH(
   const { userId } = auth;
 
   const { sessionId } = await ctx.params;
-  const body = (await req.json()) as
-    | {
-        action: "readiness";
-        sleep: number;
-        stress: number;
-        soreness: number;
-      }
-    | {
-        action: "set";
-        setId: string;
-        weight?: number;
-        weightUnit?: "KG" | "LB";
-        reps?: number | null;
-        rpe?: number | null;
-        done?: boolean;
-      }
-    | { action: "complete" }
-    | { action: "cancel" }
-    | {
-        action: "swapExercise";
-        programExerciseId: string;
-        replacementExerciseId: string;
-        scope: "session" | "program";
-      }
-    | { action: "reorderExercises"; orderedProgramExerciseIds: string[] }
-    | { action: "updateMetadata"; performedAt: string };
+  let json: unknown;
+  try {
+    json = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const parsedBody = trainingSessionPatchBodySchema.safeParse(json);
+  if (!parsedBody.success) {
+    const msg = parsedBody.error.issues[0]?.message ?? "Invalid body";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+  const body = parsedBody.data;
 
   const session = await prisma.workoutSession.findUnique({
     where: { id: sessionId },

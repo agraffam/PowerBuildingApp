@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { appendSessionCookieToResponse } from "@/lib/auth/session";
+import { checkRateLimit, clientIpFromRequest, loginRateLimitConfig } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   email: z.string().trim().email(),
@@ -10,6 +11,15 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const ip = clientIpFromRequest(req);
+  const lim = loginRateLimitConfig();
+  const rl = checkRateLimit(`login:${ip}`, lim.max, lim.windowMs);
+  if (!rl.ok) {
+    const res = NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
+    res.headers.set("Retry-After", String(rl.retryAfterSec));
+    return res;
+  }
+
   let json: unknown;
   try {
     json = await req.json();

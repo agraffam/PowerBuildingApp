@@ -13,6 +13,8 @@ npm run test:run    # single run (CI)
 
 ### What is covered
 
+- `src/lib/auth/password-policy.test.ts` — minimum length and common-password rejection (Zod field schema).
+- `src/lib/training-session-patch-schema.test.ts` — workout session `PATCH` body discriminated union (ranges, unknown actions).
 - `src/lib/calculators.test.ts` — Brzycki 1RM, bar increment coercion, `suggestNextWeekLoad`, rounding.
 - `src/components/training/exercise-library-sheet.test.tsx` — mocked `fetch` + Zustand store: library-all mode does not call `/api/exercises/top`, exercise slug loads history/recent rows, error state shows retry.
 
@@ -41,6 +43,14 @@ Smoke flows ([e2e/smoke.spec.ts](../e2e/smoke.spec.ts)):
 - `/programs` heading.
 - Header nav → Exercises.
 - `/settings` heading and training card copy.
+
+Additional specs:
+
+- [e2e/account.spec.ts](../e2e/account.spec.ts) — Account page display name save + reload.
+- [e2e/train-flow.spec.ts](../e2e/train-flow.spec.ts) — Start or continue workout → `/workout/:id` (serial; seed user).
+- [e2e/api-security.spec.ts](../e2e/api-security.spec.ts) — `GET /api/settings` unauthenticated 401; IDOR on training session across two users.
+
+Playwright runs **iPhone 14** and **chromium-desktop** projects; the dev server sets `AUTH_RATE_LIMIT_DISABLED=1` so e2e is not flaky on login/register.
 
 ### CI notes
 

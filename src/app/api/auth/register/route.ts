@@ -3,14 +3,25 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { appendSessionCookieToResponse } from "@/lib/auth/session";
+import { passwordFieldSchema } from "@/lib/auth/password-policy";
+import { checkRateLimit, clientIpFromRequest, registerRateLimitConfig } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   email: z.string().trim().email(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: passwordFieldSchema,
   name: z.string().trim().max(80).optional(),
 });
 
 export async function POST(req: Request) {
+  const ip = clientIpFromRequest(req);
+  const lim = registerRateLimitConfig();
+  const rl = checkRateLimit(`register:${ip}`, lim.max, lim.windowMs);
+  if (!rl.ok) {
+    const res = NextResponse.json({ error: "Too many registration attempts. Try again later." }, { status: 429 });
+    res.headers.set("Retry-After", String(rl.retryAfterSec));
+    return res;
+  }
+
   let json: unknown;
   try {
     json = await req.json();

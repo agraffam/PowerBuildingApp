@@ -83,10 +83,10 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={8}
+                minLength={10}
                 className="rounded-xl"
               />
-              <p className="text-muted-foreground text-xs">At least 8 characters.</p>
+              <p className="text-muted-foreground text-xs">At least 10 characters; avoid common passwords.</p>
             </div>
             <Button type="submit" className="w-full rounded-xl" disabled={loading}>
               {loading ? <Loader2 className="size-4 animate-spin" /> : "Register"}

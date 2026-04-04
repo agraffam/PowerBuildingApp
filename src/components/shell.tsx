@@ -14,6 +14,7 @@ const links = [
   { href: "/exercises", label: "Exercises" },
   { href: "/strength", label: "1RM" },
   { href: "/analytics", label: "Analytics" },
+  { href: "/account", label: "Account" },
   { href: "/settings", label: "Settings" },
   { href: "/help", label: "Help" },
 ];

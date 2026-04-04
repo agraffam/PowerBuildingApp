@@ -22,9 +22,16 @@ export default defineConfig({
         browserName: "chromium",
       },
     },
+    {
+      name: "chromium-desktop",
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1280, height: 720 },
+      },
+    },
   ],
   webServer: {
-    command: `npm run db:generate && npm run db:push && npm run db:seed && npx next dev --hostname 127.0.0.1 --port ${devPort}`,
+    command: `npm run db:generate && npm run db:push && npm run db:seed && AUTH_RATE_LIMIT_DISABLED=1 npx next dev --hostname 127.0.0.1 --port ${devPort}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

@@ -14,7 +14,7 @@ npm run dev
 
 Open [http://localhost:3500](http://localhost:3500). For LAN access: `npm run dev:lan`, and add `ALLOWED_DEV_ORIGINS=<LAN-IP>` to `.env` (see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)).
 
-**Docs:** [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (setup, scripts, layout), [docs/TESTING.md](docs/TESTING.md), [docs/MOBILE_QA.md](docs/MOBILE_QA.md).
+**Docs:** [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (setup, scripts, layout), [docs/TESTING.md](docs/TESTING.md), [docs/MOBILE_QA.md](docs/MOBILE_QA.md), [docs/SQLITE_OPS.md](docs/SQLITE_OPS.md), [docs/A11Y_CHECKLIST.md](docs/A11Y_CHECKLIST.md).
 
 **Git + server deploy:** [docs/GIT_DEPLOY.md](docs/GIT_DEPLOY.md) · **DigitalOcean droplet (prebuilt image):** [docs/DIGITALOCEAN_DROPLET.md](docs/DIGITALOCEAN_DROPLET.md) · **Docker / Compose:** [docs/DEPLOY.md](docs/DEPLOY.md).
 
@@ -24,6 +24,11 @@ Open [http://localhost:3500](http://localhost:3500). For LAN access: `npm run de
 npm run test:run   # Vitest
 npm run test:e2e   # Playwright (install browsers: npx playwright install chromium)
 ```
+
+## Production notes
+
+- Set a strong `AUTH_SECRET` (min 16 characters) and keep it private.
+- Tune optional `SESSION_MAX_AGE_SEC`, cookie `Secure` behavior (`SESSION_COOKIE_SECURE` / reverse proxy `X-Forwarded-Proto`), and auth rate limits via env (see `.env.example`).
 
 ## Deploy
 

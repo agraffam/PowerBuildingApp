@@ -4,7 +4,16 @@ import * as jose from "jose";
 import { getJwtSecretKeyBytes } from "@/lib/auth/jwt-secret";
 
 const COOKIE = "pb_session";
-const TTL_SEC = 60 * 60 * 24 * 30; // 30 days
+
+function sessionTtlSec(): number {
+  const raw = process.env.SESSION_MAX_AGE_SEC;
+  if (raw == null || raw === "") return 60 * 60 * 24 * 30; // 30 days default
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return 60 * 60 * 24 * 30;
+  return Math.min(Math.max(n, 300), 60 * 60 * 24 * 90); // 5 min … 90 days
+}
+
+const TTL_SEC = sessionTtlSec();
 
 /**
  * Browsers ignore Set-Cookie with Secure=true on http:// (common: iPhone → LAN IP + Docker with NODE_ENV=production).
