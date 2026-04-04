@@ -1,5 +1,6 @@
 import { PrismaClient, BlockType, WeightUnit } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { HOME_GYM_PROGRAM_NAMES, homeGymProgramCreateData } from "./home-gym-seed-programs";
 
 const prisma = new PrismaClient();
 
@@ -111,6 +112,7 @@ async function main() {
 
   /**
    * Prebuilt templates (web-informed: StrongLifts-style 5×5, PPL, bro split, upper/lower powerbuilding).
+   * Plus fifteen “Home Gym — …” programs (rack/barbell, dumbbells, bench, pull-up bar; see home-gym-seed-programs.ts).
    * Frequency: the app advances one “training day” per workout; calendar days/week is up to you.
    * Fewer weekly sessions = longer real-world time to finish one full cycle through all templates.
    */
@@ -124,7 +126,7 @@ async function main() {
   ] as const;
 
   await prisma.program.deleteMany({
-    where: { name: { in: [...PREBUILT_PROGRAM_NAMES] } },
+    where: { name: { in: [...PREBUILT_PROGRAM_NAMES, ...HOME_GYM_PROGRAM_NAMES] } },
   });
 
   const blocks8 = {
@@ -135,6 +137,8 @@ async function main() {
   };
 
   const E = exercises;
+
+  const homeGymCreates = homeGymProgramCreateData(E).map((data) => prisma.program.create({ data }));
 
   const programs = await prisma.$transaction([
     // 1) StrongLifts-style linear 5×5: two alternating workouts (typical 2–4×/wk).
@@ -471,6 +475,7 @@ async function main() {
         },
       },
     }),
+    ...homeGymCreates,
   ]);
 
   const hasActive = await prisma.programInstance.findFirst({
