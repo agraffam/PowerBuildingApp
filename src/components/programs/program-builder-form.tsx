@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NullableNumericInput, NumericInput } from "@/components/ui/numeric-input";
 import {
   Select,
   SelectContent,
@@ -179,6 +180,9 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
   });
 
   const submit = async () => {
+    const ae = document.activeElement;
+    if (ae instanceof HTMLElement) ae.blur();
+    await new Promise((r) => setTimeout(r, 0));
     setLoading(true);
     setError(null);
     try {
@@ -257,7 +261,10 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
         <Card className="rounded-2xl">
           <CardHeader>
             <CardTitle>Program details</CardTitle>
-            <CardDescription>6–12 week mesocycles.</CardDescription>
+            <CardDescription>
+              6–12 week mesocycles. Nothing is sent to the server until you use <span className="font-medium">Next</span>{" "}
+              and finish with <span className="font-medium">Create program</span> or <span className="font-medium">Save</span>.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -266,12 +273,12 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
             </div>
             <div className="space-y-2">
               <Label>Duration (weeks)</Label>
-              <Input
-                type="number"
+              <NumericInput
+                value={durationWeeks}
+                onValueChange={setDurationWeeks}
                 min={6}
                 max={12}
-                value={durationWeeks}
-                onChange={(e) => setDurationWeeks(Number(e.target.value) || 8)}
+                fallback={8}
                 className="rounded-xl"
               />
             </div>
@@ -321,24 +328,24 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Start week</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={durationWeeks}
+                  <NumericInput
                     className="w-20 rounded-lg"
                     value={b.startWeek}
-                    onChange={(e) => updateBlock(i, { startWeek: Number(e.target.value) || 1 })}
+                    onValueChange={(n) => updateBlock(i, { startWeek: n })}
+                    min={1}
+                    max={durationWeeks}
+                    fallback={b.startWeek}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">End week</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={durationWeeks}
+                  <NumericInput
                     className="w-20 rounded-lg"
                     value={b.endWeek}
-                    onChange={(e) => updateBlock(i, { endWeek: Number(e.target.value) || 1 })}
+                    onValueChange={(n) => updateBlock(i, { endWeek: n })}
+                    min={1}
+                    max={durationWeeks}
+                    fallback={b.endWeek}
                   />
                 </div>
                 <Button
@@ -448,48 +455,52 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Sets</Label>
-                        <Input
-                          type="number"
+                        <NumericInput
                           className="rounded-lg"
                           value={ex.sets}
                           disabled={structureLocked}
-                          onChange={(e) => updateEx(di, ei, { sets: Number(e.target.value) || 1 })}
+                          onValueChange={(n) => updateEx(di, ei, { sets: n })}
+                          min={1}
+                          max={99}
+                          fallback={ex.sets}
                         />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Rep target</Label>
-                        <Input
-                          type="number"
+                        <NumericInput
                           className="rounded-lg"
                           value={ex.repTarget}
                           disabled={structureLocked}
-                          onChange={(e) => updateEx(di, ei, { repTarget: Number(e.target.value) || 1 })}
+                          onValueChange={(n) => updateEx(di, ei, { repTarget: n })}
+                          min={1}
+                          max={999}
+                          fallback={ex.repTarget}
                         />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">RPE</Label>
-                        <Input
-                          type="number"
-                          step="0.5"
+                        <NumericInput
+                          decimals
+                          snapHalf
                           className="rounded-lg"
                           value={ex.targetRpe}
                           disabled={structureLocked}
-                          onChange={(e) => updateEx(di, ei, { targetRpe: Number(e.target.value) || 7 })}
+                          onValueChange={(n) => updateEx(di, ei, { targetRpe: n })}
+                          min={6}
+                          max={10}
+                          fallback={ex.targetRpe}
                         />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">%1RM</Label>
-                        <Input
-                          type="number"
+                        <NullableNumericInput
                           className="rounded-lg"
                           placeholder="—"
-                          value={ex.pctOf1rm ?? ""}
+                          value={ex.pctOf1rm ?? null}
                           disabled={structureLocked}
-                          onChange={(e) =>
-                            updateEx(di, ei, {
-                              pctOf1rm: e.target.value === "" ? null : Number(e.target.value),
-                            })
-                          }
+                          onValueChange={(n) => updateEx(di, ei, { pctOf1rm: n })}
+                          min={0}
+                          max={100}
                         />
                       </div>
                       <div className="space-y-1">
@@ -515,16 +526,13 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Rest (s)</Label>
-                        <Input
-                          type="number"
+                        <NullableNumericInput
                           className="rounded-lg"
-                          value={ex.restSec ?? ""}
+                          value={ex.restSec ?? null}
                           disabled={structureLocked}
-                          onChange={(e) =>
-                            updateEx(di, ei, {
-                              restSec: e.target.value === "" ? null : Number(e.target.value),
-                            })
-                          }
+                          onValueChange={(n) => updateEx(di, ei, { restSec: n })}
+                          min={15}
+                          max={3600}
                         />
                       </div>
                       {!structureLocked && (

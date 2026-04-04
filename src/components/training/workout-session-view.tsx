@@ -89,7 +89,8 @@ type SessionPayload = {
     soreness: number | null;
     intensityMultiplier: number;
     weekIndex: number;
-    performedAt?: string;
+    /** ISO string when set (e.g. completed workouts). */
+    performedAt?: string | null;
     exerciseOrder?: unknown;
     sets: LoggedSetRow[];
     programDay: {
@@ -570,6 +571,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           ghost={ghost}
                           prog={prog}
                           progressionStep={plateInc}
+                          savePending={patch.isPending}
                           onCommitSet={(body) => void commitSet(body)}
                         />
                       );
@@ -678,6 +680,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                 ghost={ghost}
                                 prog={prog}
                                 progressionStep={plateInc}
+                                savePending={patch.isPending}
                                 onCommitSet={(body) => void commitSet(body)}
                               />
                             </div>
@@ -731,23 +734,36 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         <Card className="rounded-2xl border">
           <CardHeader className="py-3">
             <CardTitle className="text-base">Workout date</CardTitle>
-            <p className="text-muted-foreground text-xs">Adjust when you trained (saved automatically on change).</p>
+            <p className="text-muted-foreground text-xs">Adjust when you trained, then save.</p>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <Label className="text-xs">Performed at</Label>
-            <Input
-              type="datetime-local"
-              className="rounded-xl max-w-xs"
-              value={performedAtLocal}
-              onChange={(e) => setPerformedAtLocal(e.target.value)}
-              onBlur={() => {
-                if (!performedAtLocal) return;
+          <CardContent className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Performed at</Label>
+              <Input
+                type="datetime-local"
+                className="rounded-xl max-w-xs"
+                value={performedAtLocal}
+                onChange={(e) => setPerformedAtLocal(e.target.value)}
+                disabled={patch.isPending}
+              />
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-xl"
+              disabled={
+                patch.isPending ||
+                !performedAtLocal ||
+                performedAtLocal === toDatetimeLocalValue(session.performedAt ?? "")
+              }
+              onClick={() => {
                 const d = new Date(performedAtLocal);
                 if (Number.isNaN(d.getTime())) return;
                 patch.mutate({ action: "updateMetadata", performedAt: d.toISOString() });
               }}
-              disabled={patch.isPending}
-            />
+            >
+              Save date
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -913,6 +929,7 @@ function SetRowEditor({
   ghost,
   prog,
   progressionStep,
+  savePending,
   onCommitSet,
 }: {
   row: LoggedSetRow;
@@ -923,6 +940,7 @@ function SetRowEditor({
   ghost?: { weight: number; weightUnit: string; reps: number | null; rpe: number | null };
   prog: ReturnType<typeof suggestNextWeekLoad>;
   progressionStep: number;
+  savePending: boolean;
   onCommitSet: (body: object) => void;
 }) {
   const [local, setLocal] = useState({
@@ -939,33 +957,65 @@ function SetRowEditor({
     });
   }, [row.weight, row.reps, row.rpe, repTarget, targetRpe]);
 
+  const baselineWeight = String(row.weight || "");
+  const baselineReps = row.reps != null ? String(row.reps) : String(repTarget);
+  const baselineRpe = row.rpe != null ? String(row.rpe) : String(targetRpe);
+  const dirty =
+    local.weight !== baselineWeight || local.reps !== baselineReps || local.rpe !== baselineRpe;
+
+  const saveFields = () => {
+    onCommitSet({
+      action: "set",
+      setId: row.id,
+      weight: Number(local.weight) || 0,
+      weightUnit: unit,
+      reps: local.reps === "" ? null : Number(local.reps),
+      rpe: local.rpe === "" ? null : Number(local.rpe),
+    });
+  };
+
   return (
     <div className="rounded-xl border bg-card/50 p-4 space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">Set {idx + 1}</span>
-        <Toggle
-          pressed={row.done}
-          onPressedChange={(nextDone) => {
-            if (nextDone) {
-              onCommitSet({
-                action: "set",
-                setId: row.id,
-                weight: Number(local.weight) || 0,
-                weightUnit: unit,
-                reps: local.reps === "" ? null : Number(local.reps),
-                rpe: local.rpe === "" ? null : Number(local.rpe),
-                done: true,
-              });
-            } else {
-              onCommitSet({ action: "set", setId: row.id, done: false });
-            }
-          }}
-          className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-        >
-          <Check className="size-4" />
-          Done
-        </Toggle>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="rounded-lg h-9"
+            disabled={!dirty || savePending}
+            onClick={() => saveFields()}
+          >
+            Save
+          </Button>
+          <Toggle
+            pressed={row.done}
+            onPressedChange={(nextDone) => {
+              if (nextDone) {
+                onCommitSet({
+                  action: "set",
+                  setId: row.id,
+                  weight: Number(local.weight) || 0,
+                  weightUnit: unit,
+                  reps: local.reps === "" ? null : Number(local.reps),
+                  rpe: local.rpe === "" ? null : Number(local.rpe),
+                  done: true,
+                });
+              } else {
+                onCommitSet({ action: "set", setId: row.id, done: false });
+              }
+            }}
+            className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
+            <Check className="size-4" />
+            Done
+          </Toggle>
+        </div>
       </div>
+      {dirty && (
+        <p className="text-xs text-amber-600 dark:text-amber-500">Unsaved changes — Save or use Done to log the set.</p>
+      )}
       {ghost && (
         <p className="text-muted-foreground text-xs">
           Last time:{" "}
@@ -980,52 +1030,32 @@ function SetRowEditor({
         <div className="space-y-1">
           <Label className="text-xs">Weight ({unit})</Label>
           <Input
-            type="number"
+            type="text"
+            inputMode="decimal"
             className="rounded-lg"
             value={local.weight}
             placeholder={ghost ? `${ghost.weight}` : "0"}
             onChange={(e) => setLocal((l) => ({ ...l, weight: e.target.value }))}
-            onBlur={() =>
-              onCommitSet({
-                action: "set",
-                setId: row.id,
-                weight: Number(local.weight) || 0,
-                weightUnit: unit,
-              })
-            }
           />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Reps</Label>
           <Input
-            type="number"
+            type="text"
+            inputMode="numeric"
             className="rounded-lg"
             value={local.reps}
             onChange={(e) => setLocal((l) => ({ ...l, reps: e.target.value }))}
-            onBlur={() =>
-              onCommitSet({
-                action: "set",
-                setId: row.id,
-                reps: local.reps === "" ? null : Number(local.reps),
-              })
-            }
           />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">RPE</Label>
           <Input
-            type="number"
-            step="0.5"
+            type="text"
+            inputMode="decimal"
             className="rounded-lg"
             value={local.rpe}
             onChange={(e) => setLocal((l) => ({ ...l, rpe: e.target.value }))}
-            onBlur={() =>
-              onCommitSet({
-                action: "set",
-                setId: row.id,
-                rpe: local.rpe === "" ? null : Number(local.rpe),
-              })
-            }
           />
         </div>
       </div>

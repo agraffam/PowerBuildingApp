@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,9 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { RPE_REST_KEYS, RPE_REST_SEC_OPTIONS } from "@/lib/rest-by-rpe";
+import { NumericInput } from "@/components/ui/numeric-input";
+import {
+  RPE_REST_KEYS,
+  RPE_REST_SEC_OPTIONS,
+  defaultRestDurationsByRpe,
+} from "@/lib/rest-by-rpe";
 
 type SettingsPatchBody = {
   preferredWeightUnit?: "KG" | "LB";
@@ -24,6 +28,14 @@ type SettingsPatchBody = {
   plateIncrementKg?: number;
   restDurationsByRpe?: Record<string, number> | null;
 };
+
+function rpeMapsEqual(a: Record<string, number>, b: Record<string, number>) {
+  for (const k of RPE_REST_KEYS) {
+    const sk = String(k);
+    if ((a[sk] ?? 0) !== (b[sk] ?? 0)) return false;
+  }
+  return true;
+}
 
 export default function SettingsPage() {
   const qc = useQueryClient();
@@ -44,13 +56,20 @@ export default function SettingsPage() {
     },
   });
 
+  const [unitDraft, setUnitDraft] = useState<"KG" | "LB">("LB");
+  const [defaultRestDraft, setDefaultRestDraft] = useState(180);
+  const [plateLbDraft, setPlateLbDraft] = useState(2.5);
+  const [plateKgDraft, setPlateKgDraft] = useState(2.5);
   const [rpeRestDraft, setRpeRestDraft] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
-    if (data?.restDurationsByRpe) {
-      setRpeRestDraft({ ...data.restDurationsByRpe });
-    }
-  }, [data?.restDurationsByRpe]);
+    if (!data) return;
+    setUnitDraft(data.preferredWeightUnit);
+    setDefaultRestDraft(data.defaultRestSec);
+    setPlateLbDraft(data.plateIncrementLb);
+    setPlateKgDraft(data.plateIncrementKg);
+    setRpeRestDraft({ ...data.restDurationsByRpe });
+  }, [data]);
 
   const save = useMutation({
     mutationFn: async (body: SettingsPatchBody) => {
@@ -64,6 +83,36 @@ export default function SettingsPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
   });
+
+  const dirty = useMemo(() => {
+    if (!data || !rpeRestDraft) return false;
+    if (unitDraft !== data.preferredWeightUnit) return true;
+    if (defaultRestDraft !== data.defaultRestSec) return true;
+    if (plateLbDraft !== data.plateIncrementLb) return true;
+    if (plateKgDraft !== data.plateIncrementKg) return true;
+    return !rpeMapsEqual(rpeRestDraft, data.restDurationsByRpe);
+  }, [
+    data,
+    rpeRestDraft,
+    unitDraft,
+    defaultRestDraft,
+    plateLbDraft,
+    plateKgDraft,
+  ]);
+
+  const saveAll = () => {
+    if (!data || !rpeRestDraft) return;
+    const body: SettingsPatchBody = {};
+    if (unitDraft !== data.preferredWeightUnit) body.preferredWeightUnit = unitDraft;
+    if (defaultRestDraft !== data.defaultRestSec) body.defaultRestSec = defaultRestDraft;
+    if (plateLbDraft !== data.plateIncrementLb) body.plateIncrementLb = plateLbDraft;
+    if (plateKgDraft !== data.plateIncrementKg) body.plateIncrementKg = plateKgDraft;
+    if (!rpeMapsEqual(rpeRestDraft, data.restDurationsByRpe)) {
+      body.restDurationsByRpe = { ...rpeRestDraft };
+    }
+    if (Object.keys(body).length === 0) return;
+    save.mutate(body);
+  };
 
   if (isLoading || !data) {
     return (
@@ -110,17 +159,12 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Training</CardTitle>
-          <CardDescription>Preferences apply to new logged sets.</CardDescription>
+          <CardDescription>Preferences apply to new logged sets. Use Save changes below.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label>Preferred weight unit</Label>
-            <Select
-              value={data.preferredWeightUnit}
-              onValueChange={(preferredWeightUnit) =>
-                save.mutate({ preferredWeightUnit: preferredWeightUnit as "KG" | "LB" })
-              }
-            >
+            <Select value={unitDraft} onValueChange={(v) => setUnitDraft(v as "KG" | "LB")}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -134,12 +178,13 @@ export default function SettingsPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Default rest (seconds)</Label>
-              <Input
-                type="number"
-                defaultValue={data.defaultRestSec}
-                onBlur={(e) =>
-                  save.mutate({ defaultRestSec: Number(e.target.value) || data.defaultRestSec })
-                }
+              <NumericInput
+                className="rounded-xl"
+                value={defaultRestDraft}
+                onValueChange={setDefaultRestDraft}
+                min={30}
+                max={600}
+                fallback={defaultRestDraft}
               />
               <p className="text-muted-foreground text-xs">
                 Fallback when rest can&apos;t be read from the RPE table (e.g. missing data). The table below uses
@@ -153,8 +198,8 @@ export default function SettingsPage() {
                 kg sessions.
               </p>
               <Select
-                value={String(data.plateIncrementLb)}
-                onValueChange={(v) => v && save.mutate({ plateIncrementLb: Number(v) })}
+                value={String(plateLbDraft)}
+                onValueChange={(v) => v && setPlateLbDraft(Number(v))}
               >
                 <SelectTrigger className="rounded-xl">
                   <SelectValue />
@@ -168,23 +213,17 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label>Plate increment (kg)</Label>
-              <Input
-                type="number"
-                step="0.5"
-                defaultValue={data.plateIncrementKg}
-                onBlur={(e) =>
-                  save.mutate({ plateIncrementKg: Number(e.target.value) || data.plateIncrementKg })
-                }
+              <NumericInput
+                decimals
+                className="rounded-xl"
+                value={plateKgDraft}
+                onValueChange={setPlateKgDraft}
+                min={0.5}
+                max={50}
+                fallback={plateKgDraft}
               />
             </div>
           </div>
-
-          {save.isSuccess && (
-            <p className="text-muted-foreground text-sm">Saved.</p>
-          )}
-          {save.isError && (
-            <p className="text-destructive text-sm">Could not save.</p>
-          )}
         </CardContent>
       </Card>
 
@@ -212,9 +251,7 @@ export default function SettingsPage() {
                       onValueChange={(v) => {
                         const n = Number(v);
                         if (!rpeRestDraft || !Number.isFinite(n)) return;
-                        const next = { ...rpeRestDraft, [sk]: n };
-                        setRpeRestDraft(next);
-                        save.mutate({ restDurationsByRpe: next });
+                        setRpeRestDraft({ ...rpeRestDraft, [sk]: n });
                       }}
                     >
                       <SelectTrigger className="rounded-xl">
@@ -239,23 +276,40 @@ export default function SettingsPage() {
               variant="outline"
               className="rounded-xl"
               disabled={save.isPending}
-              onClick={() => {
-                save.mutate(
-                  { restDurationsByRpe: null },
-                  {
-                    onSuccess: (j) => {
-                      const row = j as { restDurationsByRpe?: Record<string, number> };
-                      if (row.restDurationsByRpe) setRpeRestDraft({ ...row.restDurationsByRpe });
-                    },
-                  },
-                );
-              }}
+              onClick={() => setRpeRestDraft({ ...defaultRestDurationsByRpe() })}
             >
-              Reset to defaults
+              Reset RPE times to defaults (draft)
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border bg-muted/30 p-4">
+        <Button
+          type="button"
+          className="rounded-xl sm:w-auto w-full"
+          disabled={!dirty || save.isPending}
+          onClick={() => saveAll()}
+        >
+          {save.isPending ? (
+            <>
+              <Loader2 className="size-4 animate-spin mr-2 inline" />
+              Saving…
+            </>
+          ) : (
+            "Save changes"
+          )}
+        </Button>
+        {dirty && (
+          <p className="text-muted-foreground text-sm">You have unsaved changes.</p>
+        )}
+        {save.isSuccess && !dirty && (
+          <p className="text-muted-foreground text-sm">All changes saved.</p>
+        )}
+        {save.isError && (
+          <p className="text-destructive text-sm">Could not save. Try again.</p>
+        )}
+      </div>
     </div>
   );
 }

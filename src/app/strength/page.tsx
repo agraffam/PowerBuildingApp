@@ -68,7 +68,8 @@ function RowEditor({ ex }: { ex: Row }) {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          type="number"
+          type="text"
+          inputMode="decimal"
           className="w-24 rounded-lg font-mono"
           placeholder="e1RM"
           value={e1}
