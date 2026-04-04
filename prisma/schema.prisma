@@ -49,10 +49,10 @@ model UserSettings {
   userId               String     @unique
   user                 User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   preferredWeightUnit  WeightUnit @default(LB)
-  defaultRestSec       Int        @default(120)
+  defaultRestSec       Int        @default(180)
   plateIncrementLb     Float      @default(2.5)
   plateIncrementKg     Float      @default(2.5)
-  /** Optional overrides: { "6": sec, "6.5": sec, ... "10": sec } — merged with defaults from defaultRestSec. */
+  /** Optional overrides: { "6": sec, … "10": sec } — merged with built-in ladder (30–210s steps). */
   restDurationsByRpe   Json?
   updatedAt            DateTime   @updatedAt
 }

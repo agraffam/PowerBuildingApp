@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { RPE_REST_KEYS } from "@/lib/rest-by-rpe";
+import { RPE_REST_KEYS, RPE_REST_SEC_OPTIONS } from "@/lib/rest-by-rpe";
 
 type SettingsPatchBody = {
   preferredWeightUnit?: "KG" | "LB";
@@ -142,8 +142,8 @@ export default function SettingsPage() {
                 }
               />
               <p className="text-muted-foreground text-xs">
-                Baseline for RPE-based rests (RPE 8 in the table below). Also used when a program exercise has no
-                prescribed rest and the RPE map has no entry.
+                Fallback when rest can&apos;t be read from the RPE table (e.g. missing data). The table below uses
+                fixed steps (30–210s); reset uses RPE 6–6.5 → 60s, 7–7.5 → 120s, 8+ → 180s.
               </p>
             </div>
             <div className="space-y-2">
@@ -194,7 +194,8 @@ export default function SettingsPage() {
           <CardDescription>
             After a set, rest length when your program does not set a fixed <span className="font-medium">rest</span>{" "}
             per exercise. If any lift in a superset has a prescribed rest (program editor), that still wins (longest
-            in the group). Otherwise we use the RPE from your log (or target RPE) to pick a duration.
+            in the group). Otherwise we use the RPE from your log (or target RPE) to pick a duration. Each row is one
+            of 30–210 seconds in 30s steps.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -202,25 +203,31 @@ export default function SettingsPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {RPE_REST_KEYS.map((k) => {
                 const sk = String(k);
+                const sec = rpeRestDraft[sk] ?? 60;
                 return (
                   <div key={sk} className="space-y-1">
                     <Label className="text-xs text-muted-foreground">RPE {sk}</Label>
-                    <Input
-                      type="number"
-                      className="rounded-xl"
-                      min={15}
-                      max={3600}
-                      value={rpeRestDraft[sk] ?? ""}
-                      onChange={(e) => {
-                        const n = Number(e.target.value);
-                        if (!Number.isFinite(n)) return;
-                        setRpeRestDraft((prev) => (prev ? { ...prev, [sk]: n } : prev));
+                    <Select
+                      value={String(sec)}
+                      onValueChange={(v) => {
+                        const n = Number(v);
+                        if (!rpeRestDraft || !Number.isFinite(n)) return;
+                        const next = { ...rpeRestDraft, [sk]: n };
+                        setRpeRestDraft(next);
+                        save.mutate({ restDurationsByRpe: next });
                       }}
-                      onBlur={() => {
-                        if (!rpeRestDraft) return;
-                        save.mutate({ restDurationsByRpe: { ...rpeRestDraft } });
-                      }}
-                    />
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RPE_REST_SEC_OPTIONS.map((opt) => (
+                          <SelectItem key={opt} value={String(opt)}>
+                            {opt}s
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 );
               })}

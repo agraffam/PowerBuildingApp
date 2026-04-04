@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       settings: {
         create: {
           preferredWeightUnit: "LB",
-          defaultRestSec: 120,
+          defaultRestSec: 180,
           plateIncrementLb: 2.5,
           plateIncrementKg: 2.5,
         },

@@ -53,10 +53,7 @@ export async function getSessionDetail(sessionId: string, userId: string) {
     settingsRaw != null
       ? {
           ...settingsRaw,
-          restDurationsByRpe: mergeRestDurationsByRpe(
-            settingsRaw.restDurationsByRpe,
-            settingsRaw.defaultRestSec,
-          ),
+          restDurationsByRpe: mergeRestDurationsByRpe(settingsRaw.restDurationsByRpe),
         }
       : null;
   const unit = settings?.preferredWeightUnit ?? "LB";

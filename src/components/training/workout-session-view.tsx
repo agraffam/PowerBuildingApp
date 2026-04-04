@@ -282,7 +282,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       const blks = clusterSupersetBlocks(ordered);
       const block = blks.find((blk) => blk.some((e) => e.id === row.programExerciseId));
       if (!block) return;
-      const defaultRest = sessSettings.defaultRestSec ?? 120;
+      const defaultRest = sessSettings.defaultRestSec ?? 180;
       const rpeMap = sessSettings.restDurationsByRpe ?? {};
       const hasPrescribedRest = block.some((ex) => ex.restSec != null);
       const restSec = hasPrescribedRest

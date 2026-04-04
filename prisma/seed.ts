@@ -17,7 +17,7 @@ async function main() {
       settings: {
         create: {
           preferredWeightUnit: WeightUnit.LB,
-          defaultRestSec: 120,
+          defaultRestSec: 180,
           plateIncrementLb: 2.5,
           plateIncrementKg: 2.5,
         },
@@ -30,7 +30,7 @@ async function main() {
       data: {
         userId: seedUser.id,
         preferredWeightUnit: WeightUnit.LB,
-        defaultRestSec: 120,
+        defaultRestSec: 180,
         plateIncrementLb: 2.5,
         plateIncrementKg: 2.5,
       },

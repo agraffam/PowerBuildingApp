@@ -69,10 +69,9 @@ export default function HelpPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold font-heading">Rest timer by RPE</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Under Settings you can set rest duration for each RPE step from 6 to 10 (half-point steps).
-          Those values apply when the program does not fix rest per exercise. Changing &quot;Default
-          rest&quot; rescales the built-in ladder; you can still override individual RPE rows. Reset clears
-          your overrides only.
+          Under Settings you can set rest duration for each RPE step from 6 to 10 (half-point steps), choosing
+          from 30–210 seconds in 30-second steps. Built-in defaults group easy work shorter and harder work
+          longer (roughly 6–6.5 → 60s, 7–7.5 → 120s, 8+ → 180s). Reset clears your overrides only.
         </p>
       </section>
 

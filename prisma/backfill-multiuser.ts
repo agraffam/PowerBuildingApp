@@ -42,7 +42,7 @@ async function main() {
       data: {
         userId: legacyUser.id,
         preferredWeightUnit: "LB",
-        defaultRestSec: 120,
+        defaultRestSec: 180,
         plateIncrementLb: 2.5,
         plateIncrementKg: 2.5,
       },

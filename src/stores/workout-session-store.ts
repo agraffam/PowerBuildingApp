@@ -15,7 +15,7 @@ type State = {
 
 export const useWorkoutSessionStore = create<State>((set, get) => ({
   restEndsAt: null,
-  restDurationSec: 120,
+  restDurationSec: 180,
   isRestRunning: false,
   libraryExerciseSlug: null,
 

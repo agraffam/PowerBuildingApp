@@ -20,13 +20,13 @@ export async function GET() {
       data: {
         userId,
         preferredWeightUnit: "LB",
-        defaultRestSec: 120,
+        defaultRestSec: 180,
         plateIncrementLb: 2.5,
         plateIncrementKg: 2.5,
       },
     });
   }
-  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe, s.defaultRestSec);
+  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe);
   return NextResponse.json({
     ...s,
     plateIncrementLb: coerceDefaultBarIncrementLb(s.plateIncrementLb),
@@ -53,7 +53,7 @@ export async function PATCH(req: Request) {
       data: {
         userId,
         preferredWeightUnit: body.preferredWeightUnit ?? "LB",
-        defaultRestSec: body.defaultRestSec ?? 120,
+        defaultRestSec: body.defaultRestSec ?? 180,
         plateIncrementLb: coerceDefaultBarIncrementLb(body.plateIncrementLb ?? 2.5),
         plateIncrementKg: body.plateIncrementKg ?? 2.5,
       },
@@ -73,7 +73,7 @@ export async function PATCH(req: Request) {
     if (!merged) {
       return NextResponse.json({ error: "Invalid restDurationsByRpe" }, { status: 400 });
     }
-    const ov = overridesFromMerged(merged, nextDefaultRest);
+    const ov = overridesFromMerged(merged);
     restJson = ov ?? Prisma.JsonNull;
   }
 
@@ -91,7 +91,7 @@ export async function PATCH(req: Request) {
     },
   });
 
-  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe, s.defaultRestSec);
+  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe);
   return NextResponse.json({
     ...s,
     plateIncrementLb: coerceDefaultBarIncrementLb(s.plateIncrementLb),
