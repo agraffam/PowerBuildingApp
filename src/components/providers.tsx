@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { GlobalRestTimer } from "@/components/training/global-rest-timer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -18,7 +19,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={client}>
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider>
+          <GlobalRestTimer />
+          {children}
+        </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

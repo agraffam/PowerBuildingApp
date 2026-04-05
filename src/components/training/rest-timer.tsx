@@ -1,10 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { playRestCompleteBeep } from "@/lib/play-rest-complete-beep";
+import { playRestCompleteBeep, unlockRestTimerAudio } from "@/lib/play-rest-complete-beep";
+import { maybeAskRestNotificationPermission, tryRestCompleteNotify } from "@/lib/rest-timer-notify";
 import {
   applyBandRestSec,
   mergeRestDurationsByRpe,
@@ -15,19 +16,63 @@ import {
 } from "@/lib/rest-by-rpe";
 import { useWorkoutSessionStore } from "@/stores/workout-session-store";
 
-export function RestTimerRing({ sessionId }: { sessionId: string }) {
+type Props = {
+  /** When omitted, uses `restSessionId` from the store (set when rest starts from a workout). */
+  sessionId?: string;
+};
+
+export function RestTimerRing({ sessionId: propSessionId }: Props) {
   const qc = useQueryClient();
   const restStartedAt = useWorkoutSessionStore((s) => s.restStartedAt);
   const restEndsAt = useWorkoutSessionStore((s) => s.restEndsAt);
   const restTargetSec = useWorkoutSessionStore((s) => s.restTargetSec);
   const restMeta = useWorkoutSessionStore((s) => s.restMeta);
+  const restSessionId = useWorkoutSessionStore((s) => s.restSessionId);
   const isRunning = useWorkoutSessionStore((s) => s.isRestRunning);
-  const tick = useWorkoutSessionStore((s) => s.tick);
   const clearRest = useWorkoutSessionStore((s) => s.clearRest);
   const adjustRestDelta = useWorkoutSessionStore((s) => s.adjustRestDelta);
 
+  const effectiveSessionId = propSessionId ?? restSessionId ?? "";
+
   const [now, setNow] = useState(() => Date.now());
   const beepedForPeriodRef = useRef(false);
+
+  const finalizeRestIfDue = useCallback(() => {
+    const s = useWorkoutSessionStore.getState();
+    if (!s.isRestRunning || s.restEndsAt == null || Date.now() < s.restEndsAt) return;
+    if (beepedForPeriodRef.current) return;
+    beepedForPeriodRef.current = true;
+    playRestCompleteBeep();
+    tryRestCompleteNotify();
+    s.tick();
+  }, []);
+
+  /** Safari / iOS: AudioContext stays suspended until a user gesture; unlock on any tap. */
+  useEffect(() => {
+    const u = () => {
+      unlockRestTimerAudio();
+      maybeAskRestNotificationPermission();
+    };
+    window.addEventListener("pointerdown", u, { capture: true, passive: true });
+    window.addEventListener("touchstart", u, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", u, true);
+      window.removeEventListener("touchstart", u, true);
+    };
+  }, []);
+
+  /** Fire completion at deadline even when the tab is throttling timers (single long timeout). */
+  useEffect(() => {
+    if (!isRunning || restEndsAt == null) return;
+    const end = restEndsAt;
+    const delay = Math.max(0, end - Date.now());
+    const id = window.setTimeout(() => {
+      const s = useWorkoutSessionStore.getState();
+      if (!s.isRestRunning || s.restEndsAt !== end) return;
+      finalizeRestIfDue();
+    }, delay);
+    return () => clearTimeout(id);
+  }, [isRunning, restEndsAt, finalizeRestIfDue]);
 
   const { data: settingsData } = useQuery({
     queryKey: ["settings"],
@@ -52,7 +97,7 @@ export function RestTimerRing({ sessionId }: { sessionId: string }) {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["settings"] });
-      void qc.invalidateQueries({ queryKey: ["session", sessionId] });
+      if (effectiveSessionId) void qc.invalidateQueries({ queryKey: ["session", effectiveSessionId] });
     },
   });
 
@@ -71,7 +116,7 @@ export function RestTimerRing({ sessionId }: { sessionId: string }) {
       );
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["session", sessionId] });
+      if (effectiveSessionId) void qc.invalidateQueries({ queryKey: ["session", effectiveSessionId] });
     },
   });
 
@@ -81,16 +126,11 @@ export function RestTimerRing({ sessionId }: { sessionId: string }) {
       return;
     }
     const id = setInterval(() => {
-      const t = Date.now();
-      setNow(t);
-      if (restEndsAt != null && t >= restEndsAt && !beepedForPeriodRef.current) {
-        beepedForPeriodRef.current = true;
-        playRestCompleteBeep();
-      }
-      tick();
+      setNow(Date.now());
+      finalizeRestIfDue();
     }, 250);
     return () => clearInterval(id);
-  }, [isRunning, tick, restEndsAt]);
+  }, [isRunning, finalizeRestIfDue]);
 
   if (!isRunning || restEndsAt == null || restStartedAt == null) return null;
 

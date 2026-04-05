@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RestTimerNotificationsCard } from "@/components/settings/rest-timer-notifications-card";
 import { Button } from "@/components/ui/button";
 import { NumericInput } from "@/components/ui/numeric-input";
 import {
@@ -279,6 +280,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <RestTimerNotificationsCard />
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border bg-muted/30 p-4">
         <Button

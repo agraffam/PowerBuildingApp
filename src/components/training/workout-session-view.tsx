@@ -23,7 +23,6 @@ import { Toggle } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useWorkoutSessionStore } from "@/stores/workout-session-store";
-import { RestTimerRing } from "@/components/training/rest-timer";
 import { ExerciseLibrarySheet } from "@/components/training/exercise-library-sheet";
 import { ExerciseSwapDialog } from "@/components/training/exercise-swap-dialog";
 import {
@@ -315,6 +314,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           prescribedRest: hasPrescribedRest,
           programExerciseIds: block.map((e) => e.id),
           canEditProgramRest: payload.canEditProgramRest,
+          sessionId,
         });
       }
     },
@@ -907,7 +907,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         </DialogContent>
       </Dialog>
 
-      {!isHistorySession && <RestTimerRing sessionId={sessionId} />}
       <ExerciseLibrarySheet />
       <ExerciseSwapDialog
         open={swapTarget != null}

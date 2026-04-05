@@ -8,6 +8,8 @@ export type RestTimerMeta = {
   prescribedRest: boolean;
   programExerciseIds: string[];
   canEditProgramRest: boolean;
+  /** Workout session id for cache invalidation when saving rest prefs from any route. */
+  sessionId?: string;
 };
 
 type State = {
@@ -15,6 +17,8 @@ type State = {
   restEndsAt: number | null;
   restTargetSec: number;
   restMeta: RestTimerMeta | null;
+  /** Copied from meta at startRest for use after meta is cleared. */
+  restSessionId: string | null;
   isRestRunning: boolean;
   libraryExerciseSlug: string | null;
   startRest: (sec: number, meta?: Partial<RestTimerMeta> | null) => void;
@@ -33,6 +37,7 @@ export const useWorkoutSessionStore = create<State>((set, get) => ({
   restEndsAt: null,
   restTargetSec: 180,
   restMeta: null,
+  restSessionId: null,
   isRestRunning: false,
   libraryExerciseSlug: null,
 
@@ -46,12 +51,14 @@ export const useWorkoutSessionStore = create<State>((set, get) => ({
       prescribedRest: m.prescribedRest ?? false,
       programExerciseIds: m.programExerciseIds ?? [],
       canEditProgramRest: m.canEditProgramRest ?? false,
+      ...(m.sessionId != null && m.sessionId !== "" ? { sessionId: m.sessionId } : {}),
     };
     set({
       restStartedAt: now,
       restEndsAt: ends,
       restTargetSec: s,
       restMeta: baseMeta,
+      restSessionId: m.sessionId && m.sessionId !== "" ? m.sessionId : null,
       isRestRunning: true,
     });
   },
@@ -78,6 +85,7 @@ export const useWorkoutSessionStore = create<State>((set, get) => ({
       restStartedAt: null,
       restEndsAt: null,
       restMeta: null,
+      restSessionId: null,
       isRestRunning: false,
     }),
 
@@ -88,6 +96,7 @@ export const useWorkoutSessionStore = create<State>((set, get) => ({
         restStartedAt: null,
         restEndsAt: null,
         restMeta: null,
+        restSessionId: null,
         isRestRunning: false,
       });
     }
