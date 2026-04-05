@@ -31,6 +31,13 @@ COPY --from=builder /app/next.config.ts ./next.config.ts
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# Run as non-root (official node image includes user `node`, uid 1000).
+RUN mkdir -p /app/data \
+  && chown -R node:node /app \
+  && chown node:node /docker-entrypoint.sh
+
+USER node
+
 EXPOSE 3000
 ENV PORT=3000
 ENTRYPOINT ["/docker-entrypoint.sh"]
