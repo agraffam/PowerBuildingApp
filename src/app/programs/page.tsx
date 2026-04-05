@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,9 +37,16 @@ type PausableInstance = {
   lastSessionAt: string | null;
 };
 
+function hasResumableRunForProgram(instances: PausableInstance[] | undefined, programId: string) {
+  return (instances ?? []).some((i) => i.programId === programId);
+}
+
 export default function ProgramsPage() {
   const qc = useQueryClient();
   const [switchTargetId, setSwitchTargetId] = useState<string | null>(null);
+  const [archivePausedOnSwitch, setArchivePausedOnSwitch] = useState(false);
+  const [freshStartProgramId, setFreshStartProgramId] = useState<string | null>(null);
+  const [endConfirm, setEndConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["programs"],
@@ -75,13 +82,26 @@ export default function ProgramsPage() {
     },
   });
 
+  useEffect(() => {
+    if (switchTargetId == null) return;
+    const has = hasResumableRunForProgram(pausable.data?.instances, switchTargetId);
+    setArchivePausedOnSwitch(has);
+  }, [switchTargetId, pausable.data?.instances]);
+
   const activate = useMutation({
-    mutationFn: async (opts: { programId: string; confirmSwitch?: boolean }) => {
+    mutationFn: async (opts: {
+      programId: string;
+      confirmSwitch?: boolean;
+      archivePausedRunsForProgram?: boolean;
+    }) => {
       const r = await fetch(`/api/programs/${opts.programId}/activate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         ...browserApiFetchInit,
-        body: JSON.stringify({ confirmSwitch: opts.confirmSwitch === true }),
+        body: JSON.stringify({
+          confirmSwitch: opts.confirmSwitch === true,
+          archivePausedRunsForProgram: opts.archivePausedRunsForProgram === true,
+        }),
       });
       if (r.status === 401) {
         window.location.assign("/login?next=/programs");
@@ -102,6 +122,7 @@ export default function ProgramsPage() {
     },
     onSuccess: () => {
       setSwitchTargetId(null);
+      setFreshStartProgramId(null);
       void qc.invalidateQueries({ queryKey: ["training-active"] });
       void qc.invalidateQueries({ queryKey: ["programs"] });
       void qc.invalidateQueries({ queryKey: ["training-instances"] });
@@ -130,9 +151,34 @@ export default function ProgramsPage() {
     },
   });
 
+  const endRun = useMutation({
+    mutationFn: async (instanceId: string) => {
+      const r = await fetch(`/api/training/instances/${instanceId}/archive`, {
+        method: "POST",
+        ...browserApiFetchInit,
+      });
+      if (r.status === 401) {
+        window.location.assign("/login?next=/programs");
+        throw new Error("Session expired — sign in again");
+      }
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `Could not end run (${r.status})`);
+      }
+      return r.json();
+    },
+    onSuccess: () => {
+      setEndConfirm(null);
+      void qc.invalidateQueries({ queryKey: ["training-instances"] });
+      void qc.invalidateQueries({ queryKey: ["training-active"] });
+    },
+  });
+
   const current = activeProgram.data?.instance;
   const switchTargetName = (data ?? []).find((p) => p.id === switchTargetId)?.name ?? "this program";
   const currentName = current?.program?.name ?? "your current program";
+  const freshStartName =
+    (data ?? []).find((p) => p.id === freshStartProgramId)?.name ?? "this program";
 
   if (isLoading) {
     return (
@@ -167,7 +213,8 @@ export default function ProgramsPage() {
           <CardHeader>
             <CardTitle className="text-lg">Resume a program</CardTitle>
             <CardDescription>
-              Paused runs keep your week position and history. Resuming makes one active and pauses whatever is active now.
+              One entry per template (your most recent paused or finished run). Resuming makes it active and archives other
+              paused runs for that same template. Use End run to remove a row without resuming.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -185,16 +232,27 @@ export default function ProgramsPage() {
                       : ""}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-xl shrink-0"
-                  disabled={resume.isPending}
-                  onClick={() => resume.mutate(inst.id)}
-                >
-                  {resume.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Resume
-                </Button>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="rounded-xl"
+                    disabled={resume.isPending}
+                    onClick={() => resume.mutate(inst.id)}
+                  >
+                    {resume.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+                    Resume
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl text-muted-foreground"
+                    disabled={endRun.isPending}
+                    onClick={() => setEndConfirm({ id: inst.id, name: inst.programName })}
+                  >
+                    End run
+                  </Button>
+                </div>
               </div>
             ))}
             {resume.isError && (
@@ -206,7 +264,7 @@ export default function ProgramsPage() {
         </Card>
       )}
 
-      {activate.isError && switchTargetId == null && (
+      {activate.isError && switchTargetId == null && freshStartProgramId == null && (
         <p className="text-destructive text-sm" role="alert">
           {(activate.error as Error).message}
         </p>
@@ -249,6 +307,10 @@ export default function ProgramsPage() {
                       setSwitchTargetId(p.id);
                       return;
                     }
+                    if (!cur && hasResumableRunForProgram(pausable.data?.instances, p.id)) {
+                      setFreshStartProgramId(p.id);
+                      return;
+                    }
                     activate.mutate({ programId: p.id });
                   }}
                 >
@@ -271,6 +333,20 @@ export default function ProgramsPage() {
                 <span className="font-medium text-foreground">{currentName}</span>. You can resume the paused run later
                 from this page.
               </span>
+              {hasResumableRunForProgram(pausable.data?.instances, switchTargetId ?? "") && (
+                <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-input"
+                    checked={archivePausedOnSwitch}
+                    onChange={(e) => setArchivePausedOnSwitch(e.target.checked)}
+                  />
+                  <span>
+                    Start fresh for <span className="font-medium">{switchTargetName}</span> (archive paused runs of this
+                    template so you don&apos;t stack duplicates).
+                  </span>
+                </label>
+              )}
               {activeProgram.data?.inProgressSession && (
                 <span className="block text-amber-600 dark:text-amber-500">
                   You have an unfinished workout on your current program—finish or cancel it from Train if you need a
@@ -283,7 +359,14 @@ export default function ProgramsPage() {
             <Button
               className="w-full rounded-xl"
               disabled={activate.isPending}
-              onClick={() => switchTargetId && activate.mutate({ programId: switchTargetId, confirmSwitch: true })}
+              onClick={() =>
+                switchTargetId &&
+                activate.mutate({
+                  programId: switchTargetId,
+                  confirmSwitch: true,
+                  archivePausedRunsForProgram: archivePausedOnSwitch,
+                })
+              }
             >
               {activate.isPending ? <Loader2 className="size-4 animate-spin" /> : "Yes, switch"}
             </Button>
@@ -293,6 +376,73 @@ export default function ProgramsPage() {
           </DialogFooter>
           {activate.isError && switchTargetId != null && (
             <p className="text-destructive text-sm">{(activate.error as Error).message}</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={freshStartProgramId != null} onOpenChange={(o) => !o && setFreshStartProgramId(null)}>
+        <DialogContent className="rounded-2xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Paused run already on file</DialogTitle>
+            <DialogDescription>
+              You have a paused or completed run for <span className="font-medium text-foreground">{freshStartName}</span>{" "}
+              in the list above. Activate anyway to start a <span className="font-medium text-foreground">new</span> run
+              from week 1 (the paused run for that template will be archived), or cancel and tap Resume instead.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full rounded-xl"
+              disabled={activate.isPending}
+              onClick={() =>
+                freshStartProgramId &&
+                activate.mutate({
+                  programId: freshStartProgramId,
+                  archivePausedRunsForProgram: true,
+                })
+              }
+            >
+              {activate.isPending ? <Loader2 className="size-4 animate-spin" /> : "Start new run"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full rounded-xl"
+              type="button"
+              onClick={() => setFreshStartProgramId(null)}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+          {activate.isError && freshStartProgramId != null && (
+            <p className="text-destructive text-sm">{(activate.error as Error).message}</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={endConfirm != null} onOpenChange={(o) => !o && setEndConfirm(null)}>
+        <DialogContent className="rounded-2xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>End this run?</DialogTitle>
+            <DialogDescription>
+              <span className="font-medium text-foreground">{endConfirm?.name}</span> will disappear from the resume list.
+              Logged workouts stay in history; this only clears the saved program position for that run.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              variant="destructive"
+              className="w-full rounded-xl"
+              disabled={endRun.isPending}
+              onClick={() => endConfirm && endRun.mutate(endConfirm.id)}
+            >
+              {endRun.isPending ? <Loader2 className="size-4 animate-spin" /> : "End run"}
+            </Button>
+            <Button variant="outline" className="w-full rounded-xl" type="button" onClick={() => setEndConfirm(null)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+          {endRun.isError && (
+            <p className="text-destructive text-sm">{(endRun.error as Error).message}</p>
           )}
         </DialogContent>
       </Dialog>

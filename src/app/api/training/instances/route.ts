@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth/require-user";
 import { userCanViewProgram } from "@/lib/program-access";
+import { dedupeInstancesByProgramId } from "@/lib/program-instances-display";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function GET() {
       status: { in: ["PAUSED", "COMPLETED"] },
     },
     orderBy: { startedAt: "desc" },
-    take: 25,
+    take: 80,
     include: {
       program: { select: { id: true, name: true, ownerId: true } },
       sessions: {
@@ -29,7 +30,7 @@ export async function GET() {
     },
   });
 
-  const instances = rows
+  const mapped = rows
     .filter((r) => userCanViewProgram(r.program.ownerId, userId))
     .map((r) => ({
       id: r.id,
@@ -41,6 +42,8 @@ export async function GET() {
       startedAt: r.startedAt.toISOString(),
       lastSessionAt: r.sessions[0]?.performedAt?.toISOString() ?? null,
     }));
+
+  const instances = dedupeInstancesByProgramId(mapped);
 
   return NextResponse.json({ instances }, noStoreJson);
 }

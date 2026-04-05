@@ -18,10 +18,13 @@ export async function POST(
   const { programId } = await ctx.params;
 
   let confirmSwitch = false;
+  let archivePausedRunsForProgram = false;
   try {
     const raw = await req.json();
-    if (raw && typeof raw === "object" && (raw as { confirmSwitch?: unknown }).confirmSwitch === true) {
-      confirmSwitch = true;
+    if (raw && typeof raw === "object") {
+      const o = raw as { confirmSwitch?: unknown; archivePausedRunsForProgram?: unknown };
+      if (o.confirmSwitch === true) confirmSwitch = true;
+      if (o.archivePausedRunsForProgram === true) archivePausedRunsForProgram = true;
     }
   } catch {
     /* empty or invalid body */
@@ -59,6 +62,12 @@ export async function POST(
         where: { status: "ACTIVE", userId },
         data: { status: "PAUSED" },
       });
+      if (archivePausedRunsForProgram) {
+        await tx.programInstance.updateMany({
+          where: { userId, programId, status: "PAUSED" },
+          data: { status: "ARCHIVED" },
+        });
+      }
       return tx.programInstance.create({
         data: {
           userId,

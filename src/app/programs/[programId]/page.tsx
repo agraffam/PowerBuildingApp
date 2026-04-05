@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Pencil, Copy } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -48,11 +48,24 @@ type TrainingActivePayload = {
   inProgressSession: { id: string } | null;
 };
 
+type PausableInstance = {
+  id: string;
+  programId: string;
+  programName: string;
+  startedAt: string;
+};
+
+function hasResumableRunForProgram(instances: PausableInstance[] | undefined, pid: string) {
+  return (instances ?? []).some((i) => i.programId === pid);
+}
+
 export default function ProgramDetailPage() {
   const params = useParams();
   const programId = params.programId as string;
   const qc = useQueryClient();
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [archivePausedOnSwitch, setArchivePausedOnSwitch] = useState(false);
+  const [freshOpen, setFreshOpen] = useState(false);
 
   const active = useQuery({
     queryKey: ["training-active"],
@@ -60,6 +73,15 @@ export default function ProgramDetailPage() {
       const r = await fetch("/api/training/active", browserApiFetchInit);
       if (!r.ok) throw new Error("Failed");
       return r.json() as Promise<TrainingActivePayload>;
+    },
+  });
+
+  const pausable = useQuery({
+    queryKey: ["training-instances"],
+    queryFn: async () => {
+      const r = await fetch("/api/training/instances", browserApiFetchInit);
+      if (!r.ok) throw new Error("Failed");
+      return r.json() as Promise<{ instances: PausableInstance[] }>;
     },
   });
 
@@ -72,13 +94,22 @@ export default function ProgramDetailPage() {
     },
   });
 
+  useEffect(() => {
+    if (!switchOpen) return;
+    const has = hasResumableRunForProgram(pausable.data?.instances, programId);
+    setArchivePausedOnSwitch(has);
+  }, [switchOpen, programId, pausable.data?.instances]);
+
   const activate = useMutation({
-    mutationFn: async (opts: { confirmSwitch?: boolean }) => {
+    mutationFn: async (opts: { confirmSwitch?: boolean; archivePausedRunsForProgram?: boolean }) => {
       const r = await fetch(`/api/programs/${programId}/activate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         ...browserApiFetchInit,
-        body: JSON.stringify({ confirmSwitch: opts.confirmSwitch === true }),
+        body: JSON.stringify({
+          confirmSwitch: opts.confirmSwitch === true,
+          archivePausedRunsForProgram: opts.archivePausedRunsForProgram === true,
+        }),
       });
       if (r.status === 401) {
         window.location.assign(`/login?next=/programs/${programId}`);
@@ -99,6 +130,7 @@ export default function ProgramDetailPage() {
     },
     onSuccess: () => {
       setSwitchOpen(false);
+      setFreshOpen(false);
       void qc.invalidateQueries({ queryKey: ["training-active"] });
       void qc.invalidateQueries({ queryKey: ["programs"] });
       void qc.invalidateQueries({ queryKey: ["training-instances"] });
@@ -163,6 +195,10 @@ export default function ProgramDetailPage() {
                   setSwitchOpen(true);
                   return;
                 }
+                if (!current && hasResumableRunForProgram(pausable.data?.instances, programId)) {
+                  setFreshOpen(true);
+                  return;
+                }
                 activate.mutate({});
               }}
             >
@@ -192,7 +228,7 @@ export default function ProgramDetailPage() {
         </div>
       </div>
 
-      {activate.isError && !switchOpen && (
+      {activate.isError && !switchOpen && !freshOpen && (
         <p className="text-destructive text-sm" role="alert">
           {(activate.error as Error).message}
         </p>
@@ -208,6 +244,20 @@ export default function ProgramDetailPage() {
                 <span className="font-medium text-foreground">{currentName}</span>. You can resume the paused run from
                 Programs.
               </span>
+              {hasResumableRunForProgram(pausable.data?.instances, programId) && (
+                <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-input"
+                    checked={archivePausedOnSwitch}
+                    onChange={(e) => setArchivePausedOnSwitch(e.target.checked)}
+                  />
+                  <span>
+                    Start fresh for <span className="font-medium">{program.name}</span> (archive paused runs of this
+                    template).
+                  </span>
+                </label>
+              )}
               {active.data?.inProgressSession && (
                 <span className="block text-amber-600 dark:text-amber-500">
                   You have an unfinished workout on your current program—finish or cancel it from Train if you need a
@@ -220,7 +270,9 @@ export default function ProgramDetailPage() {
             <Button
               className="w-full rounded-xl"
               disabled={activate.isPending}
-              onClick={() => activate.mutate({ confirmSwitch: true })}
+              onClick={() =>
+                activate.mutate({ confirmSwitch: true, archivePausedRunsForProgram: archivePausedOnSwitch })
+              }
             >
               {activate.isPending ? <Loader2 className="size-4 animate-spin" /> : "Yes, switch"}
             </Button>
@@ -229,6 +281,32 @@ export default function ProgramDetailPage() {
             </Button>
           </DialogFooter>
           {activate.isError && switchOpen && (
+            <p className="text-destructive text-sm">{(activate.error as Error).message}</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={freshOpen} onOpenChange={setFreshOpen}>
+        <DialogContent className="rounded-2xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Paused run already on file</DialogTitle>
+            <DialogDescription>
+              You have a paused or completed run for this template on Programs. Start a <span className="font-medium text-foreground">new</span> run from week 1 (archives the paused one), or cancel and use Resume on the list.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full rounded-xl"
+              disabled={activate.isPending}
+              onClick={() => activate.mutate({ archivePausedRunsForProgram: true })}
+            >
+              {activate.isPending ? <Loader2 className="size-4 animate-spin" /> : "Start new run"}
+            </Button>
+            <Button variant="outline" className="w-full rounded-xl" type="button" onClick={() => setFreshOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+          {activate.isError && freshOpen && (
             <p className="text-destructive text-sm">{(activate.error as Error).message}</p>
           )}
         </DialogContent>

@@ -30,6 +30,8 @@ enum ProgramInstanceStatus {
   /** Switched away mid-cycle; progress preserved for resume. */
   PAUSED
   COMPLETED
+  /** User ended run or superseded; hidden from resume list. */
+  ARCHIVED
 }
 
 model User {

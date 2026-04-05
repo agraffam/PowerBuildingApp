@@ -37,6 +37,15 @@ export async function POST(
   try {
     const active = await prisma.$transaction(async (tx) => {
       await tx.programInstance.updateMany({
+        where: {
+          userId,
+          programId: target.programId,
+          status: "PAUSED",
+          id: { not: instanceId },
+        },
+        data: { status: "ARCHIVED" },
+      });
+      await tx.programInstance.updateMany({
         where: { status: "ACTIVE", userId },
         data: { status: "PAUSED" },
       });
