@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth/require-user";
 import { passwordFieldSchema } from "@/lib/auth/password-policy";
+import { isPrismaUniqueConstraintError } from "@/lib/prisma-unique-constraint";
 
 const patchSchema = z
   .object({
@@ -109,11 +110,19 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "No updates applied" }, { status: 400 });
   }
 
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data,
-    select: { id: true, email: true, name: true },
-  });
+  let updated;
+  try {
+    updated = await prisma.user.update({
+      where: { id: user.id },
+      data,
+      select: { id: true, email: true, name: true },
+    });
+  } catch (e) {
+    if (isPrismaUniqueConstraintError(e)) {
+      return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+    }
+    throw e;
+  }
 
   return NextResponse.json({ user: updated });
 }

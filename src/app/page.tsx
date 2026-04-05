@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { Loader2, Play, SkipForward } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrainWeekOverview, type ScheduleDay } from "@/components/training/train-week-overview";
+import { WeekCompleteSplash } from "@/components/training/week-complete-splash";
+import type { WeekCompletionSummaryPayload } from "@/lib/week-completion-summary";
 import { browserApiFetchInit } from "@/lib/browser-api-fetch";
 
 type TrainingActivePayload = {
@@ -39,10 +42,15 @@ type TrainingActivePayload = {
     programDayId: string;
   } | null;
   completedDayIdsThisWeek: string[];
+  skippedDayIdsThisWeek?: string[];
+  weekPendingFinalize?: boolean;
+  weekSummary?: WeekCompletionSummaryPayload | null;
 };
 
 export default function HomePage() {
   const qc = useQueryClient();
+  const [dismissedWeekKey, setDismissedWeekKey] = useState<string | null>(null);
+
   const active = useQuery({
     queryKey: ["training-active"],
     queryFn: async () => {
@@ -51,6 +59,30 @@ export default function HomePage() {
       return r.json() as Promise<TrainingActivePayload>;
     },
   });
+
+  const instance = active.data?.instance;
+  const weekKey = instance ? `${instance.id}-${instance.weekIndex}` : "";
+  const weekPendingFinalize = Boolean(active.data?.weekPendingFinalize);
+  const weekSummary = active.data?.weekSummary ?? null;
+
+  const showWeekSplash = Boolean(
+    weekPendingFinalize && weekSummary && dismissedWeekKey !== weekKey,
+  );
+
+  const showWeekBanner = Boolean(
+    weekPendingFinalize && weekSummary && dismissedWeekKey === weekKey,
+  );
+
+  useEffect(() => {
+    if (!weekPendingFinalize) setDismissedWeekKey(null);
+  }, [weekPendingFinalize]);
+
+  const dismissWeekStay = useCallback(() => {
+    const d = qc.getQueryData<TrainingActivePayload>(["training-active"]);
+    if (d?.weekPendingFinalize && d?.weekSummary && d.instance) {
+      setDismissedWeekKey(`${d.instance.id}-${d.instance.weekIndex}`);
+    }
+  }, [qc]);
 
   const start = useMutation({
     mutationFn: async () => {
@@ -65,11 +97,11 @@ export default function HomePage() {
   });
 
   const skip = useMutation({
-    mutationFn: async (instanceId: string) => {
+    mutationFn: async (p: { instanceId: string; programDayId?: string }) => {
       const r = await fetch("/api/training/skip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanceId }),
+        body: JSON.stringify(p),
         ...browserApiFetchInit,
       });
       if (!r.ok) {
@@ -89,10 +121,10 @@ export default function HomePage() {
     );
   }
 
-  const { instance, nextDay, inProgressSession, lastCompleted, completedDayIdsThisWeek } =
+  const { instance: inst, nextDay, inProgressSession, lastCompleted, completedDayIdsThisWeek } =
     active.data ?? {};
 
-  if (!instance) {
+  if (!inst) {
     return (
       <Card className="border-dashed">
         <CardHeader>
@@ -110,22 +142,40 @@ export default function HomePage() {
     );
   }
 
-  const scheduleDays = instance.program.days ?? [];
+  const scheduleDays = inst.program.days ?? [];
   const sessionHref = inProgressSession ? `/workout/${inProgressSession.id}` : null;
+  const skippedDayIdsThisWeek = active.data?.skippedDayIdsThisWeek ?? [];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-heading">Train</h1>
-        <p className="text-muted-foreground text-sm">{instance.program.name}</p>
+        <p className="text-muted-foreground text-sm">{inst.program.name}</p>
       </div>
 
+      {showWeekBanner && weekSummary && (
+        <Card className="rounded-xl border-primary/30 bg-primary/5 shadow-sm">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm">
+              <span className="font-medium">Week {weekSummary.weekIndex + 1} is ready to close.</span>{" "}
+              Open the summary to move on or finish the program.
+            </p>
+            <Button type="button" className="rounded-xl shrink-0" onClick={() => setDismissedWeekKey(null)}>
+              Open week summary
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <TrainWeekOverview
-        durationWeeks={instance.program.durationWeeks}
-        weekIndex={instance.weekIndex}
-        nextDaySortOrder={instance.nextDaySortOrder}
+        instanceId={inst.id}
+        durationWeeks={inst.program.durationWeeks}
+        weekIndex={inst.weekIndex}
+        nextDaySortOrder={inst.nextDaySortOrder}
         days={scheduleDays}
         completedDayIdsThisWeek={completedDayIdsThisWeek ?? []}
+        skippedDayIdsThisWeek={skippedDayIdsThisWeek}
+        weekPendingFinalize={weekPendingFinalize}
         inProgressSession={inProgressSession ?? null}
         lastCompleted={lastCompleted ?? null}
       />
@@ -135,7 +185,9 @@ export default function HomePage() {
           <div className="flex items-start justify-between gap-2">
             <div>
               <CardTitle className="text-xl">{nextDay?.label ?? "—"}</CardTitle>
-              <CardDescription>Next session in your split</CardDescription>
+              <CardDescription>
+                {weekPendingFinalize ? "Finish the week review above to start week workouts." : "Next session in your split"}
+              </CardDescription>
             </div>
             <Badge variant="secondary">Up next</Badge>
           </div>
@@ -156,7 +208,7 @@ export default function HomePage() {
             <Button
               size="lg"
               className="h-14 text-base rounded-xl gap-2"
-              disabled={start.isPending}
+              disabled={start.isPending || weekPendingFinalize}
               onClick={() =>
                 start.mutate(undefined, {
                   onSuccess: (d) => {
@@ -178,11 +230,11 @@ export default function HomePage() {
             <Button
               variant="outline"
               className="h-12 rounded-xl"
-              disabled={skip.isPending}
-              onClick={() => skip.mutate(instance.id)}
+              disabled={skip.isPending || weekPendingFinalize}
+              onClick={() => skip.mutate({ instanceId: inst.id })}
             >
               <SkipForward className="size-4" />
-              Skip / shift next day
+              Skip next workout
             </Button>
           )}
 
@@ -194,6 +246,15 @@ export default function HomePage() {
           )}
         </CardContent>
       </Card>
+
+      {weekSummary && (
+        <WeekCompleteSplash
+          open={showWeekSplash}
+          summary={weekSummary}
+          instanceId={inst.id}
+          onDismissStay={dismissWeekStay}
+        />
+      )}
     </div>
   );
 }

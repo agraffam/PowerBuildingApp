@@ -4,6 +4,13 @@ import { requireUserId } from "@/lib/auth/require-user";
 import { getBarIncrementLbForUser } from "@/lib/user-exercise-prefs";
 import { enrichProgramDaysWithInstanceReplacements } from "@/lib/exercise-swaps";
 import { getValidatedPlannedOrder, parsePlanOrderMap } from "@/lib/planned-exercise-order";
+import {
+  getCompletedProgramDayIdsForWeek,
+  getSkippedProgramDayIdsForWeek,
+  isWeekFullyAccounted,
+  sortedProgramDays,
+} from "@/lib/program-week-state";
+import { buildWeekCompletionSummary } from "@/lib/week-completion-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +107,17 @@ export async function GET() {
     });
     const completedDayIdsThisWeek = [...new Set(completedThisWeek.map((s) => s.programDayId))];
 
+    const daysSortedForWeek = sortedProgramDays(instance);
+    const completedSet = await getCompletedProgramDayIdsForWeek(instance.id, instance.weekIndex);
+    const skippedSet = await getSkippedProgramDayIdsForWeek(instance.id, instance.weekIndex);
+    const skippedDayIdsThisWeek = [...skippedSet];
+    const weekPendingFinalize = isWeekFullyAccounted(daysSortedForWeek, completedSet, skippedSet);
+
+    let weekSummary: Awaited<ReturnType<typeof buildWeekCompletionSummary>> | null = null;
+    if (weekPendingFinalize) {
+      weekSummary = await buildWeekCompletionSummary(userId, instance.id, instance.weekIndex);
+    }
+
     const instanceOut = {
       ...instance,
       program: { ...instance.program, days: daysOrdered },
@@ -108,7 +126,7 @@ export async function GET() {
     return NextResponse.json(
       {
         instance: instanceOut,
-        nextDay,
+        nextDay: weekPendingFinalize ? null : nextDay,
         inProgressSession,
         lastCompleted: lastCompleted
           ? {
@@ -121,6 +139,9 @@ export async function GET() {
             }
           : null,
         completedDayIdsThisWeek,
+        skippedDayIdsThisWeek,
+        weekPendingFinalize,
+        weekSummary,
       },
       noStoreJson,
     );

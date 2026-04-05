@@ -7,7 +7,7 @@ import { Dumbbell } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const links = [
+const baseLinks = [
   { href: "/", label: "Train" },
   { href: "/history", label: "History" },
   { href: "/programs", label: "Programs" },
@@ -17,9 +17,13 @@ const links = [
   { href: "/account", label: "Account" },
   { href: "/settings", label: "Settings" },
   { href: "/help", label: "Help" },
-];
+] as const;
 
-type MePayload = { user: { email: string; name: string | null } | null };
+const adminLink = { href: "/admin", label: "Admin" } as const;
+
+type MePayload = {
+  user: { email: string; name: string | null; isSuperAdmin?: boolean } | null;
+};
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,6 +42,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
     staleTime: 60_000,
     enabled: !isAuthPage,
   });
+
+  const navLinks = me?.user?.isSuperAdmin ? [...baseLinks, adminLink] : [...baseLinks];
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -83,11 +89,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 className="flex flex-1 items-center gap-0.5 overflow-x-auto text-sm [-ms-overflow-style:none] [scrollbar-width:none] sm:justify-end sm:pr-2 [&::-webkit-scrollbar]:hidden"
                 aria-label="Main navigation"
               >
-                {links.map((l) => (
+                {navLinks.map((l) => (
                   <Link
                     key={l.href}
                     href={l.href}
-                    className="min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80"
+                    className={cn(
+                      "min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80",
+                      pathname === l.href && "bg-muted text-foreground",
+                    )}
                   >
                     {l.label}
                   </Link>

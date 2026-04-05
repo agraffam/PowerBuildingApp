@@ -14,7 +14,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ChevronDown, Loader2, Play, Replace } from "lucide-react";
+import { ChevronDown, Loader2, Play, Replace, SkipForward } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,24 +58,32 @@ type TrainingActiveCache = {
   inProgressSession: { id: string; programDayId: string } | null;
   lastCompleted: LastCompleted;
   completedDayIdsThisWeek: string[];
+  skippedDayIdsThisWeek?: string[];
+  weekPendingFinalize?: boolean;
 };
 
 type Props = {
+  instanceId: string;
   durationWeeks: number;
   weekIndex: number;
   nextDaySortOrder: number;
   days: ScheduleDay[];
   completedDayIdsThisWeek: string[];
+  skippedDayIdsThisWeek: string[];
+  weekPendingFinalize: boolean;
   inProgressSession: { id: string; programDayId: string } | null;
   lastCompleted: LastCompleted;
 };
 
 export function TrainWeekOverview({
+  instanceId,
   durationWeeks,
   weekIndex,
   nextDaySortOrder,
   days,
   completedDayIdsThisWeek,
+  skippedDayIdsThisWeek,
+  weekPendingFinalize,
   inProgressSession,
   lastCompleted,
 }: Props) {
@@ -99,6 +107,23 @@ export function TrainWeekOverview({
         throw new Error((j as { error?: string }).error ?? "Start failed");
       }
       return r.json() as Promise<{ sessionId: string }>;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["training-active"] }),
+  });
+
+  const skipDay = useMutation({
+    mutationFn: async (programDayId: string) => {
+      const r = await fetch("/api/training/skip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instanceId, programDayId }),
+        ...browserApiFetchInit,
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error((j as { error?: string }).error ?? "Skip failed");
+      }
+      return r.json();
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["training-active"] }),
   });
@@ -184,8 +209,20 @@ export function TrainWeekOverview({
           Week {displayWeek} of {durationWeeks}
         </p>
         <p className="text-muted-foreground text-xs mt-1">
-          One full pass through every training day below advances to the next week.
+          Finish or skip each day in the split, then review the week on Train — the next week starts only when
+          you confirm.
         </p>
+        {weekPendingFinalize && (
+          <p className="text-sm mt-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-foreground">
+            <span className="font-medium">Week review</span> — all days are done or skipped. Use the week summary
+            on this page
+            {weekIndex + 1 >= durationWeeks ? (
+              <> to mark the program complete.</>
+            ) : (
+              <> to start week {weekIndex + 2}.</>
+            )}
+          </p>
+        )}
         {lastCompleted && (
           <p className="text-xs mt-2 text-foreground">
             <span className="text-muted-foreground">Last session: </span>
@@ -200,16 +237,23 @@ export function TrainWeekOverview({
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-0.5">
           Training split
         </p>
-        {sorted.map((day) => {
+        {sorted.map((day, dayIndex) => {
           const isOpen = expanded[day.id] ?? false;
           const done = completedDayIdsThisWeek.includes(day.id);
+          const skipped = skippedDayIdsThisWeek.includes(day.id) && !done;
           const inProgress = inProgressSession?.programDayId === day.id;
-          const isNextSlot = day.sortOrder === nextDaySortOrder && !done && !inProgress;
+          const isNextSlot =
+            dayIndex === nextDaySortOrder &&
+            !done &&
+            !skipped &&
+            !inProgress &&
+            !weekPendingFinalize;
           const canReorder = !inProgress;
 
-          let status: "done" | "in_progress" | "next" | "later";
+          let status: "done" | "skipped" | "in_progress" | "next" | "later";
           if (inProgress) status = "in_progress";
           else if (done) status = "done";
+          else if (skipped) status = "skipped";
           else if (isNextSlot) status = "next";
           else status = "later";
 
@@ -220,6 +264,7 @@ export function TrainWeekOverview({
                 "rounded-xl overflow-hidden border transition-colors",
                 status === "next" && "border-primary/40 bg-primary/5",
                 status === "in_progress" && "border-amber-500/40 bg-amber-500/5",
+                status === "skipped" && "border-dashed opacity-95",
               )}
             >
               <button
@@ -241,45 +286,74 @@ export function TrainWeekOverview({
                   </div>
                 </div>
                 <DayStatusBadge status={status} />
-                {inProgressSession?.programDayId === day.id ? (
-                  <Link
-                    href={`/workout/${inProgressSession.id}`}
-                    className={cn(
-                      buttonVariants({ size: "sm", variant: "default" }),
-                      "shrink-0 rounded-lg inline-flex items-center justify-center min-h-9 px-3",
-                    )}
-                  >
-                    Continue
-                  </Link>
-                ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="shrink-0 rounded-lg"
-                    disabled={
-                      startDay.isPending ||
-                      (inProgressSession != null && inProgressSession.programDayId !== day.id)
-                    }
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startDay.mutate(day.id, {
-                        onSuccess: (d) => {
-                          window.location.href = `/workout/${d.sessionId}`;
-                        },
-                      });
-                    }}
-                  >
-                    {startDay.isPending ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Play className="size-4 sm:mr-1" />
-                        <span className="hidden sm:inline">Start</span>
-                      </>
-                    )}
-                  </Button>
-                )}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {inProgressSession?.programDayId === day.id ? (
+                    <Link
+                      href={`/workout/${inProgressSession.id}`}
+                      className={cn(
+                        buttonVariants({ size: "sm", variant: "default" }),
+                        "rounded-lg inline-flex items-center justify-center min-h-9 px-3",
+                      )}
+                    >
+                      Continue
+                    </Link>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-lg"
+                      disabled={
+                        weekPendingFinalize ||
+                        startDay.isPending ||
+                        done ||
+                        skipped ||
+                        (inProgressSession != null && inProgressSession.programDayId !== day.id)
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startDay.mutate(day.id, {
+                          onSuccess: (d) => {
+                            window.location.href = `/workout/${d.sessionId}`;
+                          },
+                        });
+                      }}
+                    >
+                      {startDay.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Play className="size-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Start</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {!done && !skipped && !inProgress && !weekPendingFinalize && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="rounded-lg px-2 sm:px-3"
+                      disabled={
+                        skipDay.isPending ||
+                        (inProgressSession != null && inProgressSession.programDayId !== day.id)
+                      }
+                      title={
+                        inProgressSession != null && inProgressSession.programDayId !== day.id
+                          ? "Finish or cancel the in-progress workout before skipping other days"
+                          : "Mark this day skipped for the week (no workout logged)"
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        skipDay.mutate(day.id);
+                      }}
+                    >
+                      <SkipForward className="size-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Skip</span>
+                    </Button>
+                  )}
+                </div>
               </button>
               {isOpen && (
                 <CardContent className="border-t bg-card/50 pt-0 pb-4 px-4">
@@ -361,12 +435,22 @@ export function TrainWeekOverview({
   );
 }
 
-function DayStatusBadge({ status }: { status: "done" | "in_progress" | "next" | "later" }) {
+function DayStatusBadge({
+  status,
+}: {
+  status: "done" | "skipped" | "in_progress" | "next" | "later";
+}) {
   switch (status) {
     case "done":
       return (
         <Badge variant="secondary" className="shrink-0 text-xs">
           Done
+        </Badge>
+      );
+    case "skipped":
+      return (
+        <Badge variant="outline" className="shrink-0 text-xs text-muted-foreground border-dashed">
+          Skipped
         </Badge>
       );
     case "in_progress":

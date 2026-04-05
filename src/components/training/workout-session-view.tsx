@@ -36,6 +36,8 @@ import {
   SessionCompleteSplash,
   type SessionCompleteSummaryPayload,
 } from "@/components/training/session-complete-splash";
+import { WeekCompleteSplash } from "@/components/training/week-complete-splash";
+import type { WeekCompletionSummaryPayload } from "@/lib/week-completion-summary";
 import { resolvePlateIncrementForSession, suggestNextWeekLoad, type WeightUnit } from "@/lib/calculators";
 import {
   DndContext,
@@ -92,6 +94,7 @@ type ProgramExerciseRow = {
 type SessionPayload = {
   session: {
     id: string;
+    programInstanceId: string;
     status: string;
     sleep: number | null;
     stress: number | null;
@@ -160,6 +163,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     muscleTags?: string;
   } | null>(null);
   const [completeSplash, setCompleteSplash] = useState<SessionCompleteSummaryPayload | null>(null);
+  const [weekSplashQueued, setWeekSplashQueued] = useState<WeekCompletionSummaryPayload | null>(null);
+  const [weekSplash, setWeekSplash] = useState<WeekCompletionSummaryPayload | null>(null);
   const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
   const prevBlockProgressRef = useRef<Map<string, { done: number; total: number }>>(new Map());
   const toggleBlockCollapsed = useCallback((blockId: string) => {
@@ -855,9 +860,11 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 try {
                   const res = (await patch.mutateAsync({ action: "complete" })) as {
                     summary?: SessionCompleteSummaryPayload;
+                    weekSummary?: WeekCompletionSummaryPayload | null;
                   };
                   void qc.invalidateQueries({ queryKey: ["training-active"] });
                   void qc.invalidateQueries({ queryKey: ["training-history"] });
+                  if (res.weekSummary) setWeekSplashQueued(res.weekSummary);
                   if (res.summary) setCompleteSplash(res.summary);
                   else router.push("/");
                 } catch {
@@ -961,6 +968,26 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           onClose={() => {
             setCompleteSplash(null);
             void qc.invalidateQueries({ queryKey: ["session", sessionId] });
+            if (weekSplashQueued) {
+              setWeekSplash(weekSplashQueued);
+              setWeekSplashQueued(null);
+            } else {
+              router.push("/");
+            }
+          }}
+        />
+      )}
+      {weekSplash && sessionEarly?.programInstanceId != null && (
+        <WeekCompleteSplash
+          open
+          summary={weekSplash}
+          instanceId={sessionEarly.programInstanceId}
+          onDismissStay={() => {
+            setWeekSplash(null);
+            router.push("/");
+          }}
+          onAfterAdvance={() => {
+            setWeekSplash(null);
             router.push("/");
           }}
         />

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { appendSessionCookieToResponse } from "@/lib/auth/session";
 import { passwordFieldSchema } from "@/lib/auth/password-policy";
 import { checkRateLimit, clientIpFromRequest, registerRateLimitConfig } from "@/lib/rate-limit";
+import { isPrismaUniqueConstraintError } from "@/lib/prisma-unique-constraint";
 
 const bodySchema = z.object({
   email: z.string().trim().email(),
@@ -41,21 +42,29 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      passwordHash,
-      name: parsed.data.name || null,
-      settings: {
-        create: {
-          preferredWeightUnit: "LB",
-          defaultRestSec: 180,
-          plateIncrementLb: 2.5,
-          plateIncrementKg: 2.5,
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name: parsed.data.name || null,
+        settings: {
+          create: {
+            preferredWeightUnit: "LB",
+            defaultRestSec: 180,
+            plateIncrementLb: 2.5,
+            plateIncrementKg: 2.5,
+          },
         },
       },
-    },
-  });
+    });
+  } catch (e) {
+    if (isPrismaUniqueConstraintError(e)) {
+      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+    }
+    throw e;
+  }
 
   const res = NextResponse.json(
     {

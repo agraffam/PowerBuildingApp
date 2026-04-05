@@ -138,6 +138,7 @@ model ProgramDay {
   label      String
   exercises  ProgramExercise[]
   sessions   WorkoutSession[]
+  skippedByInstances ProgramInstanceSkippedDay[]
 }
 
 model ProgramExercise {
@@ -176,8 +177,23 @@ model ProgramInstance {
   plannedExerciseOrderByDay Json?
   sessions         WorkoutSession[]
   exerciseReplacements ProgramInstanceExerciseReplacement[]
+  skippedDays      ProgramInstanceSkippedDay[]
 
   @@index([userId])
+}
+
+/** Training day marked skipped for a given program week (no workout started/completed). */
+model ProgramInstanceSkippedDay {
+  id                  String          @id @default(cuid())
+  programInstanceId   String
+  programInstance     ProgramInstance @relation(fields: [programInstanceId], references: [id], onDelete: Cascade)
+  weekIndex           Int
+  programDayId        String
+  programDay          ProgramDay      @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  createdAt           DateTime        @default(now())
+
+  @@unique([programInstanceId, weekIndex, programDayId])
+  @@index([programInstanceId, weekIndex])
 }
 
 /** Per user instance: replace template exercise in a slot for all future sessions (and current when applied). */

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionDetail } from "@/lib/training-queries";
 import { readinessToIntensityScalar } from "@/lib/calculators";
-import { advanceProgramInstance } from "@/lib/instance-advance";
+import { syncProgramInstanceCursor } from "@/lib/program-week-state";
+import { buildWeekCompletionSummary } from "@/lib/week-completion-summary";
 import {
   mirrorWorkingWeightToRemainingSets,
   prefillHistoryWeightsForSession,
@@ -314,9 +315,7 @@ export async function PATCH(
       where: { id: sessionId },
       data: { status: "COMPLETED", workoutCompletedAt: completedAt },
     });
-    await advanceProgramInstance(session.programInstanceId, userId, {
-      completedProgramDaySortOrder: withDay.programDay.sortOrder,
-    });
+    const cursor = await syncProgramInstanceCursor(session.programInstanceId, userId);
     let summary: Awaited<ReturnType<typeof buildSessionCompletionSummary>>;
     try {
       summary = await buildSessionCompletionSummary(userId, sessionId);
@@ -324,7 +323,20 @@ export async function PATCH(
       const msg = e instanceof Error ? e.message : String(e);
       return NextResponse.json({ error: msg }, { status: 500 });
     }
-    return NextResponse.json({ ok: true, summary });
+    let weekSummary: Awaited<ReturnType<typeof buildWeekCompletionSummary>> | null = null;
+    if (cursor.weekFullyAccounted) {
+      weekSummary = await buildWeekCompletionSummary(
+        userId,
+        session.programInstanceId,
+        session.weekIndex,
+      );
+    }
+    return NextResponse.json({
+      ok: true,
+      summary,
+      weekReadyToFinalize: cursor.weekFullyAccounted,
+      weekSummary,
+    });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

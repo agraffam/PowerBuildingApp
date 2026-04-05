@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readSessionUserId } from "@/lib/auth/session";
+import { isSuperAdminEmail } from "@/lib/auth/super-admin";
 
 export async function GET() {
   const userId = await readSessionUserId();
@@ -17,5 +18,7 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  return NextResponse.json({ user });
+  return NextResponse.json({
+    user: { ...user, isSuperAdmin: isSuperAdminEmail(user.email) },
+  });
 }

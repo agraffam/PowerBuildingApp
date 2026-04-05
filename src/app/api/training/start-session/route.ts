@@ -7,6 +7,12 @@ import {
 } from "@/lib/prefill-session-weights";
 import { requireUserId } from "@/lib/auth/require-user";
 import { getValidatedPlannedOrder, parsePlanOrderMap } from "@/lib/planned-exercise-order";
+import {
+  getCompletedProgramDayIdsForWeek,
+  getSkippedProgramDayIdsForWeek,
+  isWeekFullyAccounted,
+  sortedProgramDays,
+} from "@/lib/program-week-state";
 
 export async function POST(req: Request) {
   const auth = await requireUserId();
@@ -37,6 +43,16 @@ export async function POST(req: Request) {
 
   if (!instance) {
     return NextResponse.json({ error: "No active program" }, { status: 400 });
+  }
+
+  const daysSorted = sortedProgramDays(instance);
+  const completedIds = await getCompletedProgramDayIdsForWeek(instance.id, instance.weekIndex);
+  const skippedIds = await getSkippedProgramDayIdsForWeek(instance.id, instance.weekIndex);
+  if (isWeekFullyAccounted(daysSorted, completedIds, skippedIds)) {
+    return NextResponse.json(
+      { error: "Review and advance your week on Train before starting new workouts." },
+      { status: 409 },
+    );
   }
 
   const existing = await prisma.workoutSession.findFirst({

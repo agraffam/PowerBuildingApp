@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { BCRYPT_TIMING_DUMMY_HASH } from "@/lib/auth/login-timing";
 import { appendSessionCookieToResponse } from "@/lib/auth/session";
 import { checkRateLimit, clientIpFromRequest, loginRateLimitConfig } from "@/lib/rate-limit";
 
@@ -34,12 +35,9 @@ export async function POST(req: Request) {
 
   const email = parsed.data.email.toLowerCase();
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
-  }
-
-  const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
-  if (!ok) {
+  const hashToVerify = user?.passwordHash ?? BCRYPT_TIMING_DUMMY_HASH;
+  const ok = await bcrypt.compare(parsed.data.password, hashToVerify);
+  if (!user || !ok) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
