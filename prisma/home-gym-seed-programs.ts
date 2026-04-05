@@ -4,22 +4,22 @@
  */
 import { BlockType, type Prisma } from "@prisma/client";
 
-export const HOME_GYM_PROGRAM_NAMES = [
-  "Home Gym — 5×5 A/B",
-  "Home Gym — Full Body 3-Day",
-  "Home Gym — Upper / Lower 4-Day",
-  "Home Gym — PPL 3-Day",
-  "Home Gym — Push / Pull 4-Day",
-  "Home Gym — Express 3-Day",
-  "Home Gym — Full Body 4 Templates",
-  "Home Gym — Glutes & Hamstrings",
-  "Home Gym — Pressing Focus",
-  "Home Gym — Squat & Deadlift 16wk",
-  "Home Gym — Bro Split (5-Day)",
-  "Home Gym — Powerbuilding 3-Day",
-  "Home Gym — Athletic Full Body",
-  "Home Gym — Beginner 15wk",
-  "Home Gym — Upper / Lower Strength",
+export const SEED_TEMPLATE_PROGRAM_NAMES = [
+  "5×5 A/B",
+  "Full Body 3-Day",
+  "Upper / Lower 4-Day",
+  "PPL 3-Day",
+  "Push / Pull 4-Day",
+  "Express 3-Day",
+  "Full Body 4 Templates",
+  "Glutes & Hamstrings",
+  "Pressing Focus",
+  "Squat & Deadlift 16wk",
+  "Bro Split (5-Day)",
+  "Powerbuilding 3-Day",
+  "Athletic Full Body",
+  "Beginner 15wk",
+  "Upper / Lower Strength",
 ] as const;
 
 export function trainingBlocksForWeeks(durationWeeks: number) {
@@ -37,7 +37,7 @@ type E = Record<string, string>;
 export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
   return [
     {
-      name: HOME_GYM_PROGRAM_NAMES[0],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[0],
       durationWeeks: 12,
       blocks: trainingBlocksForWeeks(12),
       days: {
@@ -68,7 +68,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[1],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[1],
       durationWeeks: 10,
       blocks: trainingBlocksForWeeks(10),
       days: {
@@ -117,7 +117,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[2],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[2],
       durationWeeks: 8,
       blocks: trainingBlocksForWeeks(8),
       days: {
@@ -179,7 +179,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[3],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[3],
       durationWeeks: 9,
       blocks: trainingBlocksForWeeks(9),
       days: {
@@ -227,7 +227,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[4],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[4],
       durationWeeks: 7,
       blocks: trainingBlocksForWeeks(7),
       days: {
@@ -288,7 +288,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[5],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[5],
       durationWeeks: 6,
       blocks: trainingBlocksForWeeks(6),
       days: {
@@ -330,7 +330,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[6],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[6],
       durationWeeks: 14,
       blocks: trainingBlocksForWeeks(14),
       days: {
@@ -388,7 +388,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[7],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[7],
       durationWeeks: 11,
       blocks: trainingBlocksForWeeks(11),
       days: {
@@ -445,7 +445,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[8],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[8],
       durationWeeks: 10,
       blocks: trainingBlocksForWeeks(10),
       days: {
@@ -501,7 +501,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[9],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[9],
       durationWeeks: 16,
       blocks: trainingBlocksForWeeks(16),
       days: {
@@ -557,7 +557,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[10],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[10],
       durationWeeks: 13,
       blocks: trainingBlocksForWeeks(13),
       days: {
@@ -632,7 +632,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[11],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[11],
       durationWeeks: 12,
       blocks: trainingBlocksForWeeks(12),
       days: {
@@ -679,7 +679,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[12],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[12],
       durationWeeks: 8,
       blocks: trainingBlocksForWeeks(8),
       days: {
@@ -726,7 +726,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[13],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[13],
       durationWeeks: 15,
       blocks: trainingBlocksForWeeks(15),
       days: {
@@ -771,7 +771,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
-      name: HOME_GYM_PROGRAM_NAMES[14],
+      name: SEED_TEMPLATE_PROGRAM_NAMES[14],
       durationWeeks: 10,
       blocks: trainingBlocksForWeeks(10),
       days: {

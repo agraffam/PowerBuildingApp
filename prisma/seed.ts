@@ -1,6 +1,13 @@
 import { PrismaClient, BlockType, WeightUnit } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { HOME_GYM_PROGRAM_NAMES, homeGymProgramCreateData } from "./home-gym-seed-programs";
+import {
+  SEED_TEMPLATE_PROGRAM_NAMES,
+  homeGymProgramCreateData,
+} from "./home-gym-seed-programs";
+import {
+  POWERBUILDING_BLUEPRINT_PROGRAM_NAME,
+  powerbuildingBlueprintProgramCreateData,
+} from "./powerbuilding-blueprint-seed";
 
 const prisma = new PrismaClient();
 
@@ -98,6 +105,14 @@ async function main() {
     { name: "Pause Squat", slug: "pause-squat", muscleTags: "quads,glutes" },
     { name: "Deficit Deadlift", slug: "deficit-deadlift", muscleTags: "posterior,back" },
     { name: "Pin Press", slug: "pin-press", muscleTags: "chest,triceps,lockout" },
+    { name: "Low Bar Back Squat", slug: "low-bar-squat", muscleTags: "quads,glutes,back" },
+    { name: "BikeErg", slug: "bike-erg", muscleTags: "conditioning,cardio" },
+    { name: "Hanging Leg Raise", slug: "hanging-leg-raise", muscleTags: "core" },
+    { name: "Alternating Dumbbell Curl", slug: "alternating-dumbbell-curl", muscleTags: "biceps" },
+    { name: "Cable Straight-Bar Curl", slug: "cable-straight-bar-curl", muscleTags: "biceps" },
+    { name: "Dumbbell Shrug", slug: "dumbbell-shrug", muscleTags: "traps" },
+    { name: "Neutral-Grip Pull-Up", slug: "neutral-grip-pull-up", muscleTags: "lats,biceps,back" },
+    { name: "Assault Runner (Intervals)", slug: "assault-runner-intervals", muscleTags: "conditioning,cardio" },
   ];
 
   const exercises: Record<string, string> = {};
@@ -112,7 +127,7 @@ async function main() {
 
   /**
    * Prebuilt templates (web-informed: StrongLifts-style 5×5, PPL, bro split, upper/lower powerbuilding).
-   * Plus fifteen “Home Gym — …” programs (rack/barbell, dumbbells, bench, pull-up bar; see home-gym-seed-programs.ts).
+   * Plus fifteen minimal-equipment templates (see home-gym-seed-programs.ts) and the 60-minute powerbuilding blueprint.
    * Frequency: the app advances one “training day” per workout; calendar days/week is up to you.
    * Fewer weekly sessions = longer real-world time to finish one full cycle through all templates.
    */
@@ -125,8 +140,19 @@ async function main() {
     "4-Day Upper / Lower", // legacy seed name; remove on re-seed
   ] as const;
 
+  const legacyPrefixedTemplateNames = SEED_TEMPLATE_PROGRAM_NAMES.map((n) => `Home Gym — ${n}`);
+
   await prisma.program.deleteMany({
-    where: { name: { in: [...PREBUILT_PROGRAM_NAMES, ...HOME_GYM_PROGRAM_NAMES] } },
+    where: {
+      name: {
+        in: [
+          ...PREBUILT_PROGRAM_NAMES,
+          ...SEED_TEMPLATE_PROGRAM_NAMES,
+          ...legacyPrefixedTemplateNames,
+          POWERBUILDING_BLUEPRINT_PROGRAM_NAME,
+        ],
+      },
+    },
   });
 
   const blocks8 = {
@@ -139,6 +165,9 @@ async function main() {
   const E = exercises;
 
   const homeGymCreates = homeGymProgramCreateData(E).map((data) => prisma.program.create({ data }));
+  const blueprintCreate = prisma.program.create({
+    data: powerbuildingBlueprintProgramCreateData(E),
+  });
 
   const programs = await prisma.$transaction([
     // 1) StrongLifts-style linear 5×5: two alternating workouts (typical 2–4×/wk).
@@ -476,6 +505,7 @@ async function main() {
       },
     }),
     ...homeGymCreates,
+    blueprintCreate,
   ]);
 
   const hasActive = await prisma.programInstance.findFirst({
