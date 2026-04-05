@@ -4,7 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { playRestCompleteBeep, unlockRestTimerAudio } from "@/lib/play-rest-complete-beep";
+import {
+  playRestCountdownBeepFinalSecond,
+  playRestCountdownBeepShort,
+  unlockRestTimerAudio,
+} from "@/lib/play-rest-complete-beep";
 import { maybeAskRestNotificationPermission, tryRestCompleteNotify } from "@/lib/rest-timer-notify";
 import {
   applyBandRestSec,
@@ -36,15 +40,55 @@ export function RestTimerRing({ sessionId: propSessionId }: Props) {
 
   const [now, setNow] = useState(() => Date.now());
   const beepedForPeriodRef = useRef(false);
+  const countdownBeepsRef = useRef<{ end: number | null; s3: boolean; s2: boolean; s1: boolean }>({
+    end: null,
+    s3: false,
+    s2: false,
+    s1: false,
+  });
 
   const finalizeRestIfDue = useCallback(() => {
     const s = useWorkoutSessionStore.getState();
     if (!s.isRestRunning || s.restEndsAt == null || Date.now() < s.restEndsAt) return;
     if (beepedForPeriodRef.current) return;
     beepedForPeriodRef.current = true;
-    playRestCompleteBeep();
     tryRestCompleteNotify();
     s.tick();
+  }, []);
+
+  /** Reset countdown beep flags when rest ends or target time changes (e.g. ±15s). */
+  useEffect(() => {
+    if (!isRunning || restEndsAt == null) {
+      countdownBeepsRef.current = { end: null, s3: false, s2: false, s1: false };
+      return;
+    }
+    countdownBeepsRef.current = {
+      end: restEndsAt,
+      s3: false,
+      s2: false,
+      s1: false,
+    };
+  }, [isRunning, restEndsAt]);
+
+  const maybePlayCountdownBeeps = useCallback((activeEnd: number) => {
+    const r = countdownBeepsRef.current;
+    if (r.end !== activeEnd) return;
+    const leftMs = activeEnd - Date.now();
+    if (leftMs <= 0) return;
+    const secLeft = Math.ceil(leftMs / 1000);
+    if (secLeft === 3 && !r.s3) {
+      r.s3 = true;
+      playRestCountdownBeepShort();
+    }
+    if (secLeft === 2 && !r.s2) {
+      r.s2 = true;
+      playRestCountdownBeepShort();
+    }
+    if (secLeft === 1 && !r.s1) {
+      r.s1 = true;
+      const durSec = Math.min(1, Math.max(0.08, leftMs / 1000));
+      playRestCountdownBeepFinalSecond(durSec);
+    }
   }, []);
 
   /** Safari / iOS: AudioContext stays suspended until a user gesture; unlock on any tap. */
@@ -126,11 +170,14 @@ export function RestTimerRing({ sessionId: propSessionId }: Props) {
       return;
     }
     const id = setInterval(() => {
-      setNow(Date.now());
+      const t = Date.now();
+      setNow(t);
+      const end = useWorkoutSessionStore.getState().restEndsAt;
+      if (end != null) maybePlayCountdownBeeps(end);
       finalizeRestIfDue();
     }, 250);
     return () => clearInterval(id);
-  }, [isRunning, finalizeRestIfDue]);
+  }, [isRunning, finalizeRestIfDue, maybePlayCountdownBeeps]);
 
   if (!isRunning || restEndsAt == null || restStartedAt == null) return null;
 
