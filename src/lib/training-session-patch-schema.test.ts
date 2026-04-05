@@ -28,4 +28,20 @@ describe("trainingSessionPatchBodySchema", () => {
     const r = trainingSessionPatchBodySchema.safeParse({ action: "nope" });
     expect(r.success).toBe(false);
   });
+  it("rejects set with invalid RPE step", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({
+      action: "set",
+      setId: "c1",
+      rpe: 7.25,
+    });
+    expect(r.success).toBe(false);
+  });
+  it("accepts set with valid half-step RPE", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({
+      action: "set",
+      setId: "c1",
+      rpe: 7.5,
+    });
+    expect(r.success).toBe(true);
+  });
 });

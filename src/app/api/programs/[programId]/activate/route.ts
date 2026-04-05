@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const noStoreJson = { headers: { "Cache-Control": "private, no-store, max-age=0" } };
 
 export async function POST(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ programId: string }> },
 ) {
   const auth = await requireUserId();
@@ -16,6 +16,16 @@ export async function POST(
   const { userId } = auth;
 
   const { programId } = await ctx.params;
+
+  let confirmSwitch = false;
+  try {
+    const raw = await req.json();
+    if (raw && typeof raw === "object" && (raw as { confirmSwitch?: unknown }).confirmSwitch === true) {
+      confirmSwitch = true;
+    }
+  } catch {
+    /* empty or invalid body */
+  }
 
   const program = await prisma.program.findUnique({ where: { id: programId } });
   if (!program) {
@@ -25,11 +35,29 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404, ...noStoreJson });
   }
 
+  const current = await prisma.programInstance.findFirst({
+    where: { status: "ACTIVE", userId },
+  });
+
+  if (current?.programId === programId) {
+    return NextResponse.json({ instance: current }, noStoreJson);
+  }
+
+  if (current && current.programId !== programId && !confirmSwitch) {
+    return NextResponse.json(
+      {
+        error: "Switching programs pauses your current run. Confirm to continue.",
+        code: "CONFIRM_SWITCH_REQUIRED",
+      },
+      { status: 409, ...noStoreJson },
+    );
+  }
+
   try {
     const instance = await prisma.$transaction(async (tx) => {
       await tx.programInstance.updateMany({
         where: { status: "ACTIVE", userId },
-        data: { status: "COMPLETED" },
+        data: { status: "PAUSED" },
       });
       return tx.programInstance.create({
         data: {

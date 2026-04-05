@@ -24,7 +24,13 @@ export async function GET() {
         _count: { select: { days: true, blocks: true } },
       },
     });
-    return NextResponse.json(programs, noStoreJson);
+    const mineFirst = [...programs].sort((a, b) => {
+      const aMine = a.ownerId != null ? 1 : 0;
+      const bMine = b.ownerId != null ? 1 : 0;
+      if (bMine !== aMine) return bMine - aMine;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
+    return NextResponse.json(mineFirst, noStoreJson);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { ...noStoreJson, status: 500 });

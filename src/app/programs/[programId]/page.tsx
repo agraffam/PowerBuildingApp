@@ -1,14 +1,23 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 import { Loader2, Pencil, Copy } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { browserApiFetchInit } from "@/lib/browser-api-fetch";
 
 type ProgramDetail = {
@@ -30,19 +39,27 @@ type ProgramDetail = {
   }[];
 };
 
+type TrainingActivePayload = {
+  instance: {
+    id: string;
+    programId: string;
+    program?: { name: string };
+  } | null;
+  inProgressSession: { id: string } | null;
+};
+
 export default function ProgramDetailPage() {
   const params = useParams();
   const programId = params.programId as string;
   const qc = useQueryClient();
+  const [switchOpen, setSwitchOpen] = useState(false);
 
   const active = useQuery({
     queryKey: ["training-active"],
     queryFn: async () => {
       const r = await fetch("/api/training/active", browserApiFetchInit);
       if (!r.ok) throw new Error("Failed");
-      return r.json() as Promise<{
-        instance: { programId: string } | null;
-      }>;
+      return r.json() as Promise<TrainingActivePayload>;
     },
   });
 
@@ -56,14 +73,23 @@ export default function ProgramDetailPage() {
   });
 
   const activate = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts: { confirmSwitch?: boolean }) => {
       const r = await fetch(`/api/programs/${programId}/activate`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         ...browserApiFetchInit,
+        body: JSON.stringify({ confirmSwitch: opts.confirmSwitch === true }),
       });
       if (r.status === 401) {
         window.location.assign(`/login?next=/programs/${programId}`);
         throw new Error("Session expired — sign in again");
+      }
+      if (r.status === 409) {
+        const j = (await r.json().catch(() => ({}))) as { code?: string; error?: string };
+        if (j.code === "CONFIRM_SWITCH_REQUIRED") {
+          setSwitchOpen(true);
+          throw new Error(j.error ?? "Confirmation required");
+        }
       }
       if (!r.ok) {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
@@ -72,8 +98,10 @@ export default function ProgramDetailPage() {
       return r.json();
     },
     onSuccess: () => {
+      setSwitchOpen(false);
       void qc.invalidateQueries({ queryKey: ["training-active"] });
       void qc.invalidateQueries({ queryKey: ["programs"] });
+      void qc.invalidateQueries({ queryKey: ["training-instances"] });
     },
   });
 
@@ -102,6 +130,8 @@ export default function ProgramDetailPage() {
 
   const { program, hasWorkoutHistory } = data;
   const isActive = active.data?.instance?.programId === programId;
+  const current = active.data?.instance;
+  const currentName = current?.program?.name ?? "your current program";
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -128,7 +158,13 @@ export default function ProgramDetailPage() {
             <Button
               className="rounded-xl gap-2 w-full sm:w-auto"
               disabled={activate.isPending}
-              onClick={() => activate.mutate()}
+              onClick={() => {
+                if (current && current.programId !== programId) {
+                  setSwitchOpen(true);
+                  return;
+                }
+                activate.mutate({});
+              }}
             >
               {activate.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               Activate program
@@ -156,11 +192,47 @@ export default function ProgramDetailPage() {
         </div>
       </div>
 
-      {activate.isError && (
+      {activate.isError && !switchOpen && (
         <p className="text-destructive text-sm" role="alert">
           {(activate.error as Error).message}
         </p>
       )}
+
+      <Dialog open={switchOpen} onOpenChange={setSwitchOpen}>
+        <DialogContent className="rounded-2xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Switch active program?</DialogTitle>
+            <DialogDescription className="space-y-2">
+              <span className="block">
+                Activating <span className="font-medium text-foreground">{program.name}</span> pauses{" "}
+                <span className="font-medium text-foreground">{currentName}</span>. You can resume the paused run from
+                Programs.
+              </span>
+              {active.data?.inProgressSession && (
+                <span className="block text-amber-600 dark:text-amber-500">
+                  You have an unfinished workout on your current program—finish or cancel it from Train if you need a
+                  clean handoff.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full rounded-xl"
+              disabled={activate.isPending}
+              onClick={() => activate.mutate({ confirmSwitch: true })}
+            >
+              {activate.isPending ? <Loader2 className="size-4 animate-spin" /> : "Yes, switch"}
+            </Button>
+            <Button variant="outline" className="w-full rounded-xl" type="button" onClick={() => setSwitchOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+          {activate.isError && switchOpen && (
+            <p className="text-destructive text-sm">{(activate.error as Error).message}</p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Card className="rounded-2xl">
         <CardHeader>

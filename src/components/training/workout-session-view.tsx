@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpen, Check, ChevronDown, Loader2, Replace, Trash2 } from "lucide-react";
@@ -22,6 +22,13 @@ import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useWorkoutSessionStore } from "@/stores/workout-session-store";
 import { ExerciseLibrarySheet } from "@/components/training/exercise-library-sheet";
 import { ExerciseSwapDialog } from "@/components/training/exercise-swap-dialog";
@@ -47,7 +54,7 @@ import {
   parseExerciseOrderJson,
 } from "@/lib/workout-blocks";
 import { effectiveUseBodyweight } from "@/lib/exercise-bodyweight";
-import { restSecForRpe, rpeToBandId } from "@/lib/rest-by-rpe";
+import { RPE_REST_KEYS, restSecForRpe, rpeToBandId, snapToLoggedRpeStep } from "@/lib/rest-by-rpe";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 
 type LoggedSetRow = {
@@ -123,6 +130,22 @@ function toDatetimeLocalValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function blockSetProgress(
+  block: ProgramExerciseRow[],
+  byExercise: Map<string, LoggedSetRow[]>,
+) {
+  let done = 0;
+  let total = 0;
+  for (const ex of block) {
+    const rows = byExercise.get(ex.id) ?? [];
+    total += rows.length;
+    for (const r of rows) {
+      if (r.done) done += 1;
+    }
+  }
+  return { done, total };
+}
+
 export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -138,6 +161,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   } | null>(null);
   const [completeSplash, setCompleteSplash] = useState<SessionCompleteSummaryPayload | null>(null);
   const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
+  const prevBlockProgressRef = useRef<Map<string, { done: number; total: number }>>(new Map());
   const toggleBlockCollapsed = useCallback((blockId: string) => {
     setCollapsedBlockIds((prev) => {
       const next = new Set(prev);
@@ -254,6 +278,29 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
 
   const blocks = useMemo(() => clusterSupersetBlocks(orderedExercises), [orderedExercises]);
   const blockIds = useMemo(() => blocks.map((b) => b.map((e) => e.id).join("|")), [blocks]);
+
+  useEffect(() => {
+    if (!sessionEarly || sessionEarly.status === "COMPLETED") return;
+    const toCollapse: string[] = [];
+    const nextPrev = new Map<string, { done: number; total: number }>();
+    blocks.forEach((block, bi) => {
+      const id = blockIds[bi]!;
+      const prog = blockSetProgress(block, byExercise);
+      const prev = prevBlockProgressRef.current.get(id);
+      if (prog.total > 0 && prog.done === prog.total && (prev == null || prev.done < prev.total)) {
+        toCollapse.push(id);
+      }
+      nextPrev.set(id, prog);
+    });
+    prevBlockProgressRef.current = nextPrev;
+    if (toCollapse.length > 0) {
+      setCollapsedBlockIds((prev) => {
+        const next = new Set(prev);
+        for (const id of toCollapse) next.add(id);
+        return next;
+      });
+    }
+  }, [sessionEarly, sessionEarly?.status, blocks, blockIds, byExercise]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -456,19 +503,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         (() => {
           const canReorderBlocks = canCancel && blocks.length > 1;
 
-          const blockSetProgress = (block: ProgramExerciseRow[]) => {
-            let done = 0;
-            let total = 0;
-            for (const ex of block) {
-              const rows = byExercise.get(ex.id) ?? [];
-              total += rows.length;
-              for (const r of rows) {
-                if (r.done) done += 1;
-              }
-            }
-            return { done, total };
-          };
-
           const renderExerciseHeader = (ex: ProgramExerciseRow) => (
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-lg">{ex.exercise.name}</CardTitle>
@@ -507,7 +541,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             const collapsed = collapsedBlockIds.has(blockId);
             const rows = byExercise.get(ex.id) ?? [];
             const prev = previousByExerciseId[ex.id];
-            const { done, total } = blockSetProgress([ex]);
+            const { done, total } = blockSetProgress([ex], byExercise);
             const plateInc = resolvePlateIncrementForSession(
               unit as WeightUnit,
               ex.exercise.effectiveBarIncrementLb ?? ex.exercise.barIncrementLb,
@@ -599,7 +633,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             const label = block[0]?.supersetGroup ?? "Superset";
             const nSets = block[0]!.sets;
             const collapsed = collapsedBlockIds.has(blockId);
-            const { done, total } = blockSetProgress(block);
+            const { done, total } = blockSetProgress(block, byExercise);
             const names = block.map((e) => e.exercise.name).join(" · ");
             return (
               <Card className="overflow-hidden rounded-2xl border shadow-sm border-primary/25">
@@ -960,23 +994,27 @@ function SetRowEditor({
   bodyweight: boolean;
   onCommitSet: (body: object) => void;
 }) {
-  const [local, setLocal] = useState({
-    weight: String(row.weight || ""),
-    reps: row.reps != null ? String(row.reps) : String(repTarget),
-    rpe: row.rpe != null ? String(row.rpe) : String(targetRpe),
+  const [local, setLocal] = useState(() => {
+    const rpeStep = snapToLoggedRpeStep(row.rpe ?? targetRpe);
+    return {
+      weight: String(row.weight || ""),
+      reps: row.reps != null ? String(row.reps) : String(repTarget),
+      rpe: String(rpeStep),
+    };
   });
 
   useEffect(() => {
+    const rpeStep = snapToLoggedRpeStep(row.rpe ?? targetRpe);
     setLocal({
       weight: bodyweight ? "0" : String(row.weight || ""),
       reps: row.reps != null ? String(row.reps) : String(repTarget),
-      rpe: row.rpe != null ? String(row.rpe) : String(targetRpe),
+      rpe: String(rpeStep),
     });
   }, [row.weight, row.reps, row.rpe, repTarget, targetRpe, bodyweight]);
 
   const baselineWeight = bodyweight ? "0" : String(row.weight || "");
   const baselineReps = row.reps != null ? String(row.reps) : String(repTarget);
-  const baselineRpe = row.rpe != null ? String(row.rpe) : String(targetRpe);
+  const baselineRpe = String(snapToLoggedRpeStep(row.rpe ?? targetRpe));
   const dirty =
     local.reps !== baselineReps ||
     local.rpe !== baselineRpe ||
@@ -1083,13 +1121,18 @@ function SetRowEditor({
         </div>
         <div className="space-y-1">
           <Label className="text-xs">RPE</Label>
-          <Input
-            type="text"
-            inputMode="decimal"
-            className="rounded-lg"
-            value={local.rpe}
-            onChange={(e) => setLocal((l) => ({ ...l, rpe: e.target.value }))}
-          />
+          <Select value={local.rpe} onValueChange={(v) => setLocal((l) => ({ ...l, rpe: v ?? l.rpe }))}>
+            <SelectTrigger className="rounded-lg w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RPE_REST_KEYS.map((k) => (
+                <SelectItem key={k} value={String(k)}>
+                  {k}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       {!bodyweight && prog.bumped && row.done && (

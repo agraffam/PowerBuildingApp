@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isLoggedRpeStep } from "@/lib/rest-by-rpe";
 
 const readiness = z.object({
   action: z.literal("readiness"),
@@ -7,15 +8,25 @@ const readiness = z.object({
   soreness: z.number().finite().min(0).max(10),
 });
 
-const setBody = z.object({
-  action: z.literal("set"),
-  setId: z.string().min(1),
-  weight: z.number().finite().optional(),
-  weightUnit: z.enum(["KG", "LB"]).optional(),
-  reps: z.number().finite().nullable().optional(),
-  rpe: z.number().finite().nullable().optional(),
-  done: z.boolean().optional(),
-});
+const setBody = z
+  .object({
+    action: z.literal("set"),
+    setId: z.string().min(1),
+    weight: z.number().finite().optional(),
+    weightUnit: z.enum(["KG", "LB"]).optional(),
+    reps: z.number().finite().nullable().optional(),
+    rpe: z.number().finite().nullable().optional(),
+    done: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.rpe !== undefined && data.rpe !== null && !isLoggedRpeStep(data.rpe)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "RPE must be between 6 and 10 in 0.5 steps",
+        path: ["rpe"],
+      });
+    }
+  });
 
 export const trainingSessionPatchBodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel") }),

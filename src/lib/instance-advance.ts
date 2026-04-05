@@ -10,7 +10,7 @@ export async function advanceProgramInstance(
     where: { id: instanceId },
     include: { program: { select: { durationWeeks: true, days: true } } },
   });
-  if (!instance || instance.userId !== userId || instance.status === "COMPLETED") return;
+  if (!instance || instance.userId !== userId || instance.status !== "ACTIVE") return;
 
   const nDays = instance.program.days.length;
   if (nDays === 0) return;

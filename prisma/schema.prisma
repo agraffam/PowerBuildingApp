@@ -27,6 +27,8 @@ enum WeightUnit {
 
 enum ProgramInstanceStatus {
   ACTIVE
+  /** Switched away mid-cycle; progress preserved for resume. */
+  PAUSED
   COMPLETED
 }
 

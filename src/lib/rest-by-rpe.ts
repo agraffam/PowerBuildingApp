@@ -3,6 +3,28 @@ export const RPE_REST_KEYS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10] as const;
 
 export type RpeRestKey = (typeof RPE_REST_KEYS)[number];
 
+const RPE_REST_KEY_NUMS = RPE_REST_KEYS as readonly number[];
+
+/** True if `n` matches a logged-RPE step (half-point ladder). */
+export function isLoggedRpeStep(n: number): boolean {
+  if (!Number.isFinite(n)) return false;
+  return RPE_REST_KEY_NUMS.some((k) => Math.abs(k - n) < 1e-9);
+}
+
+/** Snap any RPE to the nearest half-step on the ladder (for display defaults). */
+export function snapToLoggedRpeStep(n: number): RpeRestKey {
+  let best: RpeRestKey = RPE_REST_KEYS[0];
+  let bestAbs = Infinity;
+  for (const k of RPE_REST_KEYS) {
+    const d = Math.abs(k - n);
+    if (d < bestAbs) {
+      bestAbs = d;
+      best = k;
+    }
+  }
+  return best;
+}
+
 /** Allowed rest lengths in the RPE grid (seconds). */
 export const RPE_REST_SEC_OPTIONS = [30, 60, 90, 120, 150, 180, 210] as const;
 
