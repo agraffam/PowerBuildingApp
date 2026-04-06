@@ -1,7 +1,8 @@
 # Production image: SQLite DB on a mounted volume (path via DATABASE_URL or PB_DATA_DIR).
 FROM node:20-bookworm-slim AS base
 WORKDIR /app
-RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+# gosu: drop root after fixing named-volume permissions on /app/data (see docker-entrypoint.sh)
+RUN apt-get update -y && apt-get install -y openssl ca-certificates gosu && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 COPY package.json package-lock.json* ./
@@ -36,7 +37,7 @@ RUN mkdir -p /app/data \
   && chown -R node:node /app \
   && chown node:node /docker-entrypoint.sh
 
-USER node
+# Entrypoint starts as root, chowns mounted volume, then gosu → node (see docker-entrypoint.sh).
 
 EXPOSE 3000
 ENV PORT=3000

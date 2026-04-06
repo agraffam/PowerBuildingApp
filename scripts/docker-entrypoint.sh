@@ -1,6 +1,15 @@
 #!/bin/sh
 set -e
 DATA_DIR="${PB_DATA_DIR:-/app/data}"
+
+# Docker named volumes are often root-owned; the app user is `node` (uid 1000). Without a chown,
+# `prisma db push` cannot create prod.db and the container exits immediately.
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p "$DATA_DIR"
+  chown -R node:node "$DATA_DIR"
+  exec gosu node "$0" "$@"
+fi
+
 mkdir -p "$DATA_DIR"
 
 if [ -z "$DATABASE_URL" ]; then
