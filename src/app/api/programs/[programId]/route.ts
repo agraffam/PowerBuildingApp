@@ -41,7 +41,59 @@ export async function GET(
     where: { programInstance: { programId, userId } },
   });
 
-  return NextResponse.json({ program, hasWorkoutHistory: sessionCount > 0 });
+  const programInstanceCount = await prisma.programInstance.count({ where: { programId } });
+  const canDeleteProgram = userCanEditProgramStructure(program.ownerId, userId);
+
+  return NextResponse.json({
+    program,
+    hasWorkoutHistory: sessionCount > 0,
+    canDeleteProgram,
+    programInstanceCount,
+  });
+}
+
+export async function DELETE(
+  req: Request,
+  ctx: { params: Promise<{ programId: string }> },
+) {
+  const auth = await requireUserId();
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
+
+  const { programId } = await ctx.params;
+
+  const program = await prisma.program.findUnique({ where: { id: programId } });
+  if (!program || !userCanEditProgramStructure(program.ownerId, userId)) {
+    return NextResponse.json(
+      { error: "Only programs you created can be deleted." },
+      { status: 404 },
+    );
+  }
+
+  let confirmDeleteInstances = false;
+  try {
+    const raw = await req.json();
+    if (raw && typeof raw === "object" && (raw as { confirmDeleteInstances?: unknown }).confirmDeleteInstances === true) {
+      confirmDeleteInstances = true;
+    }
+  } catch {
+    /* empty body */
+  }
+
+  const programInstanceCount = await prisma.programInstance.count({ where: { programId } });
+  if (programInstanceCount > 0 && !confirmDeleteInstances) {
+    return NextResponse.json(
+      {
+        error: `This program has ${programInstanceCount} saved run(s). Deleting removes all progress and history for those runs.`,
+        code: "CONFIRM_DELETE_INSTANCES",
+        programInstanceCount,
+      },
+      { status: 409 },
+    );
+  }
+
+  await prisma.program.delete({ where: { id: programId } });
+  return NextResponse.json({ ok: true });
 }
 
 export async function PATCH(

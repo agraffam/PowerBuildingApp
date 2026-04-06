@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -170,6 +170,19 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
           ? day
           : { ...day, exercises: day.exercises.filter((_, k) => k !== ei) },
       ),
+    );
+  };
+
+  const moveExercise = (di: number, ei: number, dir: -1 | 1) => {
+    setDays((d) =>
+      d.map((day, j) => {
+        if (j !== di) return day;
+        const k = ei + dir;
+        if (k < 0 || k >= day.exercises.length) return day;
+        const next = [...day.exercises];
+        [next[ei], next[k]] = [next[k]!, next[ei]!];
+        return { ...day, exercises: next };
+      }),
     );
   };
 
@@ -431,10 +444,35 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                 <Separator />
                 <ul className="space-y-4">
                   {day.exercises.map((ex, ei) => (
-                    <li
-                      key={ei}
-                      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end rounded-xl border bg-card p-3"
-                    >
+                    <li key={ei} className="rounded-xl border bg-card p-3 space-y-3">
+                      {!structureLocked && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground mr-1">Reorder</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg shrink-0"
+                            disabled={ei === 0}
+                            onClick={() => moveExercise(di, ei, -1)}
+                            aria-label="Move exercise up in this day"
+                          >
+                            <ChevronUp className="size-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg shrink-0"
+                            disabled={ei >= day.exercises.length - 1}
+                            onClick={() => moveExercise(di, ei, 1)}
+                            aria-label="Move exercise down in this day"
+                          >
+                            <ChevronDown className="size-4" />
+                          </Button>
+                        </div>
+                      )}
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
                       <div className="lg:col-span-2 space-y-1">
                         <Label className="text-xs">Exercise</Label>
                         <Select
@@ -570,6 +608,7 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                           </Button>
                         </div>
                       )}
+                      </div>
                     </li>
                   ))}
                 </ul>

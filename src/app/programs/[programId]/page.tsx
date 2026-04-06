@@ -2,9 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Loader2, Pencil, Copy } from "lucide-react";
+import { Loader2, Pencil, Copy, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,11 +61,14 @@ function hasResumableRunForProgram(instances: PausableInstance[] | undefined, pi
 
 export default function ProgramDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const programId = params.programId as string;
   const qc = useQueryClient();
   const [switchOpen, setSwitchOpen] = useState(false);
   const [archivePausedOnSwitch, setArchivePausedOnSwitch] = useState(false);
   const [freshOpen, setFreshOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteAckInstances, setDeleteAckInstances] = useState(false);
 
   const active = useQuery({
     queryKey: ["training-active"],
@@ -90,7 +93,32 @@ export default function ProgramDetailPage() {
     queryFn: async () => {
       const r = await fetch(`/api/programs/${programId}`, browserApiFetchInit);
       if (!r.ok) throw new Error("Failed");
-      return r.json() as Promise<{ program: ProgramDetail; hasWorkoutHistory: boolean }>;
+      return r.json() as Promise<{
+        program: ProgramDetail;
+        hasWorkoutHistory: boolean;
+        canDeleteProgram: boolean;
+        programInstanceCount: number;
+      }>;
+    },
+  });
+
+  const deleteProgram = useMutation({
+    mutationFn: async (confirmDeleteInstances: boolean) => {
+      const r = await fetch(`/api/programs/${programId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmDeleteInstances }),
+        ...browserApiFetchInit,
+      });
+      const j = (await r.json().catch(() => ({}))) as { error?: string; code?: string };
+      if (!r.ok) throw new Error(j.error ?? "Could not delete program");
+    },
+    onSuccess: async () => {
+      setDeleteOpen(false);
+      await qc.invalidateQueries({ queryKey: ["programs"] });
+      await qc.invalidateQueries({ queryKey: ["training-active"] });
+      await qc.invalidateQueries({ queryKey: ["training-instances"] });
+      router.push("/programs");
     },
   });
 
@@ -160,7 +188,7 @@ export default function ProgramDetailPage() {
     );
   }
 
-  const { program, hasWorkoutHistory } = data;
+  const { program, hasWorkoutHistory, canDeleteProgram, programInstanceCount } = data;
   const isActive = active.data?.instance?.programId === programId;
   const current = active.data?.instance;
   const currentName = current?.program?.name ?? "your current program";
@@ -225,6 +253,19 @@ export default function ProgramDetailPage() {
             <Copy className="size-4" />
             Duplicate
           </Button>
+          {canDeleteProgram && (
+            <Button
+              variant="outline"
+              className="rounded-xl gap-2 w-full sm:w-auto border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                setDeleteAckInstances(false);
+                setDeleteOpen(true);
+              }}
+            >
+              <Trash2 className="size-4" />
+              Delete program
+            </Button>
+          )}
         </div>
       </div>
 
@@ -282,6 +323,72 @@ export default function ProgramDetailPage() {
           </DialogFooter>
           {activate.isError && switchOpen && (
             <p className="text-destructive text-sm">{(activate.error as Error).message}</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(o) => {
+          setDeleteOpen(o);
+          if (!o) setDeleteAckInstances(false);
+        }}
+      >
+        <DialogContent className="rounded-2xl sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Delete this program?</DialogTitle>
+            <DialogDescription className="space-y-3 text-foreground">
+              <span className="block">
+                <span className="font-medium">{program.name}</span> will be removed from your library
+                permanently.
+              </span>
+              {programInstanceCount > 0 ? (
+                <>
+                  <span className="block text-destructive">
+                    This will also delete {programInstanceCount} saved run
+                    {programInstanceCount === 1 ? "" : "s"} (active, paused, or completed) and every logged
+                    workout tied to {programInstanceCount === 1 ? "that run" : "those runs"}.
+                  </span>
+                  <label className="flex items-start gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 rounded border-input"
+                      checked={deleteAckInstances}
+                      onChange={(e) => setDeleteAckInstances(e.target.checked)}
+                    />
+                    <span>I understand all runs and history for this program will be erased.</span>
+                  </label>
+                </>
+              ) : (
+                <span className="block text-muted-foreground text-sm">You have no saved runs of this template yet.</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              variant="destructive"
+              className="w-full rounded-xl"
+              disabled={
+                deleteProgram.isPending || (programInstanceCount > 0 && !deleteAckInstances)
+              }
+              onClick={() =>
+                deleteProgram.mutate(programInstanceCount > 0 ? deleteAckInstances : false)
+              }
+            >
+              {deleteProgram.isPending ? <Loader2 className="size-4 animate-spin" /> : "Delete forever"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full rounded-xl"
+              type="button"
+              disabled={deleteProgram.isPending}
+              onClick={() => setDeleteOpen(false)}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+          {deleteProgram.isError && (
+            <p className="text-destructive text-sm">{(deleteProgram.error as Error).message}</p>
           )}
         </DialogContent>
       </Dialog>
