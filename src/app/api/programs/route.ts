@@ -8,6 +8,7 @@ import {
 } from "@/lib/program-periodization";
 import { validateSupersetSets } from "@/lib/program-superset-validation";
 import { requireUserId } from "@/lib/auth/require-user";
+import { persistRepTargetRpe } from "@/lib/wizard-exercise-persist";
 
 export const dynamic = "force-dynamic";
 
@@ -52,8 +53,8 @@ type WizardBody = {
     exercises: {
       exerciseSlug: string;
       sets: number;
-      repTarget: number;
-      targetRpe: number;
+      repTarget?: number | null;
+      targetRpe?: number | null;
       pctOf1rm?: number | null;
       restSec?: number | null;
       useBodyweight?: boolean | null;
@@ -129,13 +130,14 @@ export async function POST(req: Request) {
                 create: day.exercises.map((ex, ei) => {
                   const exRow = bySlug.get(ex.exerciseSlug);
                   if (!exRow) throw new Error(`Unknown exercise: ${ex.exerciseSlug}`);
+                  const rx = persistRepTargetRpe(exRow.kind, ex.repTarget, ex.targetRpe);
                   return {
                     exerciseId: exRow.id,
                     sortOrder: ei,
                     supersetGroup: ex.supersetGroup?.trim() || null,
                     sets: ex.sets,
-                    repTarget: ex.repTarget,
-                    targetRpe: ex.targetRpe,
+                    repTarget: rx.repTarget,
+                    targetRpe: rx.targetRpe,
                     pctOf1rm: ex.pctOf1rm ?? null,
                     restSec: ex.restSec ?? null,
                     useBodyweight: ex.useBodyweight ?? null,

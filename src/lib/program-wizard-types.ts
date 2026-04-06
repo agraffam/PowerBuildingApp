@@ -3,8 +3,9 @@ export type WizardBlock = { blockType: string; startWeek: number; endWeek: numbe
 export type WizardExercise = {
   exerciseSlug: string;
   sets: number;
-  repTarget: number;
-  targetRpe: number;
+  /** Strength: usually set in UI; cardio may omit or null when using time/kcal only. */
+  repTarget?: number | null;
+  targetRpe?: number | null;
   pctOf1rm?: number | null;
   restSec?: number | null;
   /** null = use exercise library default; true/false overrides bodyweight for this slot. */

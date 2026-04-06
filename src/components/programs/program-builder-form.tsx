@@ -88,9 +88,10 @@ export function ProgramBuilderForm({
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initial?.name ?? "My program");
   const [durationWeeks, setDurationWeeks] = useState(initial?.durationWeeks ?? 8);
-  const [deloadIntervalWeeks, setDeloadIntervalWeeks] = useState<number | null>(
-    initial?.deloadIntervalWeeks ?? 5,
-  );
+  const [deloadIntervalWeeks, setDeloadIntervalWeeks] = useState<number | null>(() => {
+    if (!initial) return 5;
+    return initial.deloadIntervalWeeks === undefined ? 5 : initial.deloadIntervalWeeks;
+  });
   const [autoBlockPrescriptions, setAutoBlockPrescriptions] = useState(
     initial?.autoBlockPrescriptions !== false,
   );
@@ -110,7 +111,9 @@ export function ProgramBuilderForm({
       setDurationWeeks(initial.durationWeeks);
       setBlocks(initial.blocks);
       setDays(initial.days);
-      setDeloadIntervalWeeks(initial.deloadIntervalWeeks ?? 5);
+      setDeloadIntervalWeeks(
+        initial.deloadIntervalWeeks === undefined ? 5 : initial.deloadIntervalWeeks,
+      );
       setAutoBlockPrescriptions(initial.autoBlockPrescriptions !== false);
       setIncludePeaking(initial.blocks?.some((b) => b.blockType === "PEAKING") ?? false);
     }
@@ -595,6 +598,7 @@ export function ProgramBuilderForm({
                 <ul className="space-y-4">
                   {day.exercises.map((ex, ei) => {
                     const slotTuningEnabled = !structureLocked || Boolean(ex.programExerciseId);
+                    const rowIsCardio = exerciseKindForSlug(exerciseList, ex.exerciseSlug) === "CARDIO";
                     return (
                     <li key={ei} className="rounded-xl border bg-card p-3 space-y-3">
                       {!structureLocked && (
@@ -658,29 +662,52 @@ export function ProgramBuilderForm({
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Rep target</Label>
-                        <NumericInput
-                          className="rounded-lg"
-                          value={ex.repTarget}
-                          disabled={structureLocked}
-                          onValueChange={(n) => updateEx(di, ei, { repTarget: n })}
-                          min={1}
-                          max={999}
-                          fallback={ex.repTarget}
-                        />
+                        {rowIsCardio ? (
+                          <NullableNumericInput
+                            className="rounded-lg"
+                            value={ex.repTarget ?? null}
+                            disabled={structureLocked}
+                            onValueChange={(n) => updateEx(di, ei, { repTarget: n })}
+                            min={1}
+                            max={999}
+                          />
+                        ) : (
+                          <NumericInput
+                            className="rounded-lg"
+                            value={ex.repTarget ?? 8}
+                            disabled={structureLocked}
+                            onValueChange={(n) => updateEx(di, ei, { repTarget: n })}
+                            min={1}
+                            max={999}
+                            fallback={ex.repTarget ?? 8}
+                          />
+                        )}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">RPE</Label>
-                        <NumericInput
-                          decimals
-                          snapHalf
-                          className="rounded-lg"
-                          value={ex.targetRpe}
-                          disabled={structureLocked}
-                          onValueChange={(n) => updateEx(di, ei, { targetRpe: n })}
-                          min={6}
-                          max={10}
-                          fallback={ex.targetRpe}
-                        />
+                        {rowIsCardio ? (
+                          <NullableNumericInput
+                            decimals
+                            className="rounded-lg"
+                            value={ex.targetRpe ?? null}
+                            disabled={structureLocked}
+                            onValueChange={(n) => updateEx(di, ei, { targetRpe: n })}
+                            min={6}
+                            max={10}
+                          />
+                        ) : (
+                          <NumericInput
+                            decimals
+                            snapHalf
+                            className="rounded-lg"
+                            value={ex.targetRpe ?? 8}
+                            disabled={structureLocked}
+                            onValueChange={(n) => updateEx(di, ei, { targetRpe: n })}
+                            min={6}
+                            max={10}
+                            fallback={ex.targetRpe ?? 8}
+                          />
+                        )}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">%1RM</Label>
@@ -775,7 +802,7 @@ export function ProgramBuilderForm({
                           placeholder="Coaching cues for this slot…"
                         />
                       </div>
-                      {exerciseKindForSlug(exerciseList, ex.exerciseSlug) === "CARDIO" && (
+                      {rowIsCardio && (
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="space-y-1">
                             <Label className="text-xs">Target time (seconds)</Label>

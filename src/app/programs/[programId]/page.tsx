@@ -24,14 +24,16 @@ type ProgramDetail = {
   id: string;
   name: string;
   durationWeeks: number;
+  deloadIntervalWeeks: number | null;
+  autoBlockPrescriptions: boolean;
   blocks: { blockType: string; startWeek: number; endWeek: number }[];
   days: {
     label: string;
     sortOrder: number;
     exercises: {
       sets: number;
-      repTarget: number;
-      targetRpe: number;
+      repTarget: number | null;
+      targetRpe: number | null;
       pctOf1rm: number | null;
       restSec: number | null;
       exercise: { name: string; slug: string };
@@ -207,6 +209,15 @@ export default function ProgramDetailPage() {
           <h1 className="text-2xl font-bold tracking-tight font-heading">{program.name}</h1>
           <p className="text-muted-foreground text-sm">
             {program.durationWeeks} weeks · {program.days.length} days
+          </p>
+          <p className="text-muted-foreground text-xs mt-1">
+            {program.deloadIntervalWeeks == null
+              ? "Deload: off"
+              : `Deload: every ${program.deloadIntervalWeeks} weeks`}
+            {" · "}
+            {program.autoBlockPrescriptions
+              ? "Auto block prescriptions: on"
+              : "Auto block prescriptions: off"}
           </p>
           <div className="flex flex-wrap gap-2 mt-2">
             {isActive && <Badge>Active</Badge>}

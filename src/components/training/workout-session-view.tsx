@@ -72,13 +72,26 @@ type LoggedSetRow = {
   done: boolean;
 };
 
+/** Mirrors `ResolvedPrescription` from the session API (avoid importing Prisma in the client bundle). */
+type SessionExercisePrescription = {
+  sets: number;
+  repTarget: number;
+  targetRpe: number;
+  pctOf1rm: number | null;
+  restSec: number | null;
+  targetDurationSec: number | null;
+  targetCalories: number | null;
+  blockType: string | null;
+  isDeloadWeek: boolean;
+};
+
 type ProgramExerciseRow = {
   id: string;
   sortOrder: number;
   supersetGroup: string | null;
   sets: number;
-  repTarget: number;
-  targetRpe: number;
+  repTarget: number | null;
+  targetRpe: number | null;
   pctOf1rm: number | null;
   restSec: number | null;
   useBodyweight: boolean | null;
@@ -86,6 +99,7 @@ type ProgramExerciseRow = {
   notes: string | null;
   targetDurationSec: number | null;
   targetCalories: number | null;
+  prescription: SessionExercisePrescription;
   exercise: {
     id: string;
     name: string;
@@ -98,6 +112,11 @@ type ProgramExerciseRow = {
     muscleTags?: string;
   };
 };
+
+function blockTypeLabel(blockType: string | null): string {
+  if (!blockType) return "";
+  return blockType.charAt(0) + blockType.slice(1).toLowerCase();
+}
 
 type SessionPayload = {
   session: {
@@ -360,7 +379,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 .filter((s) => s.programExerciseId === ex.id)
                 .sort((a, b) => a.setIndex - b.setIndex);
               const setRow = rs[setIndex];
-              const rpeForRest = setRow?.rpe ?? ex.targetRpe;
+              const rpeForRest = setRow?.rpe ?? ex.prescription.targetRpe;
               return restSecForRpe(rpeMap, rpeForRest, defaultRest);
             }),
             0,
@@ -373,7 +392,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       });
       if (allDone) {
         const peRow = payload.session.programDay.exercises.find((e) => e.id === row.programExerciseId);
-        const rpeBand = hasPrescribedRest ? null : rpeToBandId(row.rpe ?? peRow?.targetRpe ?? 8);
+        const rpeBand = hasPrescribedRest ? null : rpeToBandId(row.rpe ?? peRow?.prescription.targetRpe ?? 8);
         startRest(restSec, {
           rpeBand,
           prescribedRest: hasPrescribedRest,
@@ -526,11 +545,26 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 space-y-1">
                   <CardTitle className="text-lg">{ex.exercise.name}</CardTitle>
-                  {ex.exercise.kind === "CARDIO" && (
-                    <Badge variant="outline" className="text-xs">
-                      Cardio
-                    </Badge>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {ex.exercise.kind === "CARDIO" && (
+                      <Badge variant="outline" className="text-xs">
+                        Cardio
+                      </Badge>
+                    )}
+                    {ex.prescription.isDeloadWeek && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-amber-500/50 text-amber-800 dark:text-amber-400"
+                      >
+                        Deload week
+                      </Badge>
+                    )}
+                    {ex.prescription.blockType != null && (
+                      <Badge variant="secondary" className="text-xs">
+                        {blockTypeLabel(ex.prescription.blockType)}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-1 justify-end shrink-0">
                   {canCancel && ex.exercise.kind !== "CARDIO" && (
@@ -647,23 +681,27 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                       ) : (
                         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                           <Badge variant="secondary">
-                            {ex.exercise.kind === "CARDIO" ? `${ex.sets} bouts` : `${ex.sets} sets`}
+                            {ex.exercise.kind === "CARDIO"
+                              ? `${ex.prescription.sets} bouts`
+                              : `${ex.prescription.sets} sets`}
                           </Badge>
                           {ex.exercise.kind === "CARDIO" ? (
                             <>
-                              {ex.targetDurationSec != null && (
-                                <Badge variant="outline">Target {ex.targetDurationSec}s</Badge>
+                              {ex.prescription.targetDurationSec != null && (
+                                <Badge variant="outline">Target {ex.prescription.targetDurationSec}s</Badge>
                               )}
-                              {ex.targetCalories != null && (
-                                <Badge variant="outline">~{ex.targetCalories} kcal</Badge>
+                              {ex.prescription.targetCalories != null && (
+                                <Badge variant="outline">~{ex.prescription.targetCalories} kcal</Badge>
                               )}
                             </>
                           ) : (
                             <>
                               <Badge variant="outline">
-                                Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE
+                                Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
                               </Badge>
-                              {ex.pctOf1rm != null && <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>}
+                              {ex.prescription.pctOf1rm != null && (
+                                <Badge variant="outline">{ex.prescription.pctOf1rm}% 1RM</Badge>
+                              )}
                             </>
                           )}
                         </div>
@@ -684,10 +722,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                             }
                           : suggestNextWeekLoad({
                               currentWeight: row.weight,
-                              repGoal: ex.repTarget,
+                              repGoal: ex.prescription.repTarget,
                               actualReps: row.reps ?? 0,
-                              prescribedRpe: ex.targetRpe,
-                              actualRpe: row.rpe ?? ex.targetRpe,
+                              prescribedRpe: ex.prescription.targetRpe,
+                              actualRpe: row.rpe ?? ex.prescription.targetRpe,
                               plateIncrement: plateInc,
                             });
                       return (
@@ -696,8 +734,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           row={row}
                           idx={idx}
                           unit={unit}
-                          repTarget={ex.repTarget}
-                          targetRpe={ex.targetRpe}
+                          repTarget={ex.prescription.repTarget}
+                          targetRpe={ex.prescription.targetRpe}
                           ghost={ghost}
                           prog={prog}
                           progressionStep={plateInc}
@@ -717,7 +755,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
 
           const renderSupersetCard = (block: ProgramExerciseRow[], blockId: string) => {
             const label = block[0]?.supersetGroup ?? "Superset";
-            const nSets = block[0]!.sets;
+            const nSets = block[0]!.prescription.sets;
             const collapsed = collapsedBlockIds.has(blockId);
             const { done, total } = blockSetProgress(block, byExercise);
             const names = block.map((e) => e.exercise.name).join(" · ");
@@ -789,10 +827,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                               ? { bumped: false, suggested: 0, bumpPct: 0 }
                               : suggestNextWeekLoad({
                                   currentWeight: row.weight,
-                                  repGoal: ex.repTarget,
+                                  repGoal: ex.prescription.repTarget,
                                   actualReps: row.reps ?? 0,
-                                  prescribedRpe: ex.targetRpe,
-                                  actualRpe: row.rpe ?? ex.targetRpe,
+                                  prescribedRpe: ex.prescription.targetRpe,
+                                  actualRpe: row.rpe ?? ex.prescription.targetRpe,
                                   plateIncrement: plateInc,
                                 });
                           return (
@@ -801,20 +839,20 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                                 {ex.exercise.kind === "CARDIO" ? (
                                   <>
-                                    {ex.targetDurationSec != null && (
-                                      <Badge variant="outline">Target {ex.targetDurationSec}s</Badge>
+                                    {ex.prescription.targetDurationSec != null && (
+                                      <Badge variant="outline">Target {ex.prescription.targetDurationSec}s</Badge>
                                     )}
-                                    {ex.targetCalories != null && (
-                                      <Badge variant="outline">~{ex.targetCalories} kcal</Badge>
+                                    {ex.prescription.targetCalories != null && (
+                                      <Badge variant="outline">~{ex.prescription.targetCalories} kcal</Badge>
                                     )}
                                   </>
                                 ) : (
                                   <>
                                     <Badge variant="outline">
-                                      Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE
+                                      Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
                                     </Badge>
-                                    {ex.pctOf1rm != null && (
-                                      <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>
+                                    {ex.prescription.pctOf1rm != null && (
+                                      <Badge variant="outline">{ex.prescription.pctOf1rm}% 1RM</Badge>
                                     )}
                                   </>
                                 )}
@@ -823,8 +861,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                 row={row}
                                 idx={si}
                                 unit={unit}
-                                repTarget={ex.repTarget}
-                                targetRpe={ex.targetRpe}
+                                repTarget={ex.prescription.repTarget}
+                                targetRpe={ex.prescription.targetRpe}
                                 ghost={ghost}
                                 prog={prog}
                                 progressionStep={plateInc}

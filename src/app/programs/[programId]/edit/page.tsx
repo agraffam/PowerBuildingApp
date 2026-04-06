@@ -21,8 +21,8 @@ type ProgramDetail = {
     exercises: {
       id: string;
       sets: number;
-      repTarget: number;
-      targetRpe: number;
+      repTarget: number | null;
+      targetRpe: number | null;
       pctOf1rm: number | null;
       restSec: number | null;
       useBodyweight: boolean | null;

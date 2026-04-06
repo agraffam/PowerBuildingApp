@@ -9,6 +9,7 @@ import {
   validateProgramDurationWeeks,
 } from "@/lib/program-periodization";
 import { validateSupersetSets } from "@/lib/program-superset-validation";
+import { persistRepTargetRpe } from "@/lib/wizard-exercise-persist";
 import { requireUserContext, requireUserId } from "@/lib/auth/require-user";
 import {
   userCanEditProgramIncludingAdmin,
@@ -261,13 +262,14 @@ export async function PATCH(
                 create: day.exercises.map((ex, ei) => {
                   const exRow = bySlug.get(ex.exerciseSlug);
                   if (!exRow) throw new Error(`Unknown exercise: ${ex.exerciseSlug}`);
+                  const rx = persistRepTargetRpe(exRow.kind, ex.repTarget, ex.targetRpe);
                   return {
                     exerciseId: exRow.id,
                     sortOrder: ei,
                     supersetGroup: ex.supersetGroup?.trim() || null,
                     sets: ex.sets,
-                    repTarget: ex.repTarget,
-                    targetRpe: ex.targetRpe,
+                    repTarget: rx.repTarget,
+                    targetRpe: rx.targetRpe,
                     pctOf1rm: ex.pctOf1rm ?? null,
                     restSec: ex.restSec ?? null,
                     useBodyweight: ex.useBodyweight ?? null,

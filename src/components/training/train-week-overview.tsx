@@ -30,8 +30,8 @@ export type ScheduleDay = {
   exercises: {
     id: string;
     sets: number;
-    repTarget: number;
-    targetRpe: number;
+    repTarget: number | null;
+    targetRpe: number | null;
     pctOf1rm: number | null;
     exercise: { id: string; name: string; slug: string; muscleTags?: string };
   }[];
@@ -380,7 +380,9 @@ export function TrainWeekOverview({
                                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                                   <span className="font-medium">{ex.exercise.name}</span>
                                   <span className="text-muted-foreground text-xs">
-                                    {ex.sets} × {ex.repTarget} @ ~{ex.targetRpe} RPE
+                                    {ex.repTarget != null && ex.targetRpe != null
+                                      ? `${ex.sets} × ${ex.repTarget} @ ~${ex.targetRpe} RPE`
+                                      : `${ex.sets} sets`}
                                     {ex.pctOf1rm != null ? ` · ${ex.pctOf1rm}% 1RM` : ""}
                                   </span>
                                 </div>
