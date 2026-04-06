@@ -10,6 +10,8 @@ type ProgramDetail = {
   id: string;
   name: string;
   durationWeeks: number;
+  deloadIntervalWeeks: number | null;
+  autoBlockPrescriptions: boolean;
   ownerId: string | null;
   blocks: { blockType: string; startWeek: number; endWeek: number }[];
   days: {
@@ -37,6 +39,8 @@ function toWizard(p: ProgramDetail): ProgramWizardPayload {
   return {
     name: p.name,
     durationWeeks: p.durationWeeks,
+    deloadIntervalWeeks: p.deloadIntervalWeeks,
+    autoBlockPrescriptions: p.autoBlockPrescriptions,
     blocks: p.blocks.map((b) => ({
       blockType: b.blockType,
       startWeek: b.startWeek,

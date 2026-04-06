@@ -22,6 +22,7 @@ import { effectiveUseBodyweightResolved } from "@/lib/exercise-bodyweight";
 import { applyBodyweightScope } from "@/lib/bodyweight-scope";
 import { buildSessionCompletionSummary } from "@/lib/session-completion-summary";
 import { trainingSessionPatchBodySchema } from "@/lib/training-session-patch-schema";
+import { resolveProgramExercisePrescription } from "@/lib/block-prescription";
 
 export async function GET(
   _req: Request,
@@ -106,9 +107,34 @@ export async function GET(
     }),
   };
 
+  const progFull = session.programInstance.program;
+  const programDayWithRx = {
+    ...programDayEnriched,
+    exercises: programDayEnriched.exercises.map((pe) => ({
+      ...pe,
+      prescription: resolveProgramExercisePrescription({
+        programExercise: {
+          sets: pe.sets,
+          repTarget: pe.repTarget,
+          targetRpe: pe.targetRpe,
+          pctOf1rm: pe.pctOf1rm,
+          restSec: pe.restSec,
+          targetDurationSec: pe.targetDurationSec,
+          targetCalories: pe.targetCalories,
+          loadRole: pe.loadRole,
+        },
+        exerciseKind: pe.exercise.kind,
+        autoBlockPrescriptions: progFull.autoBlockPrescriptions,
+        deloadIntervalWeeks: progFull.deloadIntervalWeeks,
+        blocks: progFull.blocks,
+        instanceWeekIndex: session.weekIndex,
+      }),
+    })),
+  };
+
   const sessionOut = {
     ...session,
-    programDay: programDayEnriched,
+    programDay: programDayWithRx,
   };
 
   const prog = session.programInstance.program;

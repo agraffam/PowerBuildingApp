@@ -12,6 +12,7 @@ import {
 import { effectiveUseBodyweightResolved } from "@/lib/exercise-bodyweight";
 import { loadBodyweightOverrideMaps } from "@/lib/bodyweight-override-maps";
 import { getBarIncrementLbForUser } from "@/lib/user-exercise-prefs";
+import { resolveProgramExercisePrescription } from "@/lib/block-prescription";
 
 function toPreferredUnit(weight: number, fromUnit: WeightUnit, preferred: WeightUnit): number {
   const kg = normalizeWeightToKg(weight, fromUnit);
@@ -37,6 +38,12 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
     },
   });
   if (!full) return;
+
+  const instCtx = await prisma.programInstance.findUnique({
+    where: { id: full.programInstanceId },
+    include: { program: { include: { blocks: { orderBy: { sortOrder: "asc" } } } } },
+  });
+  if (!instCtx) return;
 
   const bwMaps = await loadBodyweightOverrideMaps(sessionId, full.programInstanceId);
 
@@ -106,14 +113,36 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
       toPreferredUnit(last.weight, last.weightUnit as WeightUnit, preferred) * scale;
     const wRounded = roundToIncrement(wLast, plateInc);
 
-    const prog = suggestNextWeekLoad({
-      currentWeight: wRounded,
-      repGoal: pe.repTarget,
-      actualReps: last.reps ?? 0,
-      prescribedRpe: pe.targetRpe,
-      actualRpe: last.rpe,
-      plateIncrement: plateInc,
+    if (pe.exercise.kind === "CARDIO") continue;
+
+    const rx = resolveProgramExercisePrescription({
+      programExercise: {
+        sets: pe.sets,
+        repTarget: pe.repTarget,
+        targetRpe: pe.targetRpe,
+        pctOf1rm: pe.pctOf1rm,
+        restSec: pe.restSec,
+        targetDurationSec: pe.targetDurationSec,
+        targetCalories: pe.targetCalories,
+        loadRole: pe.loadRole,
+      },
+      exerciseKind: pe.exercise.kind,
+      autoBlockPrescriptions: instCtx.program.autoBlockPrescriptions,
+      deloadIntervalWeeks: instCtx.program.deloadIntervalWeeks,
+      blocks: instCtx.program.blocks,
+      instanceWeekIndex: full.weekIndex,
     });
+
+    const prog = rx.isDeloadWeek
+      ? { bumped: false, suggested: wRounded, bumpPct: 0 }
+      : suggestNextWeekLoad({
+          currentWeight: wRounded,
+          repGoal: rx.repTarget,
+          actualReps: last.reps ?? 0,
+          prescribedRpe: rx.targetRpe,
+          actualRpe: last.rpe,
+          plateIncrement: plateInc,
+        });
 
     const uniformWeight = prog.bumped && prog.suggested > 0 ? prog.suggested : null;
     const perIndexWeights =
@@ -220,6 +249,12 @@ export async function prefillPctWeightsForSession(sessionId: string, userId: str
   };
   const m = session.intensityMultiplier ?? 1;
 
+  const pctInst = await prisma.programInstance.findUnique({
+    where: { id: session.programInstanceId },
+    include: { program: { include: { blocks: { orderBy: { sortOrder: "asc" } } } } },
+  });
+  if (!pctInst) return;
+
   for (const row of session.sets) {
     if (row.done) continue;
     const pe = row.programExercise;
@@ -235,7 +270,24 @@ export async function prefillPctWeightsForSession(sessionId: string, userId: str
     ) {
       continue;
     }
-    const pct = pe.pctOf1rm;
+    const rxPct = resolveProgramExercisePrescription({
+      programExercise: {
+        sets: pe.sets,
+        repTarget: pe.repTarget,
+        targetRpe: pe.targetRpe,
+        pctOf1rm: pe.pctOf1rm,
+        restSec: pe.restSec,
+        targetDurationSec: pe.targetDurationSec,
+        targetCalories: pe.targetCalories,
+        loadRole: pe.loadRole,
+      },
+      exerciseKind: pe.exercise.kind,
+      autoBlockPrescriptions: pctInst.program.autoBlockPrescriptions,
+      deloadIntervalWeeks: pctInst.program.deloadIntervalWeeks,
+      blocks: pctInst.program.blocks,
+      instanceWeekIndex: session.weekIndex,
+    });
+    const pct = rxPct.pctOf1rm;
     const effId = row.loggedExerciseId ?? pe.exerciseId;
     const profile =
       effId === pe.exerciseId

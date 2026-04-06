@@ -13,6 +13,14 @@ enum BlockType {
   PEAKING
 }
 
+/** Slot classification for block-based prescription scaling (optional on each ProgramExercise). */
+enum PrescriptionLoadRole {
+  COMPOUND
+  ACCESSORY
+  ISOLATION
+  CARDIO
+}
+
 enum SessionStatus {
   PLANNED
   IN_PROGRESS
@@ -118,6 +126,10 @@ model Program {
   seedKey        String?           @unique
   name           String
   durationWeeks  Int
+  /** Every N calendar weeks (4–6) apply a deload; null = off. */
+  deloadIntervalWeeks Int?
+  /** When false, use stored ProgramExercise targets only (legacy). */
+  autoBlockPrescriptions Boolean @default(true)
   createdAt      DateTime          @default(now())
   ownerId        String?
   owner          User?             @relation("OwnedPrograms", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -159,8 +171,11 @@ model ProgramExercise {
   /** Same non-null value on consecutive exercises = superset (interleaved in workout UI). */
   supersetGroup   String?
   sets            Int
-  repTarget       Int
-  targetRpe       Float
+  /** Strength: required for auto prescriptions. Cardio: may be null (use bouts + duration). */
+  repTarget       Int?
+  targetRpe       Float?
+  /** How to scale reps/RPE/% through mesocycle blocks; null = infer from exercise + repTarget. */
+  loadRole        PrescriptionLoadRole?
   pctOf1rm        Float?
   restSec         Int?
   /** null = follow Exercise.isBodyweight; true/false overrides for this slot. */

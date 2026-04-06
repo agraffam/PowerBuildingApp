@@ -20,17 +20,9 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import type { ProgramWizardPayload, WizardDay, WizardExercise } from "@/lib/program-wizard-types";
+import { defaultMesocycleBlocks } from "@/lib/program-periodization";
 
 const BLOCK_TYPES = ["HYPERTROPHY", "STRENGTH", "PEAKING"] as const;
-
-function defaultBlocks(weeks: number) {
-  const hEnd = Math.min(4, weeks);
-  const sStart = Math.min(5, weeks);
-  return [
-    { blockType: "HYPERTROPHY", startWeek: 1, endWeek: hEnd },
-    { blockType: "STRENGTH", startWeek: sStart, endWeek: weeks },
-  ];
-}
 
 function defaultDays(): WizardDay[] {
   return [
@@ -96,7 +88,18 @@ export function ProgramBuilderForm({
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initial?.name ?? "My program");
   const [durationWeeks, setDurationWeeks] = useState(initial?.durationWeeks ?? 8);
-  const [blocks, setBlocks] = useState(initial?.blocks ?? defaultBlocks(8));
+  const [deloadIntervalWeeks, setDeloadIntervalWeeks] = useState<number | null>(
+    initial?.deloadIntervalWeeks ?? 5,
+  );
+  const [autoBlockPrescriptions, setAutoBlockPrescriptions] = useState(
+    initial?.autoBlockPrescriptions !== false,
+  );
+  const [includePeaking, setIncludePeaking] = useState(
+    () => initial?.blocks?.some((b) => b.blockType === "PEAKING") ?? false,
+  );
+  const [blocks, setBlocks] = useState(
+    initial?.blocks ?? defaultMesocycleBlocks(8, false),
+  );
   const [days, setDays] = useState<WizardDay[]>(initial?.days ?? defaultDays());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +110,9 @@ export function ProgramBuilderForm({
       setDurationWeeks(initial.durationWeeks);
       setBlocks(initial.blocks);
       setDays(initial.days);
+      setDeloadIntervalWeeks(initial.deloadIntervalWeeks ?? 5);
+      setAutoBlockPrescriptions(initial.autoBlockPrescriptions !== false);
+      setIncludePeaking(initial.blocks?.some((b) => b.blockType === "PEAKING") ?? false);
     }
   }, [initial]);
 
@@ -209,6 +215,8 @@ export function ProgramBuilderForm({
   const payload = (): ProgramWizardPayload => ({
     name,
     durationWeeks,
+    deloadIntervalWeeks,
+    autoBlockPrescriptions,
     blocks,
     days,
   });
@@ -238,7 +246,12 @@ export function ProgramBuilderForm({
         const rProg = await fetch(`/api/programs/${programId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), durationWeeks }),
+          body: JSON.stringify({
+            name: name.trim(),
+            durationWeeks,
+            deloadIntervalWeeks,
+            autoBlockPrescriptions,
+          }),
         });
         const jProg = await rProg.json().catch(() => ({}));
         if (!rProg.ok) {
@@ -349,7 +362,60 @@ export function ProgramBuilderForm({
                 className="rounded-xl"
               />
             </div>
-            <Button className="rounded-xl" onClick={() => setStep(1)}>
+            <div className="space-y-2">
+              <Label>Deload every (weeks)</Label>
+              <Select
+                value={deloadIntervalWeeks === null ? "off" : String(deloadIntervalWeeks)}
+                onValueChange={(v) => {
+                  if (v === "off") setDeloadIntervalWeeks(null);
+                  else setDeloadIntervalWeeks(Number(v));
+                }}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="off">Off</SelectItem>
+                  <SelectItem value="4">4</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="6">6</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Deload weeks ease volume and intensity on a fixed cadence (e.g. week 5, 10 when set to 5).
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="includePeaking"
+                className="rounded border-input"
+                checked={includePeaking}
+                onChange={(e) => setIncludePeaking(e.target.checked)}
+              />
+              <Label htmlFor="includePeaking" className="font-normal cursor-pointer">
+                Include final peaking block (best for 10+ week programs)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="autoRx"
+                className="rounded border-input"
+                checked={autoBlockPrescriptions}
+                onChange={(e) => setAutoBlockPrescriptions(e.target.checked)}
+              />
+              <Label htmlFor="autoRx" className="font-normal cursor-pointer">
+                Auto-adjust sets/reps/RPE by block (hypertrophy → strength → peak)
+              </Label>
+            </div>
+            <Button
+              className="rounded-xl"
+              onClick={() => {
+                setBlocks(defaultMesocycleBlocks(durationWeeks, includePeaking));
+                setStep(1);
+              }}
+            >
               Next
               <ArrowRight className="size-4" />
             </Button>

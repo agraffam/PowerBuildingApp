@@ -32,6 +32,8 @@ export async function POST(
     data: {
       name: `${src.name} (copy)`,
       durationWeeks: src.durationWeeks,
+      deloadIntervalWeeks: src.deloadIntervalWeeks,
+      autoBlockPrescriptions: src.autoBlockPrescriptions,
       ownerId: userId,
       blocks: {
         create: src.blocks.map((b) => ({
@@ -59,6 +61,7 @@ export async function POST(
               notes: e.notes,
               targetDurationSec: e.targetDurationSec,
               targetCalories: e.targetCalories,
+              loadRole: e.loadRole,
             })),
           },
         })),

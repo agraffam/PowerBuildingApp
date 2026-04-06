@@ -72,7 +72,7 @@ export async function buildWeekCompletionSummary(
       if (!row.done) continue;
       const pe = peById.get(row.programExerciseId);
       if (!pe) continue;
-      const reps = row.reps ?? pe.repTarget;
+      const reps = row.reps ?? pe.repTarget ?? 0;
       const wu = row.weightUnit as WeightUnit;
       vol += normalizeWeightToKg(row.weight, wu) * (reps > 0 ? reps : 0);
     }

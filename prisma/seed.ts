@@ -55,9 +55,14 @@ async function ensureSeededProgram(data: Prisma.ProgramCreateInput & { seedKey: 
       return prisma.program.findUniqueOrThrow({ where: { id: legacy.id } });
     }
   }
+  const merged: Prisma.ProgramCreateInput = {
+    ...createPayload,
+    deloadIntervalWeeks: createPayload.deloadIntervalWeeks ?? 5,
+    autoBlockPrescriptions: createPayload.autoBlockPrescriptions ?? true,
+  };
   return prisma.program.create({
     data: {
-      ...createPayload,
+      ...merged,
       seedKey,
     },
   });

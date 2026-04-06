@@ -22,7 +22,25 @@ export const SEED_TEMPLATE_PROGRAM_NAMES = [
   "Upper / Lower Strength",
 ] as const;
 
-export function trainingBlocksForWeeks(durationWeeks: number) {
+export function trainingBlocksForWeeks(durationWeeks: number, includePeaking = false) {
+  if (includePeaking && durationWeeks >= 10) {
+    const peakLen = durationWeeks >= 12 ? 2 : 1;
+    const strengthEnd = durationWeeks - peakLen;
+    const mid = Math.max(1, Math.floor(strengthEnd / 2));
+    const sStart = Math.min(strengthEnd, mid + 1);
+    return {
+      create: [
+        { blockType: BlockType.HYPERTROPHY, sortOrder: 0, startWeek: 1, endWeek: mid },
+        { blockType: BlockType.STRENGTH, sortOrder: 1, startWeek: sStart, endWeek: strengthEnd },
+        {
+          blockType: BlockType.PEAKING,
+          sortOrder: 2,
+          startWeek: strengthEnd + 1,
+          endWeek: durationWeeks,
+        },
+      ],
+    };
+  }
   const mid = Math.floor(durationWeeks / 2);
   return {
     create: [

@@ -40,7 +40,11 @@ export async function getSessionDetail(sessionId: string, userId: string) {
           },
         },
       },
-      programInstance: { include: { program: true } },
+      programInstance: {
+        include: {
+          program: { include: { blocks: { orderBy: { sortOrder: "asc" } } } },
+        },
+      },
       sets: true,
     },
   });

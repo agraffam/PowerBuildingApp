@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { BlockType } from "@prisma/client";
-import { validateMesocycleBlocks } from "@/lib/program-periodization";
+import {
+  validateDeloadIntervalWeeks,
+  validateMesocycleBlocks,
+  validatePeakingBlockOrder,
+} from "@/lib/program-periodization";
 import { validateSupersetSets } from "@/lib/program-superset-validation";
 import { requireUserId } from "@/lib/auth/require-user";
 
@@ -40,6 +44,8 @@ export async function GET() {
 type WizardBody = {
   name: string;
   durationWeeks: number;
+  deloadIntervalWeeks?: number | null;
+  autoBlockPrescriptions?: boolean;
   blocks: { blockType: keyof typeof BlockType; startWeek: number; endWeek: number }[];
   days: {
     label: string;
@@ -74,6 +80,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: period.error }, { status: 400 });
   }
 
+
+  const peakOrd = validatePeakingBlockOrder((body.blocks ?? []).map((b) => ({ ...b, blockType: String(b.blockType) })));
+  if (!peakOrd.ok) {
+    return NextResponse.json({ error: peakOrd.error }, { status: 400 });
+  }
+  const delVal = validateDeloadIntervalWeeks(
+    body.deloadIntervalWeeks === undefined ? 5 : body.deloadIntervalWeeks,
+  );
+  if (!delVal.ok) {
+    return NextResponse.json({ error: delVal.error }, { status: 400 });
+  }
+
   const sup = validateSupersetSets(body.days);
   if (!sup.ok) {
     return NextResponse.json({ error: sup.error }, { status: 400 });
@@ -90,6 +108,9 @@ export async function POST(req: Request) {
         data: {
           name: body.name.trim(),
           durationWeeks: body.durationWeeks,
+          deloadIntervalWeeks:
+            body.deloadIntervalWeeks === undefined ? 5 : body.deloadIntervalWeeks,
+          autoBlockPrescriptions: body.autoBlockPrescriptions !== false,
           ownerId: userId,
           blocks: {
             create: body.blocks.map((b, sortOrder) => ({

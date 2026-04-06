@@ -92,8 +92,8 @@ export async function buildSessionCompletionSummary(
     const pe = peById.get(row.programExerciseId);
     if (!pe) continue;
     const effId = resolveEffectiveFromMaps(pe.id, pe.exerciseId, sessionMap, instanceMap);
-    const reps = row.reps ?? pe.repTarget;
-    const rpe = row.rpe ?? pe.targetRpe;
+    const reps = row.reps ?? pe.repTarget ?? 0;
+    const rpe = row.rpe ?? pe.targetRpe ?? 8;
     const wu = row.weightUnit as WeightUnit;
     const volKg = normalizeWeightToKg(row.weight, wu) * (reps > 0 ? reps : 0);
     const e1 = estimateOneRmFromSet(row.weight, reps, rpe);

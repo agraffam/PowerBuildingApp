@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { BlockType } from "@prisma/client";
 import type { ProgramWizardPayload } from "@/lib/program-wizard-types";
-import { validateMesocycleBlocks, validateProgramDurationWeeks } from "@/lib/program-periodization";
+import {
+  validateDeloadIntervalWeeks,
+  validateMesocycleBlocks,
+  validatePeakingBlockOrder,
+  validateProgramDurationWeeks,
+} from "@/lib/program-periodization";
 import { validateSupersetSets } from "@/lib/program-superset-validation";
 import { requireUserContext, requireUserId } from "@/lib/auth/require-user";
 import {
@@ -153,11 +158,21 @@ export async function PATCH(
       const dur = validateProgramDurationWeeks(body.durationWeeks);
       if (!dur.ok) return NextResponse.json({ error: dur.error }, { status: 400 });
     }
+    if (body.deloadIntervalWeeks !== undefined) {
+      const dv = validateDeloadIntervalWeeks(body.deloadIntervalWeeks);
+      if (!dv.ok) return NextResponse.json({ error: dv.error }, { status: 400 });
+    }
     await prisma.program.update({
       where: { id: programId },
       data: {
         ...(body.name != null && { name: body.name.trim() }),
         ...(body.durationWeeks != null && { durationWeeks: body.durationWeeks }),
+        ...(body.deloadIntervalWeeks !== undefined && {
+          deloadIntervalWeeks: body.deloadIntervalWeeks,
+        }),
+        ...(body.autoBlockPrescriptions !== undefined && {
+          autoBlockPrescriptions: body.autoBlockPrescriptions,
+        }),
       },
     });
     const fresh = await prisma.program.findUnique({
@@ -192,6 +207,20 @@ export async function PATCH(
     return NextResponse.json({ error: period.error }, { status: 400 });
   }
 
+
+  const peakFull = validatePeakingBlockOrder(
+    full.blocks.map((b) => ({ ...b, blockType: String(b.blockType) })),
+  );
+  if (!peakFull.ok) {
+    return NextResponse.json({ error: peakFull.error }, { status: 400 });
+  }
+  const delFull = validateDeloadIntervalWeeks(
+    full.deloadIntervalWeeks === undefined ? 5 : full.deloadIntervalWeeks,
+  );
+  if (!delFull.ok) {
+    return NextResponse.json({ error: delFull.error }, { status: 400 });
+  }
+
   const sup = validateSupersetSets(full.days);
   if (!sup.ok) {
     return NextResponse.json({ error: sup.error }, { status: 400 });
@@ -212,6 +241,9 @@ export async function PATCH(
         data: {
           name: full.name.trim(),
           durationWeeks: full.durationWeeks,
+          deloadIntervalWeeks:
+            full.deloadIntervalWeeks === undefined ? 5 : full.deloadIntervalWeeks,
+          autoBlockPrescriptions: full.autoBlockPrescriptions !== false,
           blocks: {
             create: full.blocks.map((b, sortOrder) => ({
               blockType:

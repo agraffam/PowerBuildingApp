@@ -1,4 +1,4 @@
-import { type Prisma } from "@prisma/client";
+import { PrescriptionLoadRole, type Prisma } from "@prisma/client";
 import { trainingBlocksForWeeks } from "./home-gym-seed-programs";
 
 export const POWERBUILDING_BLUEPRINT_PROGRAM_NAME = "The 60-Minute Powerbuilding Blueprint";
@@ -16,7 +16,7 @@ export function powerbuildingBlueprintProgramCreateData(E: E): Prisma.ProgramCre
     seedKey: POWERBUILDING_BLUEPRINT_SEED_KEY,
     name: POWERBUILDING_BLUEPRINT_PROGRAM_NAME,
     durationWeeks: 12,
-    blocks: trainingBlocksForWeeks(12),
+    blocks: trainingBlocksForWeeks(12, true),
     days: {
       create: [
         {
@@ -67,6 +67,7 @@ export function powerbuildingBlueprintProgramCreateData(E: E): Prisma.ProgramCre
                 repTarget: 1,
                 targetRpe: 6,
                 restSec: 0,
+                loadRole: PrescriptionLoadRole.CARDIO,
                 targetDurationSec: 300,
                 targetCalories: 70,
                 notes:
@@ -273,6 +274,7 @@ export function powerbuildingBlueprintProgramCreateData(E: E): Prisma.ProgramCre
                 repTarget: 1,
                 targetRpe: 8,
                 restSec: 0,
+                loadRole: PrescriptionLoadRole.CARDIO,
                 targetDurationSec: 60,
                 targetCalories: 25,
                 notes:

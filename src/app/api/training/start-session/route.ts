@@ -13,6 +13,7 @@ import {
   isWeekFullyAccounted,
   sortedProgramDays,
 } from "@/lib/program-week-state";
+import { resolveProgramExercisePrescription } from "@/lib/block-prescription";
 
 export async function POST(req: Request) {
   const auth = await requireUserId();
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
       program: {
         include: {
           days: { orderBy: { sortOrder: "asc" } },
+          blocks: { orderBy: { sortOrder: "asc" } },
         },
       },
     },
@@ -121,16 +123,34 @@ export async function POST(req: Request) {
             const loggedExerciseId =
               alt != null && alt !== pe.exerciseId ? alt : undefined;
             const cardio = pe.exercise.kind === "CARDIO";
-            return Array.from({ length: pe.sets }, (_, setIndex) => ({
+            const rx = resolveProgramExercisePrescription({
+              programExercise: {
+                sets: pe.sets,
+                repTarget: pe.repTarget,
+                targetRpe: pe.targetRpe,
+                pctOf1rm: pe.pctOf1rm,
+                restSec: pe.restSec,
+                targetDurationSec: pe.targetDurationSec,
+                targetCalories: pe.targetCalories,
+                loadRole: pe.loadRole,
+              },
+              exerciseKind: pe.exercise.kind,
+              autoBlockPrescriptions: instance.program.autoBlockPrescriptions,
+              deloadIntervalWeeks: instance.program.deloadIntervalWeeks,
+              blocks: instance.program.blocks,
+              instanceWeekIndex: instance.weekIndex,
+            });
+            const nSets = rx.sets;
+            return Array.from({ length: nSets }, (_, setIndex) => ({
               programExerciseId: pe.id,
               loggedExerciseId,
               setIndex,
               weight: 0,
               weightUnit: unit,
-              reps: cardio ? null : pe.repTarget,
-              rpe: cardio ? null : pe.targetRpe,
-              durationSec: cardio ? pe.targetDurationSec : null,
-              calories: cardio ? pe.targetCalories ?? null : null,
+              reps: cardio ? null : rx.repTarget,
+              rpe: cardio ? null : rx.targetRpe,
+              durationSec: cardio ? rx.targetDurationSec : null,
+              calories: cardio ? rx.targetCalories ?? null : null,
               done: false,
             }));
           }),

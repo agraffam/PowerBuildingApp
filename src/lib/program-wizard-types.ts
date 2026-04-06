@@ -28,6 +28,10 @@ export type WizardDay = {
 export type ProgramWizardPayload = {
   name: string;
   durationWeeks: number;
+  /** null = deload off; 4–6 = every N weeks. */
+  deloadIntervalWeeks?: number | null;
+  /** Default true for new programs. */
+  autoBlockPrescriptions?: boolean;
   blocks: WizardBlock[];
   days: WizardDay[];
 };
