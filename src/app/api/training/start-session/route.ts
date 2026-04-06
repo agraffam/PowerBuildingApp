@@ -130,7 +130,7 @@ export async function POST(req: Request) {
               reps: cardio ? null : pe.repTarget,
               rpe: cardio ? null : pe.targetRpe,
               durationSec: cardio ? pe.targetDurationSec : null,
-              calories: null,
+              calories: cardio ? pe.targetCalories ?? null : null,
               done: false,
             }));
           }),
