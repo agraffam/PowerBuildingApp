@@ -649,7 +649,7 @@ export function ProgramBuilderForm({
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs">Sets</Label>
+                        <Label className="text-xs">{rowIsCardio ? "Bouts" : "Sets"}</Label>
                         <NumericInput
                           className="rounded-lg"
                           value={ex.sets}
@@ -660,18 +660,10 @@ export function ProgramBuilderForm({
                           fallback={ex.sets}
                         />
                       </div>
+                      {!rowIsCardio && (
+                        <>
                       <div className="space-y-1">
                         <Label className="text-xs">Rep target</Label>
-                        {rowIsCardio ? (
-                          <NullableNumericInput
-                            className="rounded-lg"
-                            value={ex.repTarget ?? null}
-                            disabled={structureLocked}
-                            onValueChange={(n) => updateEx(di, ei, { repTarget: n })}
-                            min={1}
-                            max={999}
-                          />
-                        ) : (
                           <NumericInput
                             className="rounded-lg"
                             value={ex.repTarget ?? 8}
@@ -681,21 +673,9 @@ export function ProgramBuilderForm({
                             max={999}
                             fallback={ex.repTarget ?? 8}
                           />
-                        )}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">RPE</Label>
-                        {rowIsCardio ? (
-                          <NullableNumericInput
-                            decimals
-                            className="rounded-lg"
-                            value={ex.targetRpe ?? null}
-                            disabled={structureLocked}
-                            onValueChange={(n) => updateEx(di, ei, { targetRpe: n })}
-                            min={6}
-                            max={10}
-                          />
-                        ) : (
                           <NumericInput
                             decimals
                             snapHalf
@@ -707,7 +687,6 @@ export function ProgramBuilderForm({
                             max={10}
                             fallback={ex.targetRpe ?? 8}
                           />
-                        )}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">%1RM</Label>
@@ -721,6 +700,8 @@ export function ProgramBuilderForm({
                           max={100}
                         />
                       </div>
+                        </>
+                      )}
                       <div className="space-y-1">
                         <Label className="text-xs">Superset</Label>
                         <Select
@@ -753,6 +734,7 @@ export function ProgramBuilderForm({
                           max={3600}
                         />
                       </div>
+                      {!rowIsCardio && (
                       <div className="space-y-1">
                         <Label className="text-xs">Bodyweight</Label>
                         <Select
@@ -780,6 +762,7 @@ export function ProgramBuilderForm({
                           </SelectContent>
                         </Select>
                       </div>
+                      )}
                       {!structureLocked && (
                         <div className="lg:col-span-7 flex justify-end">
                           <Button variant="ghost" size="sm" onClick={() => removeExercise(di, ei)}>
@@ -804,6 +787,10 @@ export function ProgramBuilderForm({
                       </div>
                       {rowIsCardio && (
                         <div className="grid gap-3 sm:grid-cols-2">
+                          <p className="sm:col-span-2 text-xs text-muted-foreground">
+                            Cardio slots use bouts, target time, and optional calories. Reps/RPE/%1RM are not
+                            shown here; workouts use duration and calories for logging.
+                          </p>
                           <div className="space-y-1">
                             <Label className="text-xs">Target time (seconds)</Label>
                             <NullableNumericInput

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { STANDARD_BAR_INCREMENTS_LB } from "@/lib/calculators";
 import { requireUserContext } from "@/lib/auth/require-user";
 import { isAdminEmail } from "@/lib/auth/is-admin";
+import { isSuperAdminEmail } from "@/lib/auth/super-admin";
 
 function parseBarIncrementLb(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -35,7 +36,7 @@ export async function PATCH(
     kind?: unknown;
   };
 
-  const admin = isAdminEmail(email);
+  const admin = isAdminEmail(email) || isSuperAdminEmail(email);
 
   let barIncrementLb: number | null | undefined;
   if ("barIncrementLb" in body) {

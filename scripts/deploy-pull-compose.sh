@@ -12,3 +12,7 @@ if [[ -z "${AUTH_SECRET:-}" ]]; then
 fi
 docker compose up --build -d
 echo "OK — docker compose up --build -d"
+
+echo "==> Pruning unused Docker images ..."
+docker image prune -a -f
+echo "Done."

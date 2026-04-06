@@ -42,10 +42,13 @@ export default function ExercisesPage() {
       const r = await fetch("/api/auth/me");
       if (r.status === 401) return { user: null as null };
       if (!r.ok) throw new Error("Failed");
-      return r.json() as Promise<{ user: { isAdmin?: boolean } | null }>;
+      return r.json() as Promise<{
+        user: { isAdmin?: boolean; isSuperAdmin?: boolean } | null;
+      }>;
     },
   });
-  const canEditCatalog = me?.user?.isAdmin === true;
+  const canEditCatalog =
+    me?.user?.isAdmin === true || me?.user?.isSuperAdmin === true;
 
   const { data, isLoading } = useQuery({
     queryKey: ["exercises-catalog", q],
@@ -216,14 +219,6 @@ export default function ExercisesPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                    )}
-                    {!canEditCatalog && (
-                      <p className="text-xs text-muted-foreground">
-                        To change movement type or bodyweight defaults for the shared catalog, your account must
-                        be listed in{" "}
-                        <span className="font-mono text-foreground">ADMIN_EMAILS</span> on the server. Bar step
-                        below is still your personal preference.
-                      </p>
                     )}
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Bar step (lb) — for lb sessions</Label>

@@ -61,3 +61,8 @@ if [[ "$web_running" != "true" ]]; then
 fi
 
 echo "OK — prebuilt image pulled and stack is up"
+
+echo "==> Pruning unused Docker images (frees space from old deploys; running container is kept) ..."
+docker image prune -a -f
+
+echo "Done."
