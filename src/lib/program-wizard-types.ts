@@ -11,9 +11,19 @@ export type WizardExercise = {
   useBodyweight?: boolean | null;
   /** Same label on consecutive exercises = superset (e.g. A, B). */
   supersetGroup?: string | null;
+  notes?: string | null;
+  /** Cardio: target seconds per set/bout. */
+  targetDurationSec?: number | null;
+  targetCalories?: number | null;
+  /** Set when loading an existing program for incremental PATCH saves. */
+  programExerciseId?: string;
 };
 
-export type WizardDay = { label: string; exercises: WizardExercise[] };
+export type WizardDay = {
+  label: string;
+  exercises: WizardExercise[];
+  programDayId?: string;
+};
 
 export type ProgramWizardPayload = {
   name: string;

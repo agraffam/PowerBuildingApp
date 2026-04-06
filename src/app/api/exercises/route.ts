@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ExerciseKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugify";
 import { STANDARD_BAR_INCREMENTS_LB } from "@/lib/calculators";
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
     muscleTags?: string;
     notes?: string | null;
     barIncrementLb?: number | null;
+    kind?: ExerciseKind;
   };
   if (!body.name?.trim()) {
     return NextResponse.json({ error: "name required" }, { status: 400 });
@@ -80,6 +82,9 @@ export async function POST(req: Request) {
     slug = `${base}-${n}`;
   }
 
+  const kind =
+    body.kind === "CARDIO" || body.kind === "STRENGTH" ? body.kind : ExerciseKind.STRENGTH;
+
   const row = await prisma.exercise.create({
     data: {
       name: body.name.trim(),
@@ -87,6 +92,7 @@ export async function POST(req: Request) {
       muscleTags: body.muscleTags?.trim() ?? "",
       notes: body.notes?.trim() || null,
       barIncrementLb,
+      kind,
     },
   });
   return NextResponse.json(row);

@@ -84,6 +84,7 @@ export async function POST(req: Request) {
   const exercises = await prisma.programExercise.findMany({
     where: { programDayId: day.id },
     orderBy: { sortOrder: "asc" },
+    include: { exercise: { select: { kind: true } } },
   });
 
   const replacements = await prisma.programInstanceExerciseReplacement.findMany({
@@ -119,14 +120,17 @@ export async function POST(req: Request) {
             const alt = repMap.get(pe.id);
             const loggedExerciseId =
               alt != null && alt !== pe.exerciseId ? alt : undefined;
+            const cardio = pe.exercise.kind === "CARDIO";
             return Array.from({ length: pe.sets }, (_, setIndex) => ({
               programExerciseId: pe.id,
               loggedExerciseId,
               setIndex,
               weight: 0,
               weightUnit: unit,
-              reps: pe.repTarget,
-              rpe: pe.targetRpe,
+              reps: cardio ? null : pe.repTarget,
+              rpe: cardio ? null : pe.targetRpe,
+              durationSec: cardio ? pe.targetDurationSec : null,
+              calories: null,
               done: false,
             }));
           }),

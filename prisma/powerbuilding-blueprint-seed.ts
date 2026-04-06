@@ -9,8 +9,11 @@ type E = Record<string, string>;
  * Five-day commercial-gym style template (cables, machines, conditioning).
  * Rest between D3 and D4 is implicit (user skips training that day).
  */
+export const POWERBUILDING_BLUEPRINT_SEED_KEY = "seed-powerbuilding-blueprint-60min";
+
 export function powerbuildingBlueprintProgramCreateData(E: E): Prisma.ProgramCreateInput {
   return {
+    seedKey: POWERBUILDING_BLUEPRINT_SEED_KEY,
     name: POWERBUILDING_BLUEPRINT_PROGRAM_NAME,
     durationWeeks: 12,
     blocks: trainingBlocksForWeeks(12),

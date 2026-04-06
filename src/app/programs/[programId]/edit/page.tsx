@@ -10,11 +10,14 @@ type ProgramDetail = {
   id: string;
   name: string;
   durationWeeks: number;
+  ownerId: string | null;
   blocks: { blockType: string; startWeek: number; endWeek: number }[];
   days: {
+    id: string;
     label: string;
     sortOrder: number;
     exercises: {
+      id: string;
       sets: number;
       repTarget: number;
       targetRpe: number;
@@ -22,7 +25,10 @@ type ProgramDetail = {
       restSec: number | null;
       useBodyweight: boolean | null;
       supersetGroup: string | null;
-      exercise: { slug: string };
+      notes: string | null;
+      targetDurationSec: number | null;
+      targetCalories: number | null;
+      exercise: { slug: string; kind: "STRENGTH" | "CARDIO" };
     }[];
   }[];
 };
@@ -37,8 +43,10 @@ function toWizard(p: ProgramDetail): ProgramWizardPayload {
       endWeek: b.endWeek,
     })),
     days: p.days.map((d) => ({
+      programDayId: d.id,
       label: d.label,
       exercises: d.exercises.map((e) => ({
+        programExerciseId: e.id,
         exerciseSlug: e.exercise.slug,
         sets: e.sets,
         repTarget: e.repTarget,
@@ -47,6 +55,9 @@ function toWizard(p: ProgramDetail): ProgramWizardPayload {
         restSec: e.restSec,
         useBodyweight: e.useBodyweight,
         supersetGroup: e.supersetGroup,
+        notes: e.notes,
+        targetDurationSec: e.targetDurationSec,
+        targetCalories: e.targetCalories,
       })),
     })),
   };
@@ -61,7 +72,11 @@ export default function EditProgramPage() {
     queryFn: async () => {
       const r = await fetch(`/api/programs/${programId}`);
       if (!r.ok) throw new Error("Failed");
-      return r.json() as Promise<{ program: ProgramDetail; hasWorkoutHistory: boolean }>;
+      return r.json() as Promise<{
+        program: ProgramDetail;
+        hasWorkoutHistory: boolean;
+        canEditStructure?: boolean;
+      }>;
     },
   });
 
@@ -81,6 +96,7 @@ export default function EditProgramPage() {
       programId={programId}
       initial={initial}
       hasWorkoutHistory={data.hasWorkoutHistory}
+      canEditStructure={data.canEditStructure === true}
     />
   );
 }

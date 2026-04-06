@@ -34,6 +34,11 @@ enum ProgramInstanceStatus {
   ARCHIVED
 }
 
+enum ExerciseKind {
+  STRENGTH
+  CARDIO
+}
+
 model User {
   id                 String                @id @default(cuid())
   email              String                @unique
@@ -67,6 +72,7 @@ model Exercise {
   slug               String                @unique
   muscleTags         String                @default("") // comma-separated
   notes              String?
+  kind               ExerciseKind          @default(STRENGTH)
   /** Library default: log sets as bodyweight (weight stored as 0). */
   isBodyweight       Boolean               @default(false)
   /** Library default bar step (lb). Per-user override in UserExerciseLift. */
@@ -108,6 +114,8 @@ model UserExerciseLift {
 
 model Program {
   id             String            @id @default(cuid())
+  /** Stable id for seeded system templates; null for user-created programs. */
+  seedKey        String?           @unique
   name           String
   durationWeeks  Int
   createdAt      DateTime          @default(now())
@@ -158,9 +166,14 @@ model ProgramExercise {
   /** null = follow Exercise.isBodyweight; true/false overrides for this slot. */
   useBodyweight   Boolean?
   notes           String?
+  /** Cardio: target time per bout (e.g. interval length). Strength: optional. */
+  targetDurationSec Int?
+  targetCalories  Int?
   loggedSets      LoggedSet[]
   instanceReplacements ProgramInstanceExerciseReplacement[]
   sessionExerciseSwaps WorkoutSessionExerciseSwap[]
+  instanceBodyweightOverrides ProgramInstanceExerciseBodyweight[]
+  sessionBodyweightOverrides  WorkoutSessionExerciseBodyweight[]
 }
 
 model ProgramInstance {
@@ -177,6 +190,7 @@ model ProgramInstance {
   plannedExerciseOrderByDay Json?
   sessions         WorkoutSession[]
   exerciseReplacements ProgramInstanceExerciseReplacement[]
+  exerciseBodyweightOverrides ProgramInstanceExerciseBodyweight[]
   skippedDays      ProgramInstanceSkippedDay[]
 
   @@index([userId])
@@ -207,6 +221,21 @@ model ProgramInstanceExerciseReplacement {
   replacementExercise   Exercise        @relation("InstanceReplacementExercise", fields: [replacementExerciseId], references: [id], onDelete: Cascade)
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+
+  @@unique([programInstanceId, programExerciseId])
+  @@index([programExerciseId])
+}
+
+/** Per-instance bodyweight mode for a template slot (system templates where ProgramExercise cannot be edited). */
+model ProgramInstanceExerciseBodyweight {
+  id                  String          @id @default(cuid())
+  programInstanceId   String
+  programInstance     ProgramInstance @relation(fields: [programInstanceId], references: [id], onDelete: Cascade)
+  programExerciseId   String
+  programExercise     ProgramExercise @relation(fields: [programExerciseId], references: [id], onDelete: Cascade)
+  useBodyweight       Boolean
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
   @@unique([programInstanceId, programExerciseId])
   @@index([programExerciseId])
@@ -249,6 +278,21 @@ model WorkoutSession {
   readinessEntry      ReadinessEntry?
   sets                LoggedSet[]
   exerciseSwaps       WorkoutSessionExerciseSwap[]
+  exerciseBodyweightOverrides WorkoutSessionExerciseBodyweight[]
+}
+
+/** Session-only bodyweight override for a slot (precedence over instance + template). */
+model WorkoutSessionExerciseBodyweight {
+  id                  String         @id @default(cuid())
+  workoutSessionId    String
+  workoutSession      WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  programExerciseId   String
+  programExercise     ProgramExercise @relation(fields: [programExerciseId], references: [id], onDelete: Cascade)
+  useBodyweight       Boolean
+  createdAt           DateTime       @default(now())
+
+  @@unique([workoutSessionId, programExerciseId])
+  @@index([programExerciseId])
 }
 
 model ReadinessEntry {
@@ -275,6 +319,9 @@ model LoggedSet {
   weightUnit         WeightUnit
   reps               Int?
   rpe                Float?
+  /** Cardio: duration logged for this set/bout (seconds). */
+  durationSec        Int?
+  calories           Int?
   done               Boolean         @default(false)
   completedAt        DateTime?
 

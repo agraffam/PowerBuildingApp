@@ -16,6 +16,8 @@ const setBody = z
     weightUnit: z.enum(["KG", "LB"]).optional(),
     reps: z.number().finite().nullable().optional(),
     rpe: z.number().finite().nullable().optional(),
+    durationSec: z.number().int().min(0).max(86400).nullable().optional(),
+    calories: z.number().int().min(0).max(50000).nullable().optional(),
     done: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
@@ -37,6 +39,12 @@ export const trainingSessionPatchBodySchema = z.discriminatedUnion("action", [
     action: z.literal("swapExercise"),
     programExerciseId: z.string().min(1),
     replacementExerciseId: z.string().min(1),
+    scope: z.enum(["session", "program"]),
+  }),
+  z.object({
+    action: z.literal("setBodyweight"),
+    programExerciseId: z.string().min(1),
+    useBodyweight: z.boolean(),
     scope: z.enum(["session", "program"]),
   }),
   z.object({

@@ -4,8 +4,12 @@ import { BlockType } from "@prisma/client";
 import type { ProgramWizardPayload } from "@/lib/program-wizard-types";
 import { validateMesocycleBlocks, validateProgramDurationWeeks } from "@/lib/program-periodization";
 import { validateSupersetSets } from "@/lib/program-superset-validation";
-import { requireUserId } from "@/lib/auth/require-user";
-import { userCanEditProgramStructure, userCanViewProgram } from "@/lib/program-access";
+import { requireUserContext, requireUserId } from "@/lib/auth/require-user";
+import {
+  userCanEditProgramIncludingAdmin,
+  userCanEditProgramStructure,
+  userCanViewProgram,
+} from "@/lib/program-access";
 
 export async function GET(
   _req: Request,
@@ -23,12 +27,16 @@ export async function GET(
       blocks: { orderBy: { sortOrder: "asc" } },
       days: {
         orderBy: { sortOrder: "asc" },
-        include: {
-          exercises: {
-            orderBy: { sortOrder: "asc" },
-            include: { exercise: { select: { id: true, name: true, slug: true } } },
-          },
-        },
+            include: {
+              exercises: {
+                orderBy: { sortOrder: "asc" },
+                include: {
+                  exercise: {
+                    select: { id: true, name: true, slug: true, notes: true, kind: true, isBodyweight: true },
+                  },
+                },
+              },
+            },
       },
     },
   });
@@ -42,12 +50,15 @@ export async function GET(
   });
 
   const programInstanceCount = await prisma.programInstance.count({ where: { programId } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
   const canDeleteProgram = userCanEditProgramStructure(program.ownerId, userId);
+  const canEditStructure = userCanEditProgramIncludingAdmin(program.ownerId, userId, user?.email ?? "");
 
   return NextResponse.json({
     program,
     hasWorkoutHistory: sessionCount > 0,
     canDeleteProgram,
+    canEditStructure,
     programInstanceCount,
   });
 }
@@ -100,9 +111,9 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ programId: string }> },
 ) {
-  const auth = await requireUserId();
+  const auth = await requireUserContext();
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, email } = auth;
 
   const { programId } = await ctx.params;
   const body = (await req.json()) as Partial<ProgramWizardPayload>;
@@ -119,7 +130,7 @@ export async function PATCH(
 
   const wantsStructure = body.days != null || body.blocks != null;
 
-  if (!userCanEditProgramStructure(program.ownerId, userId)) {
+  if (!userCanEditProgramIncludingAdmin(program.ownerId, userId, email)) {
     return NextResponse.json(
       { error: "System templates cannot be edited. Duplicate to customize." },
       { status: 403 },
@@ -155,12 +166,16 @@ export async function PATCH(
         blocks: { orderBy: { sortOrder: "asc" } },
         days: {
           orderBy: { sortOrder: "asc" },
-          include: {
-            exercises: {
-              orderBy: { sortOrder: "asc" },
-              include: { exercise: { select: { id: true, name: true, slug: true } } },
+            include: {
+              exercises: {
+                orderBy: { sortOrder: "asc" },
+                include: {
+                  exercise: {
+                    select: { id: true, name: true, slug: true, notes: true, kind: true, isBodyweight: true },
+                  },
+                },
+              },
             },
-          },
         },
       },
     });
@@ -224,6 +239,9 @@ export async function PATCH(
                     pctOf1rm: ex.pctOf1rm ?? null,
                     restSec: ex.restSec ?? null,
                     useBodyweight: ex.useBodyweight ?? null,
+                    notes: ex.notes?.trim() || null,
+                    targetDurationSec: ex.targetDurationSec ?? null,
+                    targetCalories: ex.targetCalories ?? null,
                   };
                 }),
               },
@@ -239,12 +257,16 @@ export async function PATCH(
         blocks: { orderBy: { sortOrder: "asc" } },
         days: {
           orderBy: { sortOrder: "asc" },
-          include: {
-            exercises: {
-              orderBy: { sortOrder: "asc" },
-              include: { exercise: { select: { id: true, name: true, slug: true } } },
+            include: {
+              exercises: {
+                orderBy: { sortOrder: "asc" },
+                include: {
+                  exercise: {
+                    select: { id: true, name: true, slug: true, notes: true, kind: true, isBodyweight: true },
+                  },
+                },
+              },
             },
-          },
         },
       },
     });

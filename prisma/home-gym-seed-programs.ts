@@ -37,6 +37,7 @@ type E = Record<string, string>;
 export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
   return [
     {
+      seedKey: "seed-hg-5x5-ab",
       name: SEED_TEMPLATE_PROGRAM_NAMES[0],
       durationWeeks: 12,
       blocks: trainingBlocksForWeeks(12),
@@ -68,6 +69,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-full-body-3day",
       name: SEED_TEMPLATE_PROGRAM_NAMES[1],
       durationWeeks: 10,
       blocks: trainingBlocksForWeeks(10),
@@ -117,6 +119,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-upper-lower-4day",
       name: SEED_TEMPLATE_PROGRAM_NAMES[2],
       durationWeeks: 8,
       blocks: trainingBlocksForWeeks(8),
@@ -179,6 +182,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-ppl-3day",
       name: SEED_TEMPLATE_PROGRAM_NAMES[3],
       durationWeeks: 9,
       blocks: trainingBlocksForWeeks(9),
@@ -227,6 +231,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-push-pull-4day",
       name: SEED_TEMPLATE_PROGRAM_NAMES[4],
       durationWeeks: 7,
       blocks: trainingBlocksForWeeks(7),
@@ -288,6 +293,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-express-3day",
       name: SEED_TEMPLATE_PROGRAM_NAMES[5],
       durationWeeks: 6,
       blocks: trainingBlocksForWeeks(6),
@@ -330,6 +336,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-full-body-4tpl",
       name: SEED_TEMPLATE_PROGRAM_NAMES[6],
       durationWeeks: 14,
       blocks: trainingBlocksForWeeks(14),
@@ -388,6 +395,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-glutes-hams",
       name: SEED_TEMPLATE_PROGRAM_NAMES[7],
       durationWeeks: 11,
       blocks: trainingBlocksForWeeks(11),
@@ -445,6 +453,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-pressing-focus",
       name: SEED_TEMPLATE_PROGRAM_NAMES[8],
       durationWeeks: 10,
       blocks: trainingBlocksForWeeks(10),
@@ -501,6 +510,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-squat-deadlift-16wk",
       name: SEED_TEMPLATE_PROGRAM_NAMES[9],
       durationWeeks: 16,
       blocks: trainingBlocksForWeeks(16),
@@ -557,6 +567,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-bro-split-5day",
       name: SEED_TEMPLATE_PROGRAM_NAMES[10],
       durationWeeks: 13,
       blocks: trainingBlocksForWeeks(13),
@@ -632,6 +643,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-powerbuilding-3day",
       name: SEED_TEMPLATE_PROGRAM_NAMES[11],
       durationWeeks: 12,
       blocks: trainingBlocksForWeeks(12),
@@ -679,6 +691,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-athletic-full-body",
       name: SEED_TEMPLATE_PROGRAM_NAMES[12],
       durationWeeks: 8,
       blocks: trainingBlocksForWeeks(8),
@@ -726,6 +739,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-beginner-15wk",
       name: SEED_TEMPLATE_PROGRAM_NAMES[13],
       durationWeeks: 15,
       blocks: trainingBlocksForWeeks(15),
@@ -771,6 +785,7 @@ export function homeGymProgramCreateData(E: E): Prisma.ProgramCreateInput[] {
       },
     },
     {
+      seedKey: "seed-hg-upper-lower-strength",
       name: SEED_TEMPLATE_PROGRAM_NAMES[14],
       durationWeeks: 10,
       blocks: trainingBlocksForWeeks(10),

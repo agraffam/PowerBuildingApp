@@ -1,18 +1,67 @@
-import { PrismaClient, BlockType, WeightUnit } from "@prisma/client";
+import { PrismaClient, BlockType, type Prisma, WeightUnit } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import {
-  SEED_TEMPLATE_PROGRAM_NAMES,
-  homeGymProgramCreateData,
-} from "./home-gym-seed-programs";
-import {
-  POWERBUILDING_BLUEPRINT_PROGRAM_NAME,
-  powerbuildingBlueprintProgramCreateData,
-} from "./powerbuilding-blueprint-seed";
+import { homeGymProgramCreateData } from "./home-gym-seed-programs";
+import { powerbuildingBlueprintProgramCreateData } from "./powerbuilding-blueprint-seed";
 
 const prisma = new PrismaClient();
 
 const SEED_EMAIL = "dev@seed.local";
 const SEED_PASSWORD = "Seed12345678";
+
+const CARDIO_SLUGS = new Set(["bike-erg", "assault-runner-intervals"]);
+
+async function ensureExerciseDef(def: { name: string; slug: string; muscleTags: string }) {
+  const existing = await prisma.exercise.findUnique({ where: { slug: def.slug } });
+  if (existing) return existing;
+  return prisma.exercise.create({
+    data: {
+      name: def.name,
+      slug: def.slug,
+      muscleTags: def.muscleTags,
+      kind: CARDIO_SLUGS.has(def.slug) ? "CARDIO" : "STRENGTH",
+    },
+  });
+}
+
+function stripSeedKeyForCreate(data: Prisma.ProgramCreateInput & { seedKey: string }): Prisma.ProgramCreateInput {
+  const { seedKey: _s, ...rest } = data;
+  void _s;
+  return rest;
+}
+
+/** Idempotent template install: never delete programs with instances; do not overwrite existing rows. */
+async function ensureSeededProgram(data: Prisma.ProgramCreateInput & { seedKey: string }) {
+  const seedKey = data.seedKey;
+  const createPayload = stripSeedKeyForCreate(data);
+  const byKey = await prisma.program.findUnique({ where: { seedKey } });
+  if (byKey) {
+    const n = await prisma.programInstance.count({ where: { programId: byKey.id } });
+    console.log(
+      `Seed: skip ${seedKey}${typeof createPayload.name === "string" ? ` (${createPayload.name})` : ""} — exists${n ? `, ${n} program run(s)` : ""}.`,
+    );
+    return byKey;
+  }
+  const legacyName = typeof data.name === "string" ? data.name : null;
+  if (legacyName) {
+    const legacy = await prisma.program.findFirst({
+      where: { ownerId: null, seedKey: null, name: legacyName },
+    });
+    if (legacy) {
+      await prisma.program.update({
+        where: { id: legacy.id },
+        data: { seedKey },
+      });
+      console.log(`Seed: linked existing template "${legacyName}" → ${seedKey}.`);
+      return prisma.program.findUniqueOrThrow({ where: { id: legacy.id } });
+    }
+  }
+  return prisma.program.create({
+    data: {
+      ...createPayload,
+      seedKey,
+    },
+  });
+}
 
 async function main() {
   const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10);
@@ -117,44 +166,14 @@ async function main() {
 
   const exercises: Record<string, string> = {};
   for (const e of exerciseDefs) {
-    const row = await prisma.exercise.upsert({
-      where: { slug: e.slug },
-      create: { name: e.name, slug: e.slug, muscleTags: e.muscleTags },
-      update: { name: e.name, muscleTags: e.muscleTags },
-    });
+    const row = await ensureExerciseDef(e);
     exercises[e.slug] = row.id;
   }
 
   /**
-   * Prebuilt templates (web-informed: StrongLifts-style 5×5, PPL, bro split, upper/lower powerbuilding).
-   * Plus fifteen minimal-equipment templates (see home-gym-seed-programs.ts) and the 60-minute powerbuilding blueprint.
-   * Frequency: the app advances one “training day” per workout; calendar days/week is up to you.
-   * Fewer weekly sessions = longer real-world time to finish one full cycle through all templates.
+   * Prebuilt templates: idempotent via seedKey. Re-running seed does not delete programs
+   * (avoids cascade-wiping program instances) and does not overwrite existing exercises.
    */
-  const PREBUILT_PROGRAM_NAMES = [
-    "Linear 5×5 — 2 day A/B",
-    "Full Body — 3 templates",
-    "Powerbuilding — 4-Day Upper/Lower",
-    "Bodybuilding — 5-Day Split",
-    "PPL — 6-Day Hypertrophy",
-    "4-Day Upper / Lower", // legacy seed name; remove on re-seed
-  ] as const;
-
-  const legacyPrefixedTemplateNames = SEED_TEMPLATE_PROGRAM_NAMES.map((n) => `Home Gym — ${n}`);
-
-  await prisma.program.deleteMany({
-    where: {
-      name: {
-        in: [
-          ...PREBUILT_PROGRAM_NAMES,
-          ...SEED_TEMPLATE_PROGRAM_NAMES,
-          ...legacyPrefixedTemplateNames,
-          POWERBUILDING_BLUEPRINT_PROGRAM_NAME,
-        ],
-      },
-    },
-  });
-
   const blocks8 = {
     create: [
       { blockType: BlockType.HYPERTROPHY, sortOrder: 0, startWeek: 1, endWeek: 4 },
@@ -164,55 +183,53 @@ async function main() {
 
   const E = exercises;
 
-  const homeGymCreates = homeGymProgramCreateData(E).map((data) => prisma.program.create({ data }));
-  const blueprintCreate = prisma.program.create({
-    data: powerbuildingBlueprintProgramCreateData(E),
-  });
+  // 1) StrongLifts-style linear 5×5: two alternating workouts (typical 2–4×/wk).
+  const programs = [];
 
-  const programs = await prisma.$transaction([
-    // 1) StrongLifts-style linear 5×5: two alternating workouts (typical 2–4×/wk).
-    prisma.program.create({
-      data: {
-        name: "Linear 5×5 — 2 day A/B",
-        durationWeeks: 12,
-        blocks: { create: blocks8.create },
-        days: {
-          create: [
-            {
-              sortOrder: 0,
-              label: "Workout A — Squat / Bench / Row",
-              exercises: {
-                create: [
-                  { exerciseId: E["squat"]!, sortOrder: 0, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 76, restSec: 210 },
-                  { exerciseId: E["bench-press"]!, sortOrder: 1, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 76, restSec: 180 },
-                  { exerciseId: E["barbell-row"]!, sortOrder: 2, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 74, restSec: 180 },
-                ],
-              },
+  programs.push(
+    await ensureSeededProgram({
+      seedKey: "seed-linear-5x5-2day",
+      name: "Linear 5×5 — 2 day A/B",
+      durationWeeks: 12,
+      blocks: { create: blocks8.create },
+      days: {
+        create: [
+          {
+            sortOrder: 0,
+            label: "Workout A — Squat / Bench / Row",
+            exercises: {
+              create: [
+                { exerciseId: E["squat"]!, sortOrder: 0, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 76, restSec: 210 },
+                { exerciseId: E["bench-press"]!, sortOrder: 1, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 76, restSec: 180 },
+                { exerciseId: E["barbell-row"]!, sortOrder: 2, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 74, restSec: 180 },
+              ],
             },
-            {
-              sortOrder: 1,
-              label: "Workout B — Squat / OHP / Deadlift",
-              exercises: {
-                create: [
-                  { exerciseId: E["squat"]!, sortOrder: 0, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 76, restSec: 210 },
-                  { exerciseId: E["overhead-press"]!, sortOrder: 1, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 72, restSec: 180 },
-                  { exerciseId: E["deadlift"]!, sortOrder: 2, sets: 1, repTarget: 5, targetRpe: 8, pctOf1rm: 82, restSec: 240 },
-                ],
-              },
+          },
+          {
+            sortOrder: 1,
+            label: "Workout B — Squat / OHP / Deadlift",
+            exercises: {
+              create: [
+                { exerciseId: E["squat"]!, sortOrder: 0, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 76, restSec: 210 },
+                { exerciseId: E["overhead-press"]!, sortOrder: 1, sets: 5, repTarget: 5, targetRpe: 7.5, pctOf1rm: 72, restSec: 180 },
+                { exerciseId: E["deadlift"]!, sortOrder: 2, sets: 1, repTarget: 5, targetRpe: 8, pctOf1rm: 82, restSec: 240 },
+              ],
             },
-          ],
-        },
+          },
+        ],
       },
     }),
+  );
 
-    // 2) Three full-body rotations (common Mon/Wed/Fri style; works with 2–6×/wk spacing).
-    prisma.program.create({
-      data: {
-        name: "Full Body — 3 templates",
-        durationWeeks: 8,
-        blocks: { create: blocks8.create },
-        days: {
-          create: [
+  // 2) Three full-body rotations (common Mon/Wed/Fri style; works with 2–6×/wk spacing).
+  programs.push(
+    await ensureSeededProgram({
+      seedKey: "seed-full-body-3-templates",
+      name: "Full Body — 3 templates",
+      durationWeeks: 8,
+      blocks: { create: blocks8.create },
+      days: {
+        create: [
             {
               sortOrder: 0,
               label: "Full Body 1 — Squat & push",
@@ -253,19 +270,20 @@ async function main() {
                 ],
               },
             },
-          ],
-        },
+        ],
       },
     }),
+  );
 
-    // 3) PHUL-style powerbuilding: 4-day upper/lower (typical 4×/wk; 2×/wk = alternate pair).
-    prisma.program.create({
-      data: {
-        name: "Powerbuilding — 4-Day Upper/Lower",
-        durationWeeks: 8,
-        blocks: { create: blocks8.create },
-        days: {
-          create: [
+  // 3) PHUL-style powerbuilding: 4-day upper/lower (typical 4×/wk; 2×/wk = alternate pair).
+  programs.push(
+    await ensureSeededProgram({
+      seedKey: "seed-powerbuilding-4d-ul",
+      name: "Powerbuilding — 4-Day Upper/Lower",
+      durationWeeks: 8,
+      blocks: { create: blocks8.create },
+      days: {
+        create: [
             {
               sortOrder: 0,
               label: "Upper — Strength emphasis",
@@ -322,19 +340,20 @@ async function main() {
                 ],
               },
             },
-          ],
-        },
+        ],
       },
     }),
+  );
 
-    // 4) Classic bodybuilding split — 5 sessions (chest/back/legs/shoulders/arms).
-    prisma.program.create({
-      data: {
-        name: "Bodybuilding — 5-Day Split",
-        durationWeeks: 8,
-        blocks: { create: blocks8.create },
-        days: {
-          create: [
+  // 4) Classic bodybuilding split — 5 sessions (chest/back/legs/shoulders/arms).
+  programs.push(
+    await ensureSeededProgram({
+      seedKey: "seed-bodybuilding-5d",
+      name: "Bodybuilding — 5-Day Split",
+      durationWeeks: 8,
+      blocks: { create: blocks8.create },
+      days: {
+        create: [
             {
               sortOrder: 0,
               label: "Chest & triceps",
@@ -406,19 +425,20 @@ async function main() {
                 ],
               },
             },
-          ],
-        },
+        ],
       },
     }),
+  );
 
-    // 5) Standard 6-day PPL × 2 (common “Push1 / Pull1 / Legs1 / Push2…” pattern).
-    prisma.program.create({
-      data: {
-        name: "PPL — 6-Day Hypertrophy",
-        durationWeeks: 8,
-        blocks: { create: blocks8.create },
-        days: {
-          create: [
+  // 5) Standard 6-day PPL × 2 (common “Push1 / Pull1 / Legs1 / Push2…” pattern).
+  programs.push(
+    await ensureSeededProgram({
+      seedKey: "seed-ppl-6d-hyper",
+      name: "PPL — 6-Day Hypertrophy",
+      durationWeeks: 8,
+      blocks: { create: blocks8.create },
+      days: {
+        create: [
             {
               sortOrder: 0,
               label: "Push 1 — chest bias",
@@ -500,13 +520,20 @@ async function main() {
                 ],
               },
             },
-          ],
-        },
+        ],
       },
     }),
-    ...homeGymCreates,
-    blueprintCreate,
-  ]);
+  );
+
+  for (const data of homeGymProgramCreateData(E)) {
+    programs.push(await ensureSeededProgram(data as Prisma.ProgramCreateInput & { seedKey: string }));
+  }
+
+  programs.push(
+    await ensureSeededProgram(
+      powerbuildingBlueprintProgramCreateData(E) as Prisma.ProgramCreateInput & { seedKey: string },
+    ),
+  );
 
   const hasActive = await prisma.programInstance.findFirst({
     where: { status: "ACTIVE", userId: seedUser.id },

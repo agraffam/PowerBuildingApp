@@ -32,6 +32,7 @@ import {
 import { useWorkoutSessionStore } from "@/stores/workout-session-store";
 import { ExerciseLibrarySheet } from "@/components/training/exercise-library-sheet";
 import { ExerciseSwapDialog } from "@/components/training/exercise-swap-dialog";
+import { BodyweightScopeDialog } from "@/components/training/bodyweight-scope-dialog";
 import {
   SessionCompleteSplash,
   type SessionCompleteSummaryPayload,
@@ -55,7 +56,6 @@ import {
   orderExercises,
   parseExerciseOrderJson,
 } from "@/lib/workout-blocks";
-import { effectiveUseBodyweight } from "@/lib/exercise-bodyweight";
 import { RPE_REST_KEYS, restSecForRpe, rpeToBandId, snapToLoggedRpeStep } from "@/lib/rest-by-rpe";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 
@@ -67,6 +67,8 @@ type LoggedSetRow = {
   weightUnit: string;
   reps: number | null;
   rpe: number | null;
+  durationSec: number | null;
+  calories: number | null;
   done: boolean;
 };
 
@@ -80,12 +82,18 @@ type ProgramExerciseRow = {
   pctOf1rm: number | null;
   restSec: number | null;
   useBodyweight: boolean | null;
+  useBodyweightEffective: boolean;
+  notes: string | null;
+  targetDurationSec: number | null;
+  targetCalories: number | null;
   exercise: {
     id: string;
     name: string;
     slug: string;
     barIncrementLb: number | null;
     isBodyweight: boolean;
+    kind: "STRENGTH" | "CARDIO";
+    notes?: string | null;
     effectiveBarIncrementLb?: number | null;
     muscleTags?: string;
   };
@@ -161,6 +169,11 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     programExerciseId: string;
     name: string;
     muscleTags?: string;
+  } | null>(null);
+  const [bwDialog, setBwDialog] = useState<{
+    programExerciseId: string;
+    name: string;
+    targetBodyweight: boolean;
   } | null>(null);
   const [completeSplash, setCompleteSplash] = useState<SessionCompleteSummaryPayload | null>(null);
   const [weekSplashQueued, setWeekSplashQueued] = useState<WeekCompletionSummaryPayload | null>(null);
@@ -509,36 +522,84 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           const canReorderBlocks = canCancel && blocks.length > 1;
 
           const renderExerciseHeader = (ex: ProgramExerciseRow) => (
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-lg">{ex.exercise.name}</CardTitle>
-              <div className="flex items-center gap-1 shrink-0">
-                {canCancel && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 space-y-1">
+                  <CardTitle className="text-lg">{ex.exercise.name}</CardTitle>
+                  {ex.exercise.kind === "CARDIO" && (
+                    <Badge variant="outline" className="text-xs">
+                      Cardio
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-1 justify-end shrink-0">
+                  {canCancel && ex.exercise.kind !== "CARDIO" && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground min-h-11 px-2 text-xs"
+                        onClick={() =>
+                          setBwDialog({
+                            programExerciseId: ex.id,
+                            name: ex.exercise.name,
+                            targetBodyweight: true,
+                          })
+                        }
+                      >
+                        BW
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground min-h-11 px-2 text-xs"
+                        onClick={() =>
+                          setBwDialog({
+                            programExerciseId: ex.id,
+                            name: ex.exercise.name,
+                            targetBodyweight: false,
+                          })
+                        }
+                      >
+                        Load
+                      </Button>
+                    </>
+                  )}
+                  {canCancel && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground min-h-11 px-2 sm:px-3"
+                      onClick={() =>
+                        setSwapTarget({
+                          programExerciseId: ex.id,
+                          name: ex.exercise.name,
+                          muscleTags: ex.exercise.muscleTags,
+                        })
+                      }
+                      type="button"
+                    >
+                      <Replace className="size-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Swap</span>
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-muted-foreground min-h-11 px-2 sm:px-3"
-                    onClick={() =>
-                    setSwapTarget({
-                      programExerciseId: ex.id,
-                      name: ex.exercise.name,
-                      muscleTags: ex.exercise.muscleTags,
-                    })
-                  }
-                    type="button"
+                    className="text-muted-foreground min-h-11 min-w-11 shrink-0 px-3 sm:min-w-0"
+                    onClick={() => openLibrary(ex.exercise.slug)}
                   >
-                    <Replace className="size-4 sm:mr-1" />
-                    <span className="hidden sm:inline">Swap</span>
+                    History
                   </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground min-h-11 min-w-11 shrink-0 px-3 sm:min-w-0"
-                  onClick={() => openLibrary(ex.exercise.slug)}
-                >
-                  History
-                </Button>
+                </div>
               </div>
+              {(ex.notes?.trim() || ex.exercise.notes?.trim()) && (
+                <p className="text-xs text-muted-foreground border-l-2 border-primary/30 pl-2">
+                  {ex.notes?.trim() || ex.exercise.notes}
+                </p>
+              )}
             </div>
           );
 
@@ -585,11 +646,26 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                         </p>
                       ) : (
                         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <Badge variant="secondary">{ex.sets} sets</Badge>
-                          <Badge variant="outline">
-                            Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE
+                          <Badge variant="secondary">
+                            {ex.exercise.kind === "CARDIO" ? `${ex.sets} bouts` : `${ex.sets} sets`}
                           </Badge>
-                          {ex.pctOf1rm != null && <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>}
+                          {ex.exercise.kind === "CARDIO" ? (
+                            <>
+                              {ex.targetDurationSec != null && (
+                                <Badge variant="outline">Target {ex.targetDurationSec}s</Badge>
+                              )}
+                              {ex.targetCalories != null && (
+                                <Badge variant="outline">~{ex.targetCalories} kcal</Badge>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <Badge variant="outline">
+                                Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE
+                              </Badge>
+                              {ex.pctOf1rm != null && <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -599,14 +675,21 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                   <CardContent className="space-y-4 pt-4">
                     {rows.map((row, idx) => {
                       const ghost = prev?.[idx];
-                      const prog = suggestNextWeekLoad({
-                        currentWeight: row.weight,
-                        repGoal: ex.repTarget,
-                        actualReps: row.reps ?? 0,
-                        prescribedRpe: ex.targetRpe,
-                        actualRpe: row.rpe ?? ex.targetRpe,
-                        plateIncrement: plateInc,
-                      });
+                      const prog =
+                        ex.exercise.kind === "CARDIO"
+                          ? {
+                              bumped: false,
+                              suggested: 0,
+                              bumpPct: 0,
+                            }
+                          : suggestNextWeekLoad({
+                              currentWeight: row.weight,
+                              repGoal: ex.repTarget,
+                              actualReps: row.reps ?? 0,
+                              prescribedRpe: ex.targetRpe,
+                              actualRpe: row.rpe ?? ex.targetRpe,
+                              plateIncrement: plateInc,
+                            });
                       return (
                         <SetRowEditor
                           key={row.id}
@@ -619,10 +702,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           prog={prog}
                           progressionStep={plateInc}
                           savePending={patch.isPending}
-                          bodyweight={effectiveUseBodyweight(
-                            { useBodyweight: ex.useBodyweight },
-                            { isBodyweight: ex.exercise.isBodyweight },
-                          )}
+                          bodyweight={ex.useBodyweightEffective}
+                          isCardio={ex.exercise.kind === "CARDIO"}
                           onCommitSet={(body) => void commitSet(body)}
                         />
                       );
@@ -703,23 +784,39 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                             },
                           );
                           if (!row) return null;
-                          const prog = suggestNextWeekLoad({
-                            currentWeight: row.weight,
-                            repGoal: ex.repTarget,
-                            actualReps: row.reps ?? 0,
-                            prescribedRpe: ex.targetRpe,
-                            actualRpe: row.rpe ?? ex.targetRpe,
-                            plateIncrement: plateInc,
-                          });
+                          const prog =
+                            ex.exercise.kind === "CARDIO"
+                              ? { bumped: false, suggested: 0, bumpPct: 0 }
+                              : suggestNextWeekLoad({
+                                  currentWeight: row.weight,
+                                  repGoal: ex.repTarget,
+                                  actualReps: row.reps ?? 0,
+                                  prescribedRpe: ex.targetRpe,
+                                  actualRpe: row.rpe ?? ex.targetRpe,
+                                  plateIncrement: plateInc,
+                                });
                           return (
                             <div key={ex.id} className="rounded-xl border bg-muted/20 p-3 space-y-2">
                               {renderExerciseHeader(ex)}
                               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                <Badge variant="outline">
-                                  Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE
-                                </Badge>
-                                {ex.pctOf1rm != null && (
-                                  <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>
+                                {ex.exercise.kind === "CARDIO" ? (
+                                  <>
+                                    {ex.targetDurationSec != null && (
+                                      <Badge variant="outline">Target {ex.targetDurationSec}s</Badge>
+                                    )}
+                                    {ex.targetCalories != null && (
+                                      <Badge variant="outline">~{ex.targetCalories} kcal</Badge>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Badge variant="outline">
+                                      Target {ex.repTarget} reps @ ~{ex.targetRpe} RPE
+                                    </Badge>
+                                    {ex.pctOf1rm != null && (
+                                      <Badge variant="outline">{ex.pctOf1rm}% 1RM</Badge>
+                                    )}
+                                  </>
                                 )}
                               </div>
                               <SetRowEditor
@@ -732,10 +829,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                 prog={prog}
                                 progressionStep={plateInc}
                                 savePending={patch.isPending}
-                                bodyweight={effectiveUseBodyweight(
-                                  { useBodyweight: ex.useBodyweight },
-                                  { isBodyweight: ex.exercise.isBodyweight },
-                                )}
+                                bodyweight={ex.useBodyweightEffective}
+                                isCardio={ex.exercise.kind === "CARDIO"}
                                 onCommitSet={(body) => void commitSet(body)}
                               />
                             </div>
@@ -960,6 +1055,17 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         sessionId={sessionId}
         onSuccess={() => qc.invalidateQueries({ queryKey: ["session", sessionId] })}
       />
+      <BodyweightScopeDialog
+        open={bwDialog != null}
+        onOpenChange={(o) => {
+          if (!o) setBwDialog(null);
+        }}
+        programExerciseId={bwDialog?.programExerciseId ?? ""}
+        exerciseName={bwDialog?.name ?? ""}
+        sessionId={sessionId}
+        targetBodyweight={bwDialog?.targetBodyweight ?? true}
+        onSuccess={() => qc.invalidateQueries({ queryKey: ["session", sessionId] })}
+      />
       {completeSplash && (
         <SessionCompleteSplash
           open
@@ -1007,6 +1113,7 @@ function SetRowEditor({
   progressionStep,
   savePending,
   bodyweight,
+  isCardio,
   onCommitSet,
 }: {
   row: LoggedSetRow;
@@ -1019,14 +1126,18 @@ function SetRowEditor({
   progressionStep: number;
   savePending: boolean;
   bodyweight: boolean;
+  isCardio?: boolean;
   onCommitSet: (body: object) => void;
 }) {
+  const cardio = Boolean(isCardio);
   const [local, setLocal] = useState(() => {
     const rpeStep = snapToLoggedRpeStep(row.rpe ?? targetRpe);
     return {
       weight: String(row.weight || ""),
       reps: row.reps != null ? String(row.reps) : String(repTarget),
       rpe: String(rpeStep),
+      durationSec: row.durationSec != null ? String(row.durationSec) : "",
+      calories: row.calories != null ? String(row.calories) : "",
     };
   });
 
@@ -1036,20 +1147,39 @@ function SetRowEditor({
       weight: bodyweight ? "0" : String(row.weight || ""),
       reps: row.reps != null ? String(row.reps) : String(repTarget),
       rpe: String(rpeStep),
+      durationSec: row.durationSec != null ? String(row.durationSec) : "",
+      calories: row.calories != null ? String(row.calories) : "",
     });
-  }, [row.weight, row.reps, row.rpe, repTarget, targetRpe, bodyweight]);
+  }, [row.weight, row.reps, row.rpe, row.durationSec, row.calories, repTarget, targetRpe, bodyweight]);
 
   const baselineWeight = bodyweight ? "0" : String(row.weight || "");
   const baselineReps = row.reps != null ? String(row.reps) : String(repTarget);
   const baselineRpe = String(snapToLoggedRpeStep(row.rpe ?? targetRpe));
-  const dirty =
-    local.reps !== baselineReps ||
-    local.rpe !== baselineRpe ||
-    (!bodyweight && local.weight !== baselineWeight);
+  const baselineDur = row.durationSec != null ? String(row.durationSec) : "";
+  const baselineCal = row.calories != null ? String(row.calories) : "";
 
-  const weightForCommit = bodyweight ? 0 : Number(local.weight) || 0;
+  const dirty = cardio
+    ? local.durationSec !== baselineDur || local.calories !== baselineCal
+    : local.reps !== baselineReps ||
+      local.rpe !== baselineRpe ||
+      (!bodyweight && local.weight !== baselineWeight);
+
+  const weightForCommit = bodyweight || cardio ? 0 : Number(local.weight) || 0;
 
   const saveFields = () => {
+    if (cardio) {
+      onCommitSet({
+        action: "set",
+        setId: row.id,
+        weight: 0,
+        weightUnit: unit,
+        reps: null,
+        rpe: null,
+        durationSec: local.durationSec === "" ? null : Math.max(0, Math.floor(Number(local.durationSec) || 0)),
+        calories: local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
+      });
+      return;
+    }
     onCommitSet({
       action: "set",
       setId: row.id,
@@ -1063,7 +1193,7 @@ function SetRowEditor({
   return (
     <div className="rounded-xl border bg-card/50 p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">Set {idx + 1}</span>
+        <span className="text-sm font-medium">{cardio ? `Bout ${idx + 1}` : `Set ${idx + 1}`}</span>
         <div className="flex items-center gap-2 shrink-0">
           <Button
             type="button"
@@ -1079,15 +1209,33 @@ function SetRowEditor({
             pressed={row.done}
             onPressedChange={(nextDone) => {
               if (nextDone) {
-                onCommitSet({
-                  action: "set",
-                  setId: row.id,
-                  weight: weightForCommit,
-                  weightUnit: unit,
-                  reps: local.reps === "" ? null : Number(local.reps),
-                  rpe: local.rpe === "" ? null : Number(local.rpe),
-                  done: true,
-                });
+                if (cardio) {
+                  const d =
+                    local.durationSec === "" ? null : Math.max(0, Math.floor(Number(local.durationSec) || 0));
+                  if (d == null || d <= 0) return;
+                  onCommitSet({
+                    action: "set",
+                    setId: row.id,
+                    weight: 0,
+                    weightUnit: unit,
+                    reps: null,
+                    rpe: null,
+                    durationSec: d,
+                    calories:
+                      local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
+                    done: true,
+                  });
+                } else {
+                  onCommitSet({
+                    action: "set",
+                    setId: row.id,
+                    weight: weightForCommit,
+                    weightUnit: unit,
+                    reps: local.reps === "" ? null : Number(local.reps),
+                    rpe: local.rpe === "" ? null : Number(local.rpe),
+                    done: true,
+                  });
+                }
               } else {
                 onCommitSet({ action: "set", setId: row.id, done: false });
               }
@@ -1102,7 +1250,7 @@ function SetRowEditor({
       {dirty && (
         <p className="text-xs text-amber-600 dark:text-amber-500">Unsaved changes — Save or use Done to log the set.</p>
       )}
-      {ghost && (
+      {ghost && !cardio && (
         <p className="text-muted-foreground text-xs">
           Last time:{" "}
           <span className="font-medium text-foreground">
@@ -1112,57 +1260,82 @@ function SetRowEditor({
           </span>
         </p>
       )}
-      <div
-        className={
-          bodyweight ? "grid grid-cols-2 gap-3" : "grid grid-cols-3 gap-3"
-        }
-      >
-        {!bodyweight && (
+      {cardio ? (
+        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">Weight ({unit})</Label>
+            <Label className="text-xs">Duration (seconds)</Label>
             <Input
               type="text"
-              inputMode="decimal"
+              inputMode="numeric"
               className="rounded-lg"
-              value={local.weight}
-              placeholder={ghost ? `${ghost.weight}` : "0"}
-              onChange={(e) => setLocal((l) => ({ ...l, weight: e.target.value }))}
+              value={local.durationSec}
+              onChange={(e) => setLocal((l) => ({ ...l, durationSec: e.target.value }))}
             />
           </div>
-        )}
-        {bodyweight && (
-          <div className="space-y-1 col-span-2">
-            <Label className="text-xs">Load</Label>
-            <p className="text-sm font-medium rounded-lg border bg-muted/40 px-3 py-2">Bodyweight</p>
+          <div className="space-y-1">
+            <Label className="text-xs">Calories (optional)</Label>
+            <Input
+              type="text"
+              inputMode="numeric"
+              className="rounded-lg"
+              value={local.calories}
+              onChange={(e) => setLocal((l) => ({ ...l, calories: e.target.value }))}
+            />
           </div>
-        )}
-        <div className="space-y-1">
-          <Label className="text-xs">Reps</Label>
-          <Input
-            type="text"
-            inputMode="numeric"
-            className="rounded-lg"
-            value={local.reps}
-            onChange={(e) => setLocal((l) => ({ ...l, reps: e.target.value }))}
-          />
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs">RPE</Label>
-          <Select value={local.rpe} onValueChange={(v) => setLocal((l) => ({ ...l, rpe: v ?? l.rpe }))}>
-            <SelectTrigger className="rounded-lg w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RPE_REST_KEYS.map((k) => (
-                <SelectItem key={k} value={String(k)}>
-                  {k}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      ) : (
+        <div
+          className={
+            bodyweight ? "grid grid-cols-2 gap-3" : "grid grid-cols-3 gap-3"
+          }
+        >
+          {!bodyweight && (
+            <div className="space-y-1">
+              <Label className="text-xs">Weight ({unit})</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                className="rounded-lg"
+                value={local.weight}
+                placeholder={ghost ? `${ghost.weight}` : "0"}
+                onChange={(e) => setLocal((l) => ({ ...l, weight: e.target.value }))}
+              />
+            </div>
+          )}
+          {bodyweight && (
+            <div className="space-y-1 col-span-2">
+              <Label className="text-xs">Load</Label>
+              <p className="text-sm font-medium rounded-lg border bg-muted/40 px-3 py-2">Bodyweight</p>
+            </div>
+          )}
+          <div className="space-y-1">
+            <Label className="text-xs">Reps</Label>
+            <Input
+              type="text"
+              inputMode="numeric"
+              className="rounded-lg"
+              value={local.reps}
+              onChange={(e) => setLocal((l) => ({ ...l, reps: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">RPE</Label>
+            <Select value={local.rpe} onValueChange={(v) => setLocal((l) => ({ ...l, rpe: v ?? l.rpe }))}>
+              <SelectTrigger className="rounded-lg w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RPE_REST_KEYS.map((k) => (
+                  <SelectItem key={k} value={String(k)}>
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
-      {!bodyweight && prog.bumped && row.done && (
+      )}
+      {!cardio && !bodyweight && prog.bumped && row.done && (
         <p className="text-xs text-muted-foreground">
           Next week idea: ~{prog.suggested.toFixed(1)} {unit} (+{(prog.bumpPct * 100).toFixed(1)}%), nearest{" "}
           {progressionStep % 1 === 0 ? progressionStep.toFixed(0) : progressionStep.toFixed(1)} {unit} step

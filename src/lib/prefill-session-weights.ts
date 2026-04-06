@@ -9,7 +9,8 @@ import {
   suggestNextWeekLoad,
   type WeightUnit,
 } from "@/lib/calculators";
-import { effectiveUseBodyweight } from "@/lib/exercise-bodyweight";
+import { effectiveUseBodyweightResolved } from "@/lib/exercise-bodyweight";
+import { loadBodyweightOverrideMaps } from "@/lib/bodyweight-override-maps";
 import { getBarIncrementLbForUser } from "@/lib/user-exercise-prefs";
 
 function toPreferredUnit(weight: number, fromUnit: WeightUnit, preferred: WeightUnit): number {
@@ -37,6 +38,8 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
   });
   if (!full) return;
 
+  const bwMaps = await loadBodyweightOverrideMaps(sessionId, full.programInstanceId);
+
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const preferred: WeightUnit =
     settings?.preferredWeightUnit === "KG" ? "KG" : "LB";
@@ -58,9 +61,13 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
     const peId = rows[0]!.programExerciseId;
     const pe = rows[0]!.programExercise;
     if (
-      effectiveUseBodyweight(
+      effectiveUseBodyweightResolved(
         { useBodyweight: pe.useBodyweight },
         { isBodyweight: pe.exercise.isBodyweight },
+        {
+          sessionOverride: bwMaps.sessionByProgramExerciseId.get(peId) ?? null,
+          instanceOverride: bwMaps.instanceByProgramExerciseId.get(peId) ?? null,
+        },
       )
     ) {
       continue;
@@ -150,9 +157,17 @@ export async function mirrorWorkingWeightToRemainingSets(
   });
   if (!row || row.workoutSession.programInstance.userId !== userId) return;
   if (!row.done) return;
-  const bw = effectiveUseBodyweight(
+  const sid = row.workoutSessionId;
+  const iid = row.workoutSession.programInstanceId;
+  const bwMaps = await loadBodyweightOverrideMaps(sid, iid);
+  const peId = row.programExerciseId;
+  const bw = effectiveUseBodyweightResolved(
     { useBodyweight: row.programExercise.useBodyweight },
     { isBodyweight: row.programExercise.exercise.isBodyweight },
+    {
+      sessionOverride: bwMaps.sessionByProgramExerciseId.get(peId) ?? null,
+      instanceOverride: bwMaps.instanceByProgramExerciseId.get(peId) ?? null,
+    },
   );
   if (!bw && !(row.weight > 0)) return;
 
@@ -194,6 +209,8 @@ export async function prefillPctWeightsForSession(sessionId: string, userId: str
   });
   if (!session || session.programInstance.userId !== userId) return;
 
+  const bwMaps = await loadBodyweightOverrideMaps(sessionId, session.programInstanceId);
+
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const preferred: WeightUnit =
     settings?.preferredWeightUnit === "KG" ? "KG" : "LB";
@@ -207,9 +224,13 @@ export async function prefillPctWeightsForSession(sessionId: string, userId: str
     if (row.done) continue;
     const pe = row.programExercise;
     if (
-      effectiveUseBodyweight(
+      effectiveUseBodyweightResolved(
         { useBodyweight: pe.useBodyweight },
         { isBodyweight: pe.exercise.isBodyweight },
+        {
+          sessionOverride: bwMaps.sessionByProgramExerciseId.get(pe.id) ?? null,
+          instanceOverride: bwMaps.instanceByProgramExerciseId.get(pe.id) ?? null,
+        },
       )
     ) {
       continue;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
@@ -61,6 +61,9 @@ function emptyExercise(): WizardExercise {
     restSec: 120,
     useBodyweight: null,
     supersetGroup: null,
+    notes: null,
+    targetDurationSec: null,
+    targetCalories: null,
   };
 }
 
@@ -69,10 +72,27 @@ type Props = {
   programId?: string;
   initial?: ProgramWizardPayload | null;
   hasWorkoutHistory?: boolean;
+  /** When true (e.g. admin on system template), full structure edits stay allowed despite local history rules. */
+  canEditStructure?: boolean;
 };
 
-export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory }: Props) {
+function exerciseKindForSlug(
+  list: { slug: string; kind: string }[] | undefined,
+  slug: string,
+): "STRENGTH" | "CARDIO" {
+  const k = list?.find((e) => e.slug === slug)?.kind;
+  return k === "CARDIO" ? "CARDIO" : "STRENGTH";
+}
+
+export function ProgramBuilderForm({
+  mode,
+  programId,
+  initial,
+  hasWorkoutHistory,
+  canEditStructure = false,
+}: Props) {
   const router = useRouter();
+  const qc = useQueryClient();
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initial?.name ?? "My program");
   const [durationWeeks, setDurationWeeks] = useState(initial?.durationWeeks ?? 8);
@@ -95,11 +115,11 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
     queryFn: async () => {
       const r = await fetch("/api/exercises");
       if (!r.ok) throw new Error("Failed");
-      return r.json() as Promise<{ slug: string; name: string }[]>;
+      return r.json() as Promise<{ slug: string; name: string; kind: string }[]>;
     },
   });
 
-  const structureLocked = mode === "edit" && hasWorkoutHistory;
+  const structureLocked = mode === "edit" && hasWorkoutHistory && !canEditStructure;
 
   const updateBlock = (i: number, patch: Partial<(typeof blocks)[0]>) => {
     setBlocks((b) => b.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -215,13 +235,46 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
       if (!programId) throw new Error("Missing program id");
 
       if (structureLocked) {
-        const r = await fetch(`/api/programs/${programId}`, {
+        const rProg = await fetch(`/api/programs/${programId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: name.trim(), durationWeeks }),
         });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error((j as { error?: string }).error ?? "Save failed");
+        const jProg = await rProg.json().catch(() => ({}));
+        if (!rProg.ok) {
+          throw new Error((jProg as { error?: string }).error ?? "Save failed");
+        }
+        for (const day of days) {
+          if (day.programDayId) {
+            const rd = await fetch(`/api/program-days/${day.programDayId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ label: day.label.trim() }),
+            });
+            const jd = await rd.json().catch(() => ({}));
+            if (!rd.ok) {
+              throw new Error((jd as { error?: string }).error ?? "Could not update day label");
+            }
+          }
+          for (const ex of day.exercises) {
+            if (!ex.programExerciseId) continue;
+            const rp = await fetch(`/api/program-exercises/${ex.programExerciseId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                restSec: ex.restSec ?? null,
+                useBodyweight: ex.useBodyweight ?? null,
+                notes: ex.notes ?? null,
+                targetDurationSec: ex.targetDurationSec ?? null,
+                targetCalories: ex.targetCalories ?? null,
+              }),
+            });
+            const jp = await rp.json().catch(() => ({}));
+            if (!rp.ok) {
+              throw new Error((jp as { error?: string }).error ?? "Could not update an exercise slot");
+            }
+          }
+        }
         router.push(`/programs/${programId}`);
         return;
       }
@@ -408,12 +461,43 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
               <CardTitle>Training days</CardTitle>
               <CardDescription>Add exercises from your library.</CardDescription>
             </div>
-            {!structureLocked && (
-              <Button variant="outline" size="sm" className="rounded-lg" onClick={addDay}>
-                <Plus className="size-4" />
-                Day
-              </Button>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {!structureLocked && (
+                <Button variant="outline" size="sm" className="rounded-lg" onClick={addDay}>
+                  <Plus className="size-4" />
+                  Day
+                </Button>
+              )}
+              {structureLocked && mode === "edit" && programId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  onClick={async () => {
+                    setError(null);
+                    setLoading(true);
+                    try {
+                      const r = await fetch(`/api/programs/${programId}/days`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ label: `Day ${days.length + 1}` }),
+                      });
+                      const j = await r.json().catch(() => ({}));
+                      if (!r.ok) throw new Error((j as { error?: string }).error ?? "Could not add day");
+                      await qc.invalidateQueries({ queryKey: ["program", programId] });
+                      router.refresh();
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "Failed");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                  <Plus className="size-4" />
+                  Add day
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-8">
             {days.map((day, di) => (
@@ -433,7 +517,7 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                     value={day.label}
                     onChange={(e) => updateDayLabel(di, e.target.value)}
                     className="max-w-xs rounded-lg font-medium"
-                    disabled={structureLocked}
+                    disabled={structureLocked && !day.programDayId}
                   />
                   {!structureLocked && (
                     <Button variant="ghost" size="sm" onClick={() => removeDay(di)}>
@@ -443,7 +527,9 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                 </div>
                 <Separator />
                 <ul className="space-y-4">
-                  {day.exercises.map((ex, ei) => (
+                  {day.exercises.map((ex, ei) => {
+                    const slotTuningEnabled = !structureLocked || Boolean(ex.programExerciseId);
+                    return (
                     <li key={ei} className="rounded-xl border bg-card p-3 space-y-3">
                       {!structureLocked && (
                         <div className="flex items-center gap-1">
@@ -568,7 +654,7 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                         <NullableNumericInput
                           className="rounded-lg"
                           value={ex.restSec ?? null}
-                          disabled={structureLocked}
+                          disabled={!slotTuningEnabled}
                           onValueChange={(n) => updateEx(di, ei, { restSec: n })}
                           min={15}
                           max={3600}
@@ -589,7 +675,7 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                               useBodyweight: v === "inherit" ? null : v === "yes",
                             })
                           }
-                          disabled={structureLocked}
+                          disabled={!slotTuningEnabled}
                         >
                           <SelectTrigger className="rounded-lg">
                             <SelectValue />
@@ -609,11 +695,92 @@ export function ProgramBuilderForm({ mode, programId, initial, hasWorkoutHistory
                         </div>
                       )}
                       </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Slot notes</Label>
+                        <textarea
+                          className={cn(
+                            "flex min-h-[72px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
+                            "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            "disabled:cursor-not-allowed disabled:opacity-50",
+                          )}
+                          value={ex.notes ?? ""}
+                          onChange={(e) => updateEx(di, ei, { notes: e.target.value || null })}
+                          disabled={!slotTuningEnabled}
+                          placeholder="Coaching cues for this slot…"
+                        />
+                      </div>
+                      {exerciseKindForSlug(exerciseList, ex.exerciseSlug) === "CARDIO" && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Target time (seconds)</Label>
+                            <NullableNumericInput
+                              className="rounded-lg"
+                              value={ex.targetDurationSec ?? null}
+                              disabled={!slotTuningEnabled}
+                              onValueChange={(n) => updateEx(di, ei, { targetDurationSec: n })}
+                              min={0}
+                              max={86400}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Target calories (optional)</Label>
+                            <NullableNumericInput
+                              className="rounded-lg"
+                              value={ex.targetCalories ?? null}
+                              disabled={!slotTuningEnabled}
+                              onValueChange={(n) => updateEx(di, ei, { targetCalories: n })}
+                              min={0}
+                              max={50000}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
-                {!structureLocked && (
-                  <Button variant="secondary" size="sm" className="rounded-lg" onClick={() => addExercise(di)}>
+                {(!structureLocked ||
+                  (structureLocked && mode === "edit" && programId && days[di]?.programDayId)) && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={() => {
+                      if (!structureLocked) {
+                        addExercise(di);
+                        return;
+                      }
+                      const pid = days[di]?.programDayId;
+                      if (!programId || !pid) return;
+                      const slug = window.prompt("Exercise slug (e.g. bench-press, bike-erg)");
+                      if (!slug?.trim()) return;
+                      void (async () => {
+                        setError(null);
+                        setLoading(true);
+                        try {
+                          const r = await fetch(`/api/program-days/${pid}/exercises`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              exerciseSlug: slug.trim(),
+                              sets: 3,
+                              repTarget: 8,
+                              targetRpe: 8,
+                              restSec: 120,
+                            }),
+                          });
+                          const j = await r.json().catch(() => ({}));
+                          if (!r.ok) throw new Error((j as { error?: string }).error ?? "Could not add exercise");
+                          await qc.invalidateQueries({ queryKey: ["program", programId] });
+                          router.refresh();
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "Failed");
+                        } finally {
+                          setLoading(false);
+                        }
+                      })();
+                    }}
+                  >
                     <Plus className="size-4" />
                     Exercise
                   </Button>

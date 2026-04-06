@@ -18,3 +18,19 @@ export async function requireUserId(): Promise<{ userId: string } | NextResponse
   }
   return { userId };
 }
+
+/** User id + email (for admin checks). */
+export async function requireUserContext(): Promise<{ userId: string; email: string } | NextResponse> {
+  const userId = await readSessionUserId();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true },
+  });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return { userId: user.id, email: user.email };
+}

@@ -57,6 +57,8 @@ export async function POST(
               restSec: e.restSec,
               useBodyweight: e.useBodyweight,
               notes: e.notes,
+              targetDurationSec: e.targetDurationSec,
+              targetCalories: e.targetCalories,
             })),
           },
         })),

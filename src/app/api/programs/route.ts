@@ -52,6 +52,9 @@ type WizardBody = {
       restSec?: number | null;
       useBodyweight?: boolean | null;
       supersetGroup?: string | null;
+      notes?: string | null;
+      targetDurationSec?: number | null;
+      targetCalories?: number | null;
     }[];
   }[];
 };
@@ -115,6 +118,9 @@ export async function POST(req: Request) {
                     pctOf1rm: ex.pctOf1rm ?? null,
                     restSec: ex.restSec ?? null,
                     useBodyweight: ex.useBodyweight ?? null,
+                    notes: ex.notes?.trim() || null,
+                    targetDurationSec: ex.targetDurationSec ?? null,
+                    targetCalories: ex.targetCalories ?? null,
                   };
                 }),
               },

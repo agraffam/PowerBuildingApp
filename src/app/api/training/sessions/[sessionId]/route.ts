@@ -9,13 +9,17 @@ import {
   prefillHistoryWeightsForSession,
   prefillPctWeightsForSession,
 } from "@/lib/prefill-session-weights";
-import { requireUserId } from "@/lib/auth/require-user";
+import { requireUserContext, requireUserId } from "@/lib/auth/require-user";
+import { userCanEditProgramIncludingAdmin } from "@/lib/program-access";
 import { getBarIncrementLbForUser } from "@/lib/user-exercise-prefs";
 import {
   applyExerciseSwap,
   loadSwapMapsForSession,
   resolveEffectiveFromMaps,
 } from "@/lib/exercise-swaps";
+import { loadBodyweightOverrideMaps } from "@/lib/bodyweight-override-maps";
+import { effectiveUseBodyweightResolved } from "@/lib/exercise-bodyweight";
+import { applyBodyweightScope } from "@/lib/bodyweight-scope";
 import { buildSessionCompletionSummary } from "@/lib/session-completion-summary";
 import { trainingSessionPatchBodySchema } from "@/lib/training-session-patch-schema";
 
@@ -23,9 +27,9 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ sessionId: string }> },
 ) {
-  const auth = await requireUserId();
+  const auth = await requireUserContext();
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, email } = auth;
 
   const { sessionId } = await ctx.params;
   const detail = await getSessionDetail(sessionId, userId);
@@ -38,6 +42,7 @@ export async function GET(
     session.id,
     session.programInstanceId,
   );
+  const bwMaps = await loadBodyweightOverrideMaps(session.id, session.programInstanceId);
   const effIds = new Set<string>();
   for (const pe of session.programDay.exercises) {
     effIds.add(resolveEffectiveFromMaps(pe.id, pe.exerciseId, sessionMap, instanceMap));
@@ -57,23 +62,41 @@ export async function GET(
     exercises: session.programDay.exercises.map((pe) => {
       const effId = resolveEffectiveFromMaps(pe.id, pe.exerciseId, sessionMap, instanceMap);
       const ex = exById.get(effId);
+      const sessBw = bwMaps.sessionByProgramExerciseId.get(pe.id) ?? null;
+      const instBw = bwMaps.instanceByProgramExerciseId.get(pe.id) ?? null;
       if (!ex) {
+        const useBodyweightEffective = effectiveUseBodyweightResolved(
+          { useBodyweight: pe.useBodyweight },
+          { isBodyweight: pe.exercise.isBodyweight },
+          { sessionOverride: sessBw, instanceOverride: instBw },
+        );
         return {
           ...pe,
+          useBodyweightEffective,
           exercise: {
             ...pe.exercise,
+            notes: pe.exercise.notes,
+            kind: pe.exercise.kind,
             muscleTags: pe.exercise.muscleTags,
             isBodyweight: pe.exercise.isBodyweight,
             effectiveBarIncrementLb: barByEffectiveId.get(pe.exerciseId) ?? null,
           },
         };
       }
+      const useBodyweightEffective = effectiveUseBodyweightResolved(
+        { useBodyweight: pe.useBodyweight },
+        { isBodyweight: ex.isBodyweight },
+        { sessionOverride: sessBw, instanceOverride: instBw },
+      );
       return {
         ...pe,
+        useBodyweightEffective,
         exercise: {
           id: ex.id,
           name: ex.name,
           slug: ex.slug,
+          notes: ex.notes,
+          kind: ex.kind,
           barIncrementLb: ex.barIncrementLb,
           isBodyweight: ex.isBodyweight,
           muscleTags: ex.muscleTags,
@@ -89,8 +112,7 @@ export async function GET(
   };
 
   const prog = session.programInstance.program;
-  const canEditProgramRest =
-    prog.ownerId != null && prog.ownerId === userId;
+  const canEditProgramRest = userCanEditProgramIncludingAdmin(prog.ownerId, userId, email);
 
   return NextResponse.json({
     session: sessionOut,
@@ -173,6 +195,27 @@ export async function PATCH(
     }
   }
 
+  if (body.action === "setBodyweight") {
+    if (session.status !== "PLANNED" && session.status !== "IN_PROGRESS") {
+      return NextResponse.json({ error: "Cannot change bodyweight mode now" }, { status: 409 });
+    }
+    try {
+      await applyBodyweightScope({
+        userId,
+        sessionId,
+        programExerciseId: body.programExerciseId,
+        useBodyweight: body.useBodyweight,
+        scope: body.scope,
+      });
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      const code = e instanceof Error ? e.message : "";
+      if (code === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (code === "BAD_STATE") return NextResponse.json({ error: "Session ended" }, { status: 409 });
+      throw e;
+    }
+  }
+
   if (body.action === "set" && session.status === "COMPLETED") {
     const row = await prisma.loggedSet.findFirst({
       where: { id: body.setId, workoutSessionId: sessionId },
@@ -183,6 +226,8 @@ export async function PATCH(
     if (body.weightUnit != null) data.weightUnit = body.weightUnit;
     if (body.reps !== undefined) data.reps = body.reps;
     if (body.rpe !== undefined) data.rpe = body.rpe;
+    if (body.durationSec !== undefined) data.durationSec = body.durationSec;
+    if (body.calories !== undefined) data.calories = body.calories;
     if (body.done != null) {
       data.done = body.done;
       data.completedAt = body.done ? new Date() : null;
@@ -288,6 +333,8 @@ export async function PATCH(
     if (body.weightUnit != null) data.weightUnit = body.weightUnit;
     if (body.reps !== undefined) data.reps = body.reps;
     if (body.rpe !== undefined) data.rpe = body.rpe;
+    if (body.durationSec !== undefined) data.durationSec = body.durationSec;
+    if (body.calories !== undefined) data.calories = body.calories;
     if (body.done != null) {
       data.done = body.done;
       data.completedAt = body.done ? new Date() : null;
