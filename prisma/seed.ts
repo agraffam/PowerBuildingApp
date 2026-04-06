@@ -1,4 +1,4 @@
-import { PrismaClient, BlockType, type Prisma, WeightUnit } from "@prisma/client";
+import { PrismaClient, BlockType, type Prisma, WeightUnit, type ExerciseKind } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { homeGymProgramCreateData } from "./home-gym-seed-programs";
 import { powerbuildingBlueprintProgramCreateData } from "./powerbuilding-blueprint-seed";
@@ -11,14 +11,23 @@ const SEED_PASSWORD = "Seed12345678";
 const CARDIO_SLUGS = new Set(["bike-erg", "assault-runner-intervals"]);
 
 async function ensureExerciseDef(def: { name: string; slug: string; muscleTags: string }) {
+  const wantKind: ExerciseKind = CARDIO_SLUGS.has(def.slug) ? "CARDIO" : "STRENGTH";
   const existing = await prisma.exercise.findUnique({ where: { slug: def.slug } });
-  if (existing) return existing;
+  if (existing) {
+    const data: { kind?: ExerciseKind; isBodyweight?: boolean } = {};
+    if (existing.kind !== wantKind) data.kind = wantKind;
+    if (wantKind === "CARDIO" && existing.isBodyweight) data.isBodyweight = false;
+    if (Object.keys(data).length > 0) {
+      return prisma.exercise.update({ where: { id: existing.id }, data });
+    }
+    return existing;
+  }
   return prisma.exercise.create({
     data: {
       name: def.name,
       slug: def.slug,
       muscleTags: def.muscleTags,
-      kind: CARDIO_SLUGS.has(def.slug) ? "CARDIO" : "STRENGTH",
+      kind: wantKind,
     },
   });
 }

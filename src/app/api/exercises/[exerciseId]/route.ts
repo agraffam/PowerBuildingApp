@@ -118,15 +118,25 @@ export async function PATCH(
   }
 
   if (wantsGlobalEdit && admin) {
+    const data: {
+      isBodyweight?: boolean;
+      name?: string;
+      muscleTags?: string;
+      notes?: string | null;
+      kind?: ExerciseKind;
+    } = {
+      ...(isBodyweight !== undefined ? { isBodyweight } : {}),
+      ...(name !== undefined ? { name } : {}),
+      ...(muscleTags !== undefined ? { muscleTags: muscleTags ?? "" } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+      ...(kind !== undefined ? { kind } : {}),
+    };
+    if (kind === "CARDIO") {
+      data.isBodyweight = false;
+    }
     await prisma.exercise.update({
       where: { id: exerciseId },
-      data: {
-        ...(isBodyweight !== undefined ? { isBodyweight } : {}),
-        ...(name !== undefined ? { name } : {}),
-        ...(muscleTags !== undefined ? { muscleTags: muscleTags ?? "" } : {}),
-        ...(notes !== undefined ? { notes } : {}),
-        ...(kind !== undefined ? { kind } : {}),
-      },
+      data,
     });
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readSessionUserId } from "@/lib/auth/session";
+import { isAdminEmail } from "@/lib/auth/is-admin";
 import { isSuperAdminEmail } from "@/lib/auth/super-admin";
 
 export async function GET() {
@@ -19,6 +20,10 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    user: { ...user, isSuperAdmin: isSuperAdminEmail(user.email) },
+    user: {
+      ...user,
+      isSuperAdmin: isSuperAdminEmail(user.email),
+      isAdmin: isAdminEmail(user.email),
+    },
   });
 }
