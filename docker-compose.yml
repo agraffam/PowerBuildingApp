@@ -19,6 +19,7 @@ services:
       PB_DATA_DIR: /app/data
       # Set to 1 once after empty volume to load seed programs + dev user
       START_SEED: ${START_SEED:-0}
+      PRISMA_ACCEPT_DATA_LOSS: ${PRISMA_ACCEPT_DATA_LOSS:-1}
     volumes:
       - pb-sqlite:/app/data
 

@@ -18,7 +18,18 @@ fi
 
 export AUTH_SECRET="${AUTH_SECRET:?Set AUTH_SECRET (min 16 characters)}"
 
-npx prisma db push
+# `db push` may refuse schema updates on existing SQLite files (e.g. new unique on
+# Program.seedKey) until this flag is set. Default: allow so droplets upgrade cleanly.
+# Set PRISMA_ACCEPT_DATA_LOSS=0 to block and exit (handle schema manually).
+prisma_bin="./node_modules/.bin/prisma"
+case "${PRISMA_ACCEPT_DATA_LOSS:-1}" in
+  0 | false | no | NO)
+    "$prisma_bin" db push
+    ;;
+  *)
+    "$prisma_bin" db push --accept-data-loss
+    ;;
+esac
 
 # Load catalog + programs when DB is empty, or force full seed when START_SEED=1 (not both)
 if [ "$START_SEED" = "1" ]; then

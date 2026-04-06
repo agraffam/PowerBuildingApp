@@ -19,6 +19,8 @@ services:
       DATABASE_URL: file:/app/data/prod.db
       PB_DATA_DIR: /app/data
       START_SEED: ${START_SEED:-0}
+      # Prisma may require --accept-data-loss when adding indexes to an existing DB; see docker-entrypoint.sh
+      PRISMA_ACCEPT_DATA_LOSS: ${PRISMA_ACCEPT_DATA_LOSS:-1}
     volumes:
       - pb-sqlite:/app/data
 
