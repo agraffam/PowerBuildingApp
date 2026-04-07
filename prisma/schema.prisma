@@ -69,6 +69,7 @@ model UserSettings {
   defaultRestSec       Int        @default(180)
   plateIncrementLb     Float      @default(2.5)
   plateIncrementKg     Float      @default(2.5)
+  keepAwakeDuringWorkout Boolean  @default(false)
   /** Optional overrides: { "6": sec, … "10": sec } — merged with built-in ladder (30–210s steps). */
   restDurationsByRpe   Json?
   updatedAt            DateTime   @updatedAt

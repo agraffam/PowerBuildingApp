@@ -136,6 +136,7 @@ type SessionPayload = {
     plateIncrementLb: number;
     plateIncrementKg: number;
     restDurationsByRpe: Record<string, number>;
+    keepAwakeDuringWorkout: boolean;
   } | null;
   canEditProgramRest: boolean;
   previousByExerciseId: Record<
@@ -196,6 +197,9 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     kind: "STRENGTH" | "CARDIO";
     muscleTags?: string;
   } | null>(null);
+  const [keepAwakeEnabled, setKeepAwakeEnabled] = useState(false);
+  const [wakeLockSupported, setWakeLockSupported] = useState(true);
+  const wakeLockRef = useRef<{ release: () => Promise<void>; released?: boolean } | null>(null);
   const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
   const prevBlockProgressRef = useRef<Map<string, { done: number; total: number }>>(new Map());
   const blockAnchorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -242,6 +246,61 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       return r.json() as Promise<SessionPayload>;
     },
   });
+
+  useEffect(() => {
+    setKeepAwakeEnabled(Boolean(q.data?.settings?.keepAwakeDuringWorkout));
+  }, [q.data?.settings?.keepAwakeDuringWorkout]);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    const nav = navigator as Navigator & {
+      wakeLock?: {
+        request: (type: "screen") => Promise<{ release: () => Promise<void>; released?: boolean }>;
+      };
+    };
+    const supported = typeof nav.wakeLock?.request === "function";
+    setWakeLockSupported(supported);
+    if (!supported) return;
+
+    let cancelled = false;
+
+    const requestWakeLock = async () => {
+      if (!keepAwakeEnabled) return;
+      if (document.visibilityState !== "visible") return;
+      try {
+        const lock = await nav.wakeLock!.request("screen");
+        if (!cancelled) wakeLockRef.current = lock;
+      } catch {
+        // Browser/user power policy can reject; keep UI functional regardless.
+      }
+    };
+
+    const releaseWakeLock = async () => {
+      try {
+        await wakeLockRef.current?.release();
+      } catch {
+        // no-op
+      } finally {
+        wakeLockRef.current = null;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (!keepAwakeEnabled) return;
+      if (document.visibilityState === "visible") {
+        void requestWakeLock();
+      }
+    };
+
+    void (keepAwakeEnabled ? requestWakeLock() : releaseWakeLock());
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      void releaseWakeLock();
+    };
+  }, [keepAwakeEnabled]);
 
   useEffect(() => {
     if (completeSplash) clearRest();
@@ -508,6 +567,19 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const { session, settings, previousByExerciseId } = q.data;
   const unit = settings?.preferredWeightUnit ?? "LB";
   const isHistorySession = session.status === "COMPLETED";
+  const sessionBlockTypes = Array.from(
+    new Set(
+      orderedExercises
+        .map((ex) => ex.prescription.blockType)
+        .filter((v): v is string => v != null),
+    ),
+  );
+  const sessionBlockTypeLabel =
+    sessionBlockTypes.length === 1
+      ? blockTypeLabel(sessionBlockTypes[0] ?? null)
+      : sessionBlockTypes.length > 1
+        ? "Mixed blocks"
+        : "";
   const readinessNeeded =
     session.sleep == null && (session.status === "PLANNED" || session.status === "IN_PROGRESS");
   const canCancel = session.status === "PLANNED" || session.status === "IN_PROGRESS";
@@ -532,6 +604,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 · intensity ×{session.intensityMultiplier.toFixed(2)}
               </span>
             )}
+            {sessionBlockTypeLabel && <span> · {sessionBlockTypeLabel}</span>}
           </p>
           {isHistorySession && (
             <Link href="/history" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
@@ -549,6 +622,11 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           Library
         </Button>
       </div>
+      {keepAwakeEnabled && !wakeLockSupported && (
+        <p className="text-xs text-muted-foreground">
+          Keep Awake is not supported in this browser version (common on some iPhone Safari builds).
+        </p>
+      )}
 
       {readinessNeeded && (
         <ReadinessCard
@@ -580,11 +658,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                         className="text-xs border-amber-500/50 text-amber-800 dark:text-amber-400"
                       >
                         Deload week
-                      </Badge>
-                    )}
-                    {ex.prescription.blockType != null && (
-                      <Badge variant="secondary" className="text-xs">
-                        {blockTypeLabel(ex.prescription.blockType)}
                       </Badge>
                     )}
                   </div>
@@ -1309,56 +1382,58 @@ function SetRowEditor({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="rounded-lg h-9"
-            disabled={!dirty || savePending}
-            onClick={() => saveFields()}
-          >
-            Save
-          </Button>
-          <Toggle
-            pressed={row.done}
-            onPressedChange={(nextDone) => {
-              if (nextDone) {
-                if (cardio) {
-                  const d =
-                    local.durationSec === "" ? null : Math.max(0, Math.floor(Number(local.durationSec) || 0));
-                  if (d == null || d <= 0) return;
-                  onCommitSet({
-                    action: "set",
-                    setId: row.id,
-                    weight: 0,
-                    weightUnit: unit,
-                    reps: null,
-                    rpe: null,
-                    durationSec: d,
-                    calories:
-                      local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
-                    done: true,
-                  });
-                } else {
-                  onCommitSet({
-                    action: "set",
-                    setId: row.id,
-                    weight: weightForCommit,
-                    weightUnit: unit,
-                    reps: local.reps === "" ? null : Number(local.reps),
-                    rpe: local.rpe === "" ? null : Number(local.rpe),
-                    done: true,
-                  });
+          {row.done && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="rounded-lg h-9"
+              disabled={!dirty || savePending}
+              onClick={() => saveFields()}
+            >
+              Save
+            </Button>
+          )}
+          {!row.done && (
+            <Toggle
+              pressed={row.done}
+              onPressedChange={(nextDone) => {
+                if (nextDone) {
+                  if (cardio) {
+                    const d =
+                      local.durationSec === "" ? null : Math.max(0, Math.floor(Number(local.durationSec) || 0));
+                    if (d == null || d <= 0) return;
+                    onCommitSet({
+                      action: "set",
+                      setId: row.id,
+                      weight: 0,
+                      weightUnit: unit,
+                      reps: null,
+                      rpe: null,
+                      durationSec: d,
+                      calories:
+                        local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
+                      done: true,
+                    });
+                  } else {
+                    onCommitSet({
+                      action: "set",
+                      setId: row.id,
+                      weight: weightForCommit,
+                      weightUnit: unit,
+                      reps: local.reps === "" ? null : Number(local.reps),
+                      rpe: local.rpe === "" ? null : Number(local.rpe),
+                      done: true,
+                    });
+                  }
                 }
-              } else {
-                onCommitSet({ action: "set", setId: row.id, done: false });
-              }
-            }}
-            className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-          >
-            <Check className="size-4" />
-            Done
-          </Toggle>
+              }}
+              className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+            >
+              <Check className="size-4" />
+              Done
+            </Toggle>
+          )}
         </div>
       </div>
       {dirty && (

@@ -23,6 +23,7 @@ export async function GET() {
         defaultRestSec: 180,
         plateIncrementLb: 2.5,
         plateIncrementKg: 2.5,
+        keepAwakeDuringWorkout: false,
       },
     });
   }
@@ -44,6 +45,7 @@ export async function PATCH(req: Request) {
     defaultRestSec?: number;
     plateIncrementLb?: number;
     plateIncrementKg?: number;
+    keepAwakeDuringWorkout?: boolean;
     /** Full merged map, or null to clear overrides and use defaults only. */
     restDurationsByRpe?: Record<string, number> | null;
   };
@@ -56,6 +58,7 @@ export async function PATCH(req: Request) {
         defaultRestSec: body.defaultRestSec ?? 180,
         plateIncrementLb: coerceDefaultBarIncrementLb(body.plateIncrementLb ?? 2.5),
         plateIncrementKg: body.plateIncrementKg ?? 2.5,
+        keepAwakeDuringWorkout: body.keepAwakeDuringWorkout ?? false,
       },
     });
   }
@@ -87,6 +90,7 @@ export async function PATCH(req: Request) {
       ...(body.defaultRestSec != null && { defaultRestSec: nextDefaultRest }),
       ...(nextLb != null && { plateIncrementLb: nextLb }),
       ...(body.plateIncrementKg != null && { plateIncrementKg: body.plateIncrementKg }),
+      ...(body.keepAwakeDuringWorkout != null && { keepAwakeDuringWorkout: body.keepAwakeDuringWorkout }),
       ...(restJson !== undefined && { restDurationsByRpe: restJson }),
     },
   });

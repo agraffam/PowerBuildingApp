@@ -13,13 +13,9 @@ const baseLinks = [
   { href: "/programs", label: "Programs" },
   { href: "/exercises", label: "Exercises" },
   { href: "/strength", label: "1RM" },
-  { href: "/analytics", label: "Analytics" },
   { href: "/account", label: "Account" },
   { href: "/settings", label: "Settings" },
-  { href: "/help", label: "Help" },
 ] as const;
-
-const adminLink = { href: "/admin", label: "Admin" } as const;
 
 type MePayload = {
   user: { email: string; name: string | null; isSuperAdmin?: boolean } | null;
@@ -43,7 +39,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     enabled: !isAuthPage,
   });
 
-  const navLinks = me?.user?.isSuperAdmin ? [...baseLinks, adminLink] : [...baseLinks];
+  const navLinks = [...baseLinks];
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });

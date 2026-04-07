@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
@@ -31,6 +32,7 @@ type SettingsPatchBody = {
   defaultRestSec?: number;
   plateIncrementLb?: number;
   plateIncrementKg?: number;
+  keepAwakeDuringWorkout?: boolean;
   restDurationsByRpe?: Record<string, number> | null;
 };
 
@@ -48,6 +50,7 @@ export default function SettingsPage() {
         defaultRestSec: number;
         plateIncrementLb: number;
         plateIncrementKg: number;
+        keepAwakeDuringWorkout: boolean;
         restDurationsByRpe: Record<string, number>;
       }>;
     },
@@ -58,6 +61,17 @@ export default function SettingsPage() {
   const [plateLbDraft, setPlateLbDraft] = useState(2.5);
   const [plateKgDraft, setPlateKgDraft] = useState(2.5);
   const [rpeRestDraft, setRpeRestDraft] = useState<Record<string, number> | null>(null);
+  const [keepAwakeDuringWorkout, setKeepAwakeDuringWorkout] = useState(false);
+  const { data: me } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: async () => {
+      const r = await fetch("/api/auth/me");
+      const json = (await r.json()) as { user: { isSuperAdmin?: boolean } | null };
+      if (!r.ok) return { user: null };
+      return json;
+    },
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     if (!data) return;
@@ -65,6 +79,7 @@ export default function SettingsPage() {
     setDefaultRestDraft(data.defaultRestSec);
     setPlateLbDraft(data.plateIncrementLb);
     setPlateKgDraft(data.plateIncrementKg);
+    setKeepAwakeDuringWorkout(data.keepAwakeDuringWorkout);
     setRpeRestDraft({ ...data.restDurationsByRpe });
   }, [data]);
 
@@ -87,6 +102,7 @@ export default function SettingsPage() {
     if (defaultRestDraft !== data.defaultRestSec) return true;
     if (plateLbDraft !== data.plateIncrementLb) return true;
     if (plateKgDraft !== data.plateIncrementKg) return true;
+    if (keepAwakeDuringWorkout !== data.keepAwakeDuringWorkout) return true;
     return !rpeMapsEqual(rpeRestDraft, data.restDurationsByRpe);
   }, [
     data,
@@ -95,6 +111,7 @@ export default function SettingsPage() {
     defaultRestDraft,
     plateLbDraft,
     plateKgDraft,
+    keepAwakeDuringWorkout,
   ]);
 
   const saveAll = () => {
@@ -104,6 +121,9 @@ export default function SettingsPage() {
     if (defaultRestDraft !== data.defaultRestSec) body.defaultRestSec = defaultRestDraft;
     if (plateLbDraft !== data.plateIncrementLb) body.plateIncrementLb = plateLbDraft;
     if (plateKgDraft !== data.plateIncrementKg) body.plateIncrementKg = plateKgDraft;
+    if (keepAwakeDuringWorkout !== data.keepAwakeDuringWorkout) {
+      body.keepAwakeDuringWorkout = keepAwakeDuringWorkout;
+    }
     if (!rpeMapsEqual(rpeRestDraft, data.restDurationsByRpe)) {
       body.restDurationsByRpe = { ...rpeRestDraft };
     }
@@ -149,6 +169,31 @@ export default function SettingsPage() {
                 <SelectItem value="system">System</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Workout experience</CardTitle>
+          <CardDescription>Behavior while a workout screen is open.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
+            <div>
+              <p className="text-sm font-medium">Keep screen awake during workouts</p>
+              <p className="text-xs text-muted-foreground">
+                Best effort using browser support (may be limited on some iPhone Safari versions).
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={keepAwakeDuringWorkout ? "default" : "outline"}
+              className="rounded-xl shrink-0"
+              onClick={() => setKeepAwakeDuringWorkout((v) => !v)}
+            >
+              {keepAwakeDuringWorkout ? "On" : "Off"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -282,6 +327,26 @@ export default function SettingsPage() {
       </Card>
 
       <RestTimerNotificationsCard />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Settings menu</CardTitle>
+          <CardDescription>Additional pages moved here to keep the top header uncluttered.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Link href="/analytics" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            Analytics
+          </Link>
+          <Link href="/help" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            Help
+          </Link>
+          {me?.user?.isSuperAdmin && (
+            <Link href="/admin" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+              Admin
+            </Link>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border bg-muted/30 p-4">
         <Button
