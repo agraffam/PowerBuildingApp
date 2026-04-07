@@ -27,14 +27,14 @@ export function SortableWorkoutBlock({
     <button
       type="button"
       className={cn(
-        "touch-none rounded-lg p-1.5 text-muted-foreground hover:bg-muted",
+        "touch-none flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted",
         disabled && "pointer-events-none opacity-40",
       )}
       aria-label="Drag to reorder"
       {...attributes}
       {...listeners}
     >
-      <GripVertical className="size-5" />
+      <GripVertical className="size-4" />
     </button>
   );
   return (

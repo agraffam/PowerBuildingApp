@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpen, Check, ChevronDown, Ellipsis, Loader2, Replace, Trash2 } from "lucide-react";
@@ -700,7 +700,11 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             </div>
           );
 
-          const renderSoloCard = (ex: ProgramExerciseRow, blockId: string) => {
+          const renderSoloCard = (
+            ex: ProgramExerciseRow,
+            blockId: string,
+            dragHandle?: ReactNode,
+          ) => {
             const collapsed = collapsedBlockIds.has(blockId);
             const rows = byExercise.get(ex.id) ?? [];
             const prev = previousByExerciseId[ex.id];
@@ -716,7 +720,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             return (
               <Card className="overflow-hidden rounded-2xl border shadow-sm">
                 <CardHeader className="bg-muted/40 space-y-1">
-                  <div className="flex items-start gap-1">
+                  <div className="flex items-start gap-0.5 sm:gap-1">
                     <Button
                       type="button"
                       variant="ghost"
@@ -733,6 +737,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                         )}
                       />
                     </Button>
+                    {dragHandle ? <div className="mt-0.5 shrink-0">{dragHandle}</div> : null}
                     <div className="flex-1 min-w-0 space-y-1">
                       {renderExerciseHeader(ex)}
                       {collapsed ? (
@@ -816,7 +821,11 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             );
           };
 
-          const renderSupersetCard = (block: ProgramExerciseRow[], blockId: string) => {
+          const renderSupersetCard = (
+            block: ProgramExerciseRow[],
+            blockId: string,
+            dragHandle?: ReactNode,
+          ) => {
             const label = block[0]?.supersetGroup ?? "Superset";
             const nSets = block[0]!.prescription.sets;
             const collapsed = collapsedBlockIds.has(blockId);
@@ -825,7 +834,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             return (
               <Card className="overflow-hidden rounded-2xl border shadow-sm border-primary/25">
                 <CardHeader className="bg-primary/5 space-y-1">
-                  <div className="flex items-start gap-1">
+                  <div className="flex items-start gap-0.5 sm:gap-1">
                     <Button
                       type="button"
                       variant="ghost"
@@ -842,6 +851,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                         )}
                       />
                     </Button>
+                    {dragHandle ? <div className="mt-0.5 shrink-0">{dragHandle}</div> : null}
                     <div className="flex-1 min-w-0 space-y-1">
                       <CardTitle className="text-lg">Superset ({label})</CardTitle>
                       {collapsed ? (
@@ -949,8 +959,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           const items = blocks.map((block, bi) => {
             const id = blockIds[bi]!;
             const isSuperset = block.length > 1;
-            const card = isSuperset ? renderSupersetCard(block, id) : renderSoloCard(block[0]!, id);
             if (!canReorderBlocks) {
+              const card = isSuperset ? renderSupersetCard(block, id) : renderSoloCard(block[0]!, id);
               return (
                 <div key={id} ref={(node) => setBlockAnchorRef(id, node)}>
                   {card}
@@ -960,9 +970,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             return (
               <SortableWorkoutBlock key={id} id={id}>
                 {(handle) => (
-                  <div className="flex gap-2 items-start" ref={(node) => setBlockAnchorRef(id, node)}>
-                    <div className="pt-3 shrink-0">{handle}</div>
-                    <div className="flex-1 min-w-0">{card}</div>
+                  <div ref={(node) => setBlockAnchorRef(id, node)}>
+                    {isSuperset
+                      ? renderSupersetCard(block, id, handle)
+                      : renderSoloCard(block[0]!, id, handle)}
                   </div>
                 )}
               </SortableWorkoutBlock>
@@ -1423,7 +1434,7 @@ function SetRowEditor({
                       weightUnit: unit,
                       reps: local.reps === "" ? null : Number(local.reps),
                       rpe: local.rpe === "" ? null : Number(local.rpe),
-                    propagateWeight: true,
+                      propagateWeight: true,
                       done: true,
                     });
                   }
@@ -1476,19 +1487,35 @@ function SetRowEditor({
       ) : (
         <div
           className={
-            bodyweight ? "grid grid-cols-2 gap-3" : "grid grid-cols-3 gap-3"
+            bodyweight
+              ? "grid grid-cols-2 gap-3"
+              : "grid gap-2 sm:gap-3 max-[430px]:grid-cols-2 min-[431px]:grid-cols-[minmax(0,4.25rem)_minmax(0,3.25rem)_minmax(0,1fr)]"
           }
         >
           {!bodyweight && (
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <Label className="text-xs">Weight ({unit})</Label>
               <Input
                 type="text"
                 inputMode="decimal"
-                className="rounded-lg"
+                className="rounded-lg w-full max-w-[4.25rem] px-2 text-center font-mono tabular-nums text-sm"
+                maxLength={5}
                 value={local.weight}
                 placeholder={ghost ? `${ghost.weight}` : "0"}
-                onChange={(e) => setLocal((l) => ({ ...l, weight: e.target.value }))}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^0-9.]/g, "");
+                  const parts = raw.split(".");
+                  let next: string;
+                  if (parts.length === 1) {
+                    next = (parts[0] ?? "").slice(0, 3);
+                  } else {
+                    const w = (parts[0] ?? "").slice(0, 3);
+                    const d = (parts[1] ?? "").replace(/\D/g, "").slice(0, 1);
+                    const endsWithBareDot = raw.endsWith(".") && parts.length === 2 && parts[1] === "";
+                    next = endsWithBareDot ? `${w}.` : d ? `${w}.${d}` : w;
+                  }
+                  setLocal((l) => ({ ...l, weight: next }));
+                }}
               />
             </div>
           )}
@@ -1498,19 +1525,23 @@ function SetRowEditor({
               <p className="text-sm font-medium rounded-lg border bg-muted/40 px-3 py-2">Bodyweight</p>
             </div>
           )}
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label className="text-xs">Reps</Label>
             <Input
               type="text"
               inputMode="numeric"
-              className="rounded-lg"
+              className="rounded-lg w-full max-w-[3.25rem] px-2 text-center font-mono tabular-nums text-sm"
+              maxLength={3}
               value={local.reps}
-              onChange={(e) => setLocal((l) => ({ ...l, reps: e.target.value }))}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "").slice(0, 3);
+                setLocal((l) => ({ ...l, reps: v }));
+              }}
             />
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1 max-[430px]:col-span-2">
             <Label className="text-xs">RPE</Label>
-            <div className="rounded-lg border bg-background px-2 py-2 space-y-1">
+            <div className="rounded-lg border bg-background px-2 py-2 space-y-1 min-w-0">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">6.0</span>
                 <span className="font-medium">{local.rpe || baselineRpe}</span>
