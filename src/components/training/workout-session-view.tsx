@@ -1423,6 +1423,7 @@ function SetRowEditor({
                       weightUnit: unit,
                       reps: local.reps === "" ? null : Number(local.reps),
                       rpe: local.rpe === "" ? null : Number(local.rpe),
+                    propagateWeight: true,
                       done: true,
                     });
                   }
