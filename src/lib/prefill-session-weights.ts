@@ -215,6 +215,49 @@ export async function mirrorWorkingWeightToRemainingSets(
   });
 }
 
+/** Copy source set weight/unit to later unfinished sets in same exercise. */
+export async function mirrorSetWeightToFollowingUncompletedSets(
+  sessionId: string,
+  sourceSetId: string,
+  userId: string,
+) {
+  const row = await prisma.loggedSet.findUnique({
+    where: { id: sourceSetId },
+    include: {
+      workoutSession: { include: { programInstance: true } },
+      programExercise: { include: { exercise: true } },
+    },
+  });
+  if (!row || row.workoutSession.programInstance.userId !== userId) return;
+  if (!(row.weight > 0)) return;
+  const sid = row.workoutSessionId;
+  const iid = row.workoutSession.programInstanceId;
+  const peId = row.programExerciseId;
+  const bwMaps = await loadBodyweightOverrideMaps(sid, iid);
+  const bw = effectiveUseBodyweightResolved(
+    { useBodyweight: row.programExercise.useBodyweight },
+    { isBodyweight: row.programExercise.exercise.isBodyweight },
+    {
+      sessionOverride: bwMaps.sessionByProgramExerciseId.get(peId) ?? null,
+      instanceOverride: bwMaps.instanceByProgramExerciseId.get(peId) ?? null,
+    },
+  );
+  if (bw) return;
+
+  await prisma.loggedSet.updateMany({
+    where: {
+      workoutSessionId: sessionId,
+      programExerciseId: row.programExerciseId,
+      done: false,
+      setIndex: { gt: row.setIndex },
+    },
+    data: {
+      weight: row.weight,
+      weightUnit: row.weightUnit,
+    },
+  });
+}
+
 /** Apply %1RM-based weights for sets that are not done yet. Respects session.intensityMultiplier. */
 export async function prefillPctWeightsForSession(sessionId: string, userId: string) {
   const session = await prisma.workoutSession.findUnique({

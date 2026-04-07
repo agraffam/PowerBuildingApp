@@ -6,6 +6,7 @@ import { syncProgramInstanceCursor } from "@/lib/program-week-state";
 import { buildWeekCompletionSummary } from "@/lib/week-completion-summary";
 import {
   mirrorWorkingWeightToRemainingSets,
+  mirrorSetWeightToFollowingUncompletedSets,
   prefillHistoryWeightsForSession,
   prefillPctWeightsForSession,
 } from "@/lib/prefill-session-weights";
@@ -369,6 +370,9 @@ export async function PATCH(
       where: { id: body.setId },
       data,
     });
+    if (body.propagateWeight === true) {
+      await mirrorSetWeightToFollowingUncompletedSets(sessionId, body.setId, userId);
+    }
     if (body.done === true) {
       await mirrorWorkingWeightToRemainingSets(sessionId, body.setId, userId);
     }

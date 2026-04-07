@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
@@ -63,9 +63,6 @@ type Props = {
   mode: "create" | "edit";
   programId?: string;
   initial?: ProgramWizardPayload | null;
-  hasWorkoutHistory?: boolean;
-  /** When true (e.g. admin on system template), full structure edits stay allowed despite local history rules. */
-  canEditStructure?: boolean;
 };
 
 function exerciseKindForSlug(
@@ -80,11 +77,8 @@ export function ProgramBuilderForm({
   mode,
   programId,
   initial,
-  hasWorkoutHistory,
-  canEditStructure = false,
 }: Props) {
   const router = useRouter();
-  const qc = useQueryClient();
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initial?.name ?? "My program");
   const [durationWeeks, setDurationWeeks] = useState(initial?.durationWeeks ?? 8);
@@ -127,8 +121,6 @@ export function ProgramBuilderForm({
       return r.json() as Promise<{ slug: string; name: string; kind: string }[]>;
     },
   });
-
-  const structureLocked = mode === "edit" && hasWorkoutHistory && !canEditStructure;
 
   const updateBlock = (i: number, patch: Partial<(typeof blocks)[0]>) => {
     setBlocks((b) => b.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -245,56 +237,6 @@ export function ProgramBuilderForm({
 
       if (!programId) throw new Error("Missing program id");
 
-      if (structureLocked) {
-        const rProg = await fetch(`/api/programs/${programId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            durationWeeks,
-            deloadIntervalWeeks,
-            autoBlockPrescriptions,
-          }),
-        });
-        const jProg = await rProg.json().catch(() => ({}));
-        if (!rProg.ok) {
-          throw new Error((jProg as { error?: string }).error ?? "Save failed");
-        }
-        for (const day of days) {
-          if (day.programDayId) {
-            const rd = await fetch(`/api/program-days/${day.programDayId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ label: day.label.trim() }),
-            });
-            const jd = await rd.json().catch(() => ({}));
-            if (!rd.ok) {
-              throw new Error((jd as { error?: string }).error ?? "Could not update day label");
-            }
-          }
-          for (const ex of day.exercises) {
-            if (!ex.programExerciseId) continue;
-            const rp = await fetch(`/api/program-exercises/${ex.programExerciseId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                restSec: ex.restSec ?? null,
-                useBodyweight: ex.useBodyweight ?? null,
-                notes: ex.notes ?? null,
-                targetDurationSec: ex.targetDurationSec ?? null,
-                targetCalories: ex.targetCalories ?? null,
-              }),
-            });
-            const jp = await rp.json().catch(() => ({}));
-            if (!rp.ok) {
-              throw new Error((jp as { error?: string }).error ?? "Could not update an exercise slot");
-            }
-          }
-        }
-        router.push(`/programs/${programId}`);
-        return;
-      }
-
       const r = await fetch(`/api/programs/${programId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -319,18 +261,6 @@ export function ProgramBuilderForm({
         <ArrowLeft className="size-4" />
         Programs
       </Link>
-
-      {structureLocked && (
-        <Card className="rounded-xl border-amber-500/40 bg-amber-500/5">
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm">Structure locked</CardTitle>
-            <CardDescription>
-              This program has logged sessions. You can change the name and duration only. Use
-              &quot;Duplicate&quot; on the program page to copy and edit days/exercises.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
 
       <div className="flex gap-2 text-sm text-muted-foreground">
         {["Meta", "Blocks", "Days"].map((l, i) => (
@@ -426,7 +356,7 @@ export function ProgramBuilderForm({
         </Card>
       )}
 
-      {step === 1 && !structureLocked && (
+      {step === 1 && (
         <Card className="rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -508,21 +438,6 @@ export function ProgramBuilderForm({
         </Card>
       )}
 
-      {step === 1 && structureLocked && (
-        <Card className="rounded-2xl">
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm mb-4">Blocks are fixed for programs with history.</p>
-            <Button variant="outline" className="rounded-xl" onClick={() => setStep(0)}>
-              Back
-            </Button>
-            <Button className="rounded-xl ml-2" onClick={() => setStep(2)}>
-              Next
-              <ArrowRight className="size-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       {step === 2 && (
         <Card className="rounded-2xl">
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
@@ -531,110 +446,71 @@ export function ProgramBuilderForm({
               <CardDescription>Add exercises from your library.</CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              {!structureLocked && (
-                <Button variant="outline" size="sm" className="rounded-lg" onClick={addDay}>
-                  <Plus className="size-4" />
-                  Day
-                </Button>
-              )}
-              {structureLocked && mode === "edit" && programId && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-lg"
-                  onClick={async () => {
-                    setError(null);
-                    setLoading(true);
-                    try {
-                      const r = await fetch(`/api/programs/${programId}/days`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ label: `Day ${days.length + 1}` }),
-                      });
-                      const j = await r.json().catch(() => ({}));
-                      if (!r.ok) throw new Error((j as { error?: string }).error ?? "Could not add day");
-                      await qc.invalidateQueries({ queryKey: ["program", programId] });
-                      router.refresh();
-                    } catch (e) {
-                      setError(e instanceof Error ? e.message : "Failed");
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                >
-                  <Plus className="size-4" />
-                  Add day
-                </Button>
-              )}
+              <Button variant="outline" size="sm" className="rounded-lg" onClick={addDay}>
+                <Plus className="size-4" />
+                Day
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-8">
             {days.map((day, di) => (
               <div key={di} className="rounded-2xl border bg-muted/20 p-4 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {!structureLocked && (
-                    <>
-                      <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => moveDay(di, -1)}>
-                        <GripVertical className="size-4 rotate-90" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => moveDay(di, 1)}>
-                        <GripVertical className="size-4 -rotate-90" />
-                      </Button>
-                    </>
-                  )}
+                  <>
+                    <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => moveDay(di, -1)}>
+                      <GripVertical className="size-4 rotate-90" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => moveDay(di, 1)}>
+                      <GripVertical className="size-4 -rotate-90" />
+                    </Button>
+                  </>
                   <Input
                     value={day.label}
                     onChange={(e) => updateDayLabel(di, e.target.value)}
                     className="max-w-xs rounded-lg font-medium"
-                    disabled={structureLocked && !day.programDayId}
                   />
-                  {!structureLocked && (
-                    <Button variant="ghost" size="sm" onClick={() => removeDay(di)}>
-                      <Trash2 className="size-4" />
-                    </Button>
-                  )}
+                  <Button variant="ghost" size="sm" onClick={() => removeDay(di)}>
+                    <Trash2 className="size-4" />
+                  </Button>
                 </div>
                 <Separator />
                 <ul className="space-y-4">
                   {day.exercises.map((ex, ei) => {
-                    const slotTuningEnabled = !structureLocked || Boolean(ex.programExerciseId);
+                    const slotTuningEnabled = true;
                     const rowIsCardio = exerciseKindForSlug(exerciseList, ex.exerciseSlug) === "CARDIO";
                     return (
                     <li key={ei} className="rounded-xl border bg-card p-3 space-y-3">
-                      {!structureLocked && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-muted-foreground mr-1">Reorder</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg shrink-0"
-                            disabled={ei === 0}
-                            onClick={() => moveExercise(di, ei, -1)}
-                            aria-label="Move exercise up in this day"
-                          >
-                            <ChevronUp className="size-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg shrink-0"
-                            disabled={ei >= day.exercises.length - 1}
-                            onClick={() => moveExercise(di, ei, 1)}
-                            aria-label="Move exercise down in this day"
-                          >
-                            <ChevronDown className="size-4" />
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground mr-1">Reorder</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg shrink-0"
+                          disabled={ei === 0}
+                          onClick={() => moveExercise(di, ei, -1)}
+                          aria-label="Move exercise up in this day"
+                        >
+                          <ChevronUp className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg shrink-0"
+                          disabled={ei >= day.exercises.length - 1}
+                          onClick={() => moveExercise(di, ei, 1)}
+                          aria-label="Move exercise down in this day"
+                        >
+                          <ChevronDown className="size-4" />
+                        </Button>
+                      </div>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
                       <div className="lg:col-span-2 space-y-1">
                         <Label className="text-xs">Exercise</Label>
                         <Select
                           value={ex.exerciseSlug}
                           onValueChange={(v) => v && updateEx(di, ei, { exerciseSlug: v })}
-                          disabled={structureLocked}
                         >
                           <SelectTrigger className="rounded-lg">
                             <SelectValue />
@@ -653,7 +529,6 @@ export function ProgramBuilderForm({
                         <NumericInput
                           className="rounded-lg"
                           value={ex.sets}
-                          disabled={structureLocked}
                           onValueChange={(n) => updateEx(di, ei, { sets: n })}
                           min={1}
                           max={99}
@@ -667,7 +542,6 @@ export function ProgramBuilderForm({
                           <NumericInput
                             className="rounded-lg"
                             value={ex.repTarget ?? 8}
-                            disabled={structureLocked}
                             onValueChange={(n) => updateEx(di, ei, { repTarget: n })}
                             min={1}
                             max={999}
@@ -681,7 +555,6 @@ export function ProgramBuilderForm({
                             snapHalf
                             className="rounded-lg"
                             value={ex.targetRpe ?? 8}
-                            disabled={structureLocked}
                             onValueChange={(n) => updateEx(di, ei, { targetRpe: n })}
                             min={6}
                             max={10}
@@ -694,7 +567,6 @@ export function ProgramBuilderForm({
                           className="rounded-lg"
                           placeholder="—"
                           value={ex.pctOf1rm ?? null}
-                          disabled={structureLocked}
                           onValueChange={(n) => updateEx(di, ei, { pctOf1rm: n })}
                           min={0}
                           max={100}
@@ -709,7 +581,6 @@ export function ProgramBuilderForm({
                           onValueChange={(v) =>
                             updateEx(di, ei, { supersetGroup: v === "none" ? null : v })
                           }
-                          disabled={structureLocked}
                         >
                           <SelectTrigger className="rounded-lg">
                             <SelectValue placeholder="None" />
@@ -763,13 +634,11 @@ export function ProgramBuilderForm({
                         </Select>
                       </div>
                       )}
-                      {!structureLocked && (
-                        <div className="lg:col-span-7 flex justify-end">
-                          <Button variant="ghost" size="sm" onClick={() => removeExercise(di, ei)}>
-                            Remove exercise
-                          </Button>
-                        </div>
-                      )}
+                      <div className="lg:col-span-7 flex justify-end">
+                        <Button variant="ghost" size="sm" onClick={() => removeExercise(di, ei)}>
+                          Remove exercise
+                        </Button>
+                      </div>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Slot notes</Label>
@@ -819,52 +688,15 @@ export function ProgramBuilderForm({
                     );
                   })}
                 </ul>
-                {(!structureLocked ||
-                  (structureLocked && mode === "edit" && programId && days[di]?.programDayId)) && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-lg"
-                    onClick={() => {
-                      if (!structureLocked) {
-                        addExercise(di);
-                        return;
-                      }
-                      const pid = days[di]?.programDayId;
-                      if (!programId || !pid) return;
-                      const slug = window.prompt("Exercise slug (e.g. bench-press, bike-erg)");
-                      if (!slug?.trim()) return;
-                      void (async () => {
-                        setError(null);
-                        setLoading(true);
-                        try {
-                          const r = await fetch(`/api/program-days/${pid}/exercises`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              exerciseSlug: slug.trim(),
-                              sets: 3,
-                              repTarget: 8,
-                              targetRpe: 8,
-                              restSec: 120,
-                            }),
-                          });
-                          const j = await r.json().catch(() => ({}));
-                          if (!r.ok) throw new Error((j as { error?: string }).error ?? "Could not add exercise");
-                          await qc.invalidateQueries({ queryKey: ["program", programId] });
-                          router.refresh();
-                        } catch (e) {
-                          setError(e instanceof Error ? e.message : "Failed");
-                        } finally {
-                          setLoading(false);
-                        }
-                      })();
-                    }}
-                  >
-                    <Plus className="size-4" />
-                    Exercise
-                  </Button>
-                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-lg"
+                  onClick={() => addExercise(di)}
+                >
+                  <Plus className="size-4" />
+                  Exercise
+                </Button>
               </div>
             ))}
 

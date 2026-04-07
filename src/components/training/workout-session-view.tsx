@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Check, ChevronDown, Loader2, Replace, Trash2 } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Ellipsis, Loader2, Replace, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -22,13 +22,6 @@ import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useWorkoutSessionStore } from "@/stores/workout-session-store";
 import { ExerciseLibrarySheet } from "@/components/training/exercise-library-sheet";
 import { ExerciseSwapDialog } from "@/components/training/exercise-swap-dialog";
@@ -56,7 +49,7 @@ import {
   orderExercises,
   parseExerciseOrderJson,
 } from "@/lib/workout-blocks";
-import { RPE_REST_KEYS, restSecForRpe, rpeToBandId, snapToLoggedRpeStep } from "@/lib/rest-by-rpe";
+import { restSecForRpe, rpeToBandId, snapToLoggedRpeStep } from "@/lib/rest-by-rpe";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 
 type LoggedSetRow = {
@@ -197,16 +190,42 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const [completeSplash, setCompleteSplash] = useState<SessionCompleteSummaryPayload | null>(null);
   const [weekSplashQueued, setWeekSplashQueued] = useState<WeekCompletionSummaryPayload | null>(null);
   const [weekSplash, setWeekSplash] = useState<WeekCompletionSummaryPayload | null>(null);
+  const [exerciseActionsTarget, setExerciseActionsTarget] = useState<{
+    id: string;
+    name: string;
+    kind: "STRENGTH" | "CARDIO";
+    muscleTags?: string;
+  } | null>(null);
   const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
   const prevBlockProgressRef = useRef<Map<string, { done: number; total: number }>>(new Map());
+  const blockAnchorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const setBlockAnchorRef = useCallback((blockId: string, node: HTMLDivElement | null) => {
+    if (node) blockAnchorRefs.current.set(blockId, node);
+    else blockAnchorRefs.current.delete(blockId);
+  }, []);
+  const preserveScrollForBlockCollapse = useCallback((blockId: string, beforeTop: number | null) => {
+    if (beforeTop == null) return;
+    window.requestAnimationFrame(() => {
+      const node = blockAnchorRefs.current.get(blockId);
+      if (!node) return;
+      const afterTop = node.getBoundingClientRect().top;
+      const delta = afterTop - beforeTop;
+      if (Math.abs(delta) > 1) {
+        window.scrollBy({ top: delta });
+      }
+    });
+  }, []);
   const toggleBlockCollapsed = useCallback((blockId: string) => {
+    const node = blockAnchorRefs.current.get(blockId);
+    const beforeTop = node ? node.getBoundingClientRect().top : null;
     setCollapsedBlockIds((prev) => {
       const next = new Set(prev);
       if (next.has(blockId)) next.delete(blockId);
       else next.add(blockId);
       return next;
     });
-  }, []);
+    preserveScrollForBlockCollapse(blockId, beforeTop);
+  }, [preserveScrollForBlockCollapse]);
 
   const q = useQuery({
     queryKey: ["session", sessionId],
@@ -331,13 +350,17 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     });
     prevBlockProgressRef.current = nextPrev;
     if (toCollapse.length > 0) {
+      const anchorId = toCollapse[0]!;
+      const anchorNode = blockAnchorRefs.current.get(anchorId);
+      const anchorTop = anchorNode ? anchorNode.getBoundingClientRect().top : null;
       setCollapsedBlockIds((prev) => {
         const next = new Set(prev);
         for (const id of toCollapse) next.add(id);
         return next;
       });
+      preserveScrollForBlockCollapse(anchorId, anchorTop);
     }
-  }, [sessionEarly, sessionEarly?.status, blocks, blockIds, byExercise]);
+  }, [sessionEarly, sessionEarly?.status, blocks, blockIds, byExercise, preserveScrollForBlockCollapse]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -567,56 +590,23 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-1 justify-end shrink-0">
-                  {canCancel && ex.exercise.kind !== "CARDIO" && (
-                    <>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground min-h-11 px-2 text-xs"
-                        onClick={() =>
-                          setBwDialog({
-                            programExerciseId: ex.id,
-                            name: ex.exercise.name,
-                            targetBodyweight: true,
-                          })
-                        }
-                      >
-                        BW
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground min-h-11 px-2 text-xs"
-                        onClick={() =>
-                          setBwDialog({
-                            programExerciseId: ex.id,
-                            name: ex.exercise.name,
-                            targetBodyweight: false,
-                          })
-                        }
-                      >
-                        Load
-                      </Button>
-                    </>
-                  )}
                   {canCancel && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-muted-foreground min-h-11 px-2 sm:px-3"
                       onClick={() =>
-                        setSwapTarget({
-                          programExerciseId: ex.id,
+                        setExerciseActionsTarget({
+                          id: ex.id,
                           name: ex.exercise.name,
+                          kind: ex.exercise.kind,
                           muscleTags: ex.exercise.muscleTags,
                         })
                       }
                       type="button"
                     >
-                      <Replace className="size-4 sm:mr-1" />
-                      <span className="hidden sm:inline">Swap</span>
+                      <Ellipsis className="size-4 sm:mr-1" />
+                      <span className="hidden sm:inline">More</span>
                     </Button>
                   )}
                   <Button
@@ -888,12 +878,16 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             const isSuperset = block.length > 1;
             const card = isSuperset ? renderSupersetCard(block, id) : renderSoloCard(block[0]!, id);
             if (!canReorderBlocks) {
-              return <div key={id}>{card}</div>;
+              return (
+                <div key={id} ref={(node) => setBlockAnchorRef(id, node)}>
+                  {card}
+                </div>
+              );
             }
             return (
               <SortableWorkoutBlock key={id} id={id}>
                 {(handle) => (
-                  <div className="flex gap-2 items-start">
+                  <div className="flex gap-2 items-start" ref={(node) => setBlockAnchorRef(id, node)}>
                     <div className="pt-3 shrink-0">{handle}</div>
                     <div className="flex-1 min-w-0">{card}</div>
                   </div>
@@ -1104,6 +1098,74 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         targetBodyweight={bwDialog?.targetBodyweight ?? true}
         onSuccess={() => qc.invalidateQueries({ queryKey: ["session", sessionId] })}
       />
+      <Dialog
+        open={exerciseActionsTarget != null}
+        onOpenChange={(o) => {
+          if (!o) setExerciseActionsTarget(null);
+        }}
+      >
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>{exerciseActionsTarget?.name}</DialogTitle>
+            <DialogDescription>Choose an exercise action.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {exerciseActionsTarget?.kind !== "CARDIO" && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start rounded-xl"
+                  onClick={() => {
+                    if (!exerciseActionsTarget) return;
+                    setBwDialog({
+                      programExerciseId: exerciseActionsTarget.id,
+                      name: exerciseActionsTarget.name,
+                      targetBodyweight: true,
+                    });
+                    setExerciseActionsTarget(null);
+                  }}
+                >
+                  Use bodyweight
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start rounded-xl"
+                  onClick={() => {
+                    if (!exerciseActionsTarget) return;
+                    setBwDialog({
+                      programExerciseId: exerciseActionsTarget.id,
+                      name: exerciseActionsTarget.name,
+                      targetBodyweight: false,
+                    });
+                    setExerciseActionsTarget(null);
+                  }}
+                >
+                  Use external load
+                </Button>
+              </>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start rounded-xl"
+              onClick={() => {
+                if (!exerciseActionsTarget) return;
+                setSwapTarget({
+                  programExerciseId: exerciseActionsTarget.id,
+                  name: exerciseActionsTarget.name,
+                  muscleTags: exerciseActionsTarget.muscleTags,
+                });
+                setExerciseActionsTarget(null);
+              }}
+            >
+              <Replace className="size-4" />
+              Swap exercise
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {completeSplash && (
         <SessionCompleteSplash
           open
@@ -1203,6 +1265,7 @@ function SetRowEditor({
       (!bodyweight && local.weight !== baselineWeight);
 
   const weightForCommit = bodyweight || cardio ? 0 : Number(local.weight) || 0;
+  const shouldPropagateWeight = !cardio && !bodyweight && local.weight !== baselineWeight;
 
   const saveFields = () => {
     if (cardio) {
@@ -1225,13 +1288,26 @@ function SetRowEditor({
       weightUnit: unit,
       reps: local.reps === "" ? null : Number(local.reps),
       rpe: local.rpe === "" ? null : Number(local.rpe),
+      propagateWeight: shouldPropagateWeight,
     });
   };
 
   return (
-    <div className="rounded-xl border bg-card/50 p-4 space-y-3">
+    <div
+      className={cn(
+        "rounded-xl border p-4 space-y-3",
+        row.done ? "border-emerald-500/40 bg-emerald-500/5" : "bg-card/50",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">{cardio ? `Bout ${idx + 1}` : `Set ${idx + 1}`}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{cardio ? `Bout ${idx + 1}` : `Set ${idx + 1}`}</span>
+          {row.done && (
+            <Badge variant="secondary" className="text-[11px]">
+              Completed
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button
             type="button"
@@ -1358,18 +1434,28 @@ function SetRowEditor({
           </div>
           <div className="space-y-1">
             <Label className="text-xs">RPE</Label>
-            <Select value={local.rpe} onValueChange={(v) => setLocal((l) => ({ ...l, rpe: v ?? l.rpe }))}>
-              <SelectTrigger className="rounded-lg w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RPE_REST_KEYS.map((k) => (
-                  <SelectItem key={k} value={String(k)}>
-                    {k}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="rounded-lg border bg-background px-2 py-2 space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">6.0</span>
+                <span className="font-medium">{local.rpe || baselineRpe}</span>
+                <span className="text-muted-foreground">10.0</span>
+              </div>
+              <Slider
+                value={[Number(local.rpe || baselineRpe)]}
+                min={6}
+                max={10}
+                step={0.5}
+                onValueChange={(v) =>
+                  setLocal((l) => ({
+                    ...l,
+                    rpe: String((Array.isArray(v) ? (v[0] ?? Number(baselineRpe)) : v).toFixed(1)).replace(
+                      /\.0$/,
+                      "",
+                    ),
+                  }))
+                }
+              />
+            </div>
           </div>
         </div>
       )}

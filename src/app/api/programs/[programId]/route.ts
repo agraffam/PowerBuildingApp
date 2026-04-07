@@ -134,8 +134,6 @@ export async function PATCH(
   });
   const hasHistory = sessionCount > 0;
 
-  const wantsStructure = body.days != null || body.blocks != null;
-
   if (!userCanEditProgramIncludingAdmin(program.ownerId, userId, email)) {
     return NextResponse.json(
       { error: "System templates cannot be edited. Duplicate to customize." },
@@ -143,17 +141,7 @@ export async function PATCH(
     );
   }
 
-  if (hasHistory && wantsStructure) {
-    return NextResponse.json(
-      {
-        error:
-          "This program has logged workout history. Duplicate it to change days/exercises, or edit name/duration only.",
-        code: "STRUCTURE_LOCKED",
-      },
-      { status: 409 },
-    );
-  }
-
+  const wantsStructure = body.days != null || body.blocks != null;
   if (!wantsStructure) {
     if (body.durationWeeks != null) {
       const dur = validateProgramDurationWeeks(body.durationWeeks);

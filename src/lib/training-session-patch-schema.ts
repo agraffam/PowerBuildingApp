@@ -19,6 +19,7 @@ const setBody = z
     durationSec: z.number().int().min(0).max(86400).nullable().optional(),
     calories: z.number().int().min(0).max(50000).nullable().optional(),
     done: z.boolean().optional(),
+    propagateWeight: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.rpe !== undefined && data.rpe !== null && !isLoggedRpeStep(data.rpe)) {

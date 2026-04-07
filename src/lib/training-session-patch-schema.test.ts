@@ -44,4 +44,15 @@ describe("trainingSessionPatchBodySchema", () => {
     });
     expect(r.success).toBe(true);
   });
+  it("accepts set with propagateWeight flag", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({
+      action: "set",
+      setId: "c1",
+      weight: 185,
+      weightUnit: "LB",
+      rpe: 8,
+      propagateWeight: true,
+    });
+    expect(r.success).toBe(true);
+  });
 });

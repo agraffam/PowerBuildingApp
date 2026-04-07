@@ -11,15 +11,19 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams.get("q")?.toLowerCase() ?? "";
 
   const exercises = await prisma.exercise.findMany({
-    where: q
-      ? {
-          OR: [
-            { name: { contains: q } },
-            { slug: { contains: q } },
-            { muscleTags: { contains: q } },
-          ],
-        }
-      : {},
+    where: {
+      kind: { not: "CARDIO" },
+      isBodyweight: false,
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q } },
+              { slug: { contains: q } },
+              { muscleTags: { contains: q } },
+            ],
+          }
+        : {}),
+    },
     orderBy: { name: "asc" },
     include: {
       userStrengthProfiles: { where: { userId } },

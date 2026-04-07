@@ -99,8 +99,6 @@ export default function EditProgramPage() {
       mode="edit"
       programId={programId}
       initial={initial}
-      hasWorkoutHistory={data.hasWorkoutHistory}
-      canEditStructure={data.canEditStructure === true}
     />
   );
 }
