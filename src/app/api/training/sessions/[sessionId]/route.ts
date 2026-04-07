@@ -255,6 +255,7 @@ export async function PATCH(
     if (body.rpe !== undefined) data.rpe = body.rpe;
     if (body.durationSec !== undefined) data.durationSec = body.durationSec;
     if (body.calories !== undefined) data.calories = body.calories;
+    if (body.notes !== undefined) data.notes = body.notes === "" ? null : body.notes;
     if (body.done != null) {
       data.done = body.done;
       data.completedAt = body.done ? new Date() : null;
@@ -362,6 +363,7 @@ export async function PATCH(
     if (body.rpe !== undefined) data.rpe = body.rpe;
     if (body.durationSec !== undefined) data.durationSec = body.durationSec;
     if (body.calories !== undefined) data.calories = body.calories;
+    if (body.notes !== undefined) data.notes = body.notes === "" ? null : body.notes;
     if (body.done != null) {
       data.done = body.done;
       data.completedAt = body.done ? new Date() : null;

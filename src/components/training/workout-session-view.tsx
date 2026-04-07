@@ -4,7 +4,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Check, ChevronDown, Ellipsis, Loader2, Replace, Trash2 } from "lucide-react";
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  Ellipsis,
+  Loader2,
+  Replace,
+  StickyNote,
+  Trash2,
+} from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -63,6 +72,7 @@ type LoggedSetRow = {
   durationSec: number | null;
   calories: number | null;
   done: boolean;
+  notes: string | null;
 };
 
 /** Mirrors `ResolvedPrescription` from the session API (avoid importing Prisma in the client bundle). */
@@ -1314,6 +1324,8 @@ function SetRowEditor({
   onCommitSet: (body: object) => void;
 }) {
   const cardio = Boolean(isCardio);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesDraft, setNotesDraft] = useState("");
   const [local, setLocal] = useState(() => {
     const rpeStep = snapToLoggedRpeStep(row.rpe ?? targetRpe);
     return {
@@ -1322,6 +1334,7 @@ function SetRowEditor({
       rpe: String(rpeStep),
       durationSec: row.durationSec != null ? String(row.durationSec) : "",
       calories: row.calories != null ? String(row.calories) : "",
+      notes: row.notes ?? "",
     };
   });
 
@@ -1333,23 +1346,39 @@ function SetRowEditor({
       rpe: String(rpeStep),
       durationSec: row.durationSec != null ? String(row.durationSec) : "",
       calories: row.calories != null ? String(row.calories) : "",
+      notes: row.notes ?? "",
     });
-  }, [row.weight, row.reps, row.rpe, row.durationSec, row.calories, repTarget, targetRpe, bodyweight]);
+  }, [
+    row.weight,
+    row.reps,
+    row.rpe,
+    row.durationSec,
+    row.calories,
+    row.notes,
+    repTarget,
+    targetRpe,
+    bodyweight,
+  ]);
 
   const baselineWeight = bodyweight ? "0" : String(row.weight || "");
   const baselineReps = row.reps != null ? String(row.reps) : String(repTarget);
   const baselineRpe = String(snapToLoggedRpeStep(row.rpe ?? targetRpe));
   const baselineDur = row.durationSec != null ? String(row.durationSec) : "";
   const baselineCal = row.calories != null ? String(row.calories) : "";
+  const baselineNotes = row.notes ?? "";
 
   const dirty = cardio
-    ? local.durationSec !== baselineDur || local.calories !== baselineCal
+    ? local.durationSec !== baselineDur ||
+      local.calories !== baselineCal ||
+      local.notes.trim() !== baselineNotes.trim()
     : local.reps !== baselineReps ||
       local.rpe !== baselineRpe ||
-      (!bodyweight && local.weight !== baselineWeight);
+      (!bodyweight && local.weight !== baselineWeight) ||
+      local.notes.trim() !== baselineNotes.trim();
 
   const weightForCommit = bodyweight || cardio ? 0 : Number(local.weight) || 0;
   const shouldPropagateWeight = !cardio && !bodyweight && local.weight !== baselineWeight;
+  const notesForCommit = local.notes.trim() === "" ? null : local.notes.trim().slice(0, 500);
 
   const saveFields = () => {
     if (cardio) {
@@ -1362,6 +1391,7 @@ function SetRowEditor({
         rpe: null,
         durationSec: local.durationSec === "" ? null : Math.max(0, Math.floor(Number(local.durationSec) || 0)),
         calories: local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
+        notes: notesForCommit,
       });
       return;
     }
@@ -1373,6 +1403,7 @@ function SetRowEditor({
       reps: local.reps === "" ? null : Number(local.reps),
       rpe: local.rpe === "" ? null : Number(local.rpe),
       propagateWeight: shouldPropagateWeight,
+      notes: notesForCommit,
     });
   };
 
@@ -1392,7 +1423,25 @@ function SetRowEditor({
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className={cn(
+              "rounded-lg h-9 min-w-9 px-2 text-muted-foreground",
+              (row.notes?.trim() || local.notes.trim()) && "text-primary",
+            )}
+            disabled={savePending}
+            aria-label="Set notes"
+            onClick={() => {
+              setNotesDraft((row.notes ?? local.notes ?? "").slice(0, 500));
+              setNotesOpen(true);
+            }}
+          >
+            <StickyNote className="size-4" />
+            <span className="sr-only">Notes</span>
+          </Button>
           {row.done && (
             <Button
               type="button"
@@ -1424,6 +1473,7 @@ function SetRowEditor({
                       durationSec: d,
                       calories:
                         local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
+                      notes: notesForCommit,
                       done: true,
                     });
                   } else {
@@ -1435,6 +1485,7 @@ function SetRowEditor({
                       reps: local.reps === "" ? null : Number(local.reps),
                       rpe: local.rpe === "" ? null : Number(local.rpe),
                       propagateWeight: true,
+                      notes: notesForCommit,
                       done: true,
                     });
                   }
@@ -1448,6 +1499,11 @@ function SetRowEditor({
           )}
         </div>
       </div>
+      {(row.notes?.trim() || local.notes.trim()) ? (
+        <p className="text-xs text-foreground/90 line-clamp-6 rounded-md border border-border/60 bg-muted/30 px-2 py-1.5 whitespace-pre-wrap break-words">
+          {row.notes?.trim() ? row.notes : local.notes}
+        </p>
+      ) : null}
       {dirty && (
         <p className="text-xs text-amber-600 dark:text-amber-500">Unsaved changes — Save or use Done to log the set.</p>
       )}
@@ -1572,6 +1628,54 @@ function SetRowEditor({
           {progressionStep % 1 === 0 ? progressionStep.toFixed(0) : progressionStep.toFixed(1)} {unit} step
         </p>
       )}
+      <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
+        <DialogContent className="rounded-2xl sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>{cardio ? `Bout ${idx + 1} notes` : `Set ${idx + 1} notes`}</DialogTitle>
+            <DialogDescription>Optional. Saved with this set.</DialogDescription>
+          </DialogHeader>
+          <textarea
+            id={`set-notes-${row.id}`}
+            className={cn(
+              "min-h-[108px] w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none",
+              "placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+              "dark:bg-input/30 disabled:opacity-50",
+            )}
+            maxLength={500}
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value.slice(0, 500))}
+            placeholder="e.g. belted, paused first rep…"
+          />
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => setNotesOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-xl"
+              disabled={savePending}
+              onClick={() => {
+                const trimmed = notesDraft.trim();
+                const next = trimmed === "" ? null : trimmed.slice(0, 500);
+                setLocal((l) => ({ ...l, notes: next ?? "" }));
+                onCommitSet({
+                  action: "set",
+                  setId: row.id,
+                  notes: next,
+                });
+                setNotesOpen(false);
+              }}
+            >
+              Save note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

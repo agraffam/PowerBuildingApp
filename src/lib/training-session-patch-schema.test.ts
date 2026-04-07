@@ -55,4 +55,20 @@ describe("trainingSessionPatchBodySchema", () => {
     });
     expect(r.success).toBe(true);
   });
+  it("accepts set with notes only", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({
+      action: "set",
+      setId: "c1",
+      notes: "Paused last rep",
+    });
+    expect(r.success).toBe(true);
+  });
+  it("accepts set clearing notes with null", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({
+      action: "set",
+      setId: "c1",
+      notes: null,
+    });
+    expect(r.success).toBe(true);
+  });
 });

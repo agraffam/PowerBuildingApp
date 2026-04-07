@@ -340,6 +340,8 @@ model LoggedSet {
   calories           Int?
   done               Boolean         @default(false)
   completedAt        DateTime?
+  /** Optional short note for this set (user-entered). */
+  notes              String?
 
   @@unique([workoutSessionId, programExerciseId, setIndex])
   @@index([programExerciseId])
