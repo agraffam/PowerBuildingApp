@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import {
   Line,
@@ -44,6 +45,9 @@ export default function AnalyticsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
         <p className="text-muted-foreground text-sm">Big 3 — volume (kg) and best e1RM (kg) by week</p>
+        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+          ← Back to Settings
+        </Link>
       </div>
 
       {q.data.series.map((s) => (

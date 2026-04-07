@@ -9,11 +9,6 @@ import { cn } from "@/lib/utils";
 
 const baseLinks = [
   { href: "/", label: "Train" },
-  { href: "/history", label: "History" },
-  { href: "/programs", label: "Programs" },
-  { href: "/exercises", label: "Exercises" },
-  { href: "/strength", label: "1RM" },
-  { href: "/account", label: "Account" },
   { href: "/settings", label: "Settings" },
 ] as const;
 

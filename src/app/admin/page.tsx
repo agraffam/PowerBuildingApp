@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { Loader2, Shield } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,9 @@ export default function AdminPage() {
           <p className="text-muted-foreground text-sm">
             User accounts, password resets, and removals. Only visible to the app owner.
           </p>
+          <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+            ← Back to Settings
+          </Link>
         </div>
       </div>
 

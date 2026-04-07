@@ -12,6 +12,9 @@ export default function HelpPage() {
         <p className="text-muted-foreground text-sm mt-2">
           Quick answers for common workout app questions.
         </p>
+        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+          ← Back to Settings
+        </Link>
       </div>
 
       <section className="space-y-3">
@@ -110,8 +113,8 @@ export default function HelpPage() {
         </p>
       </section>
 
-      <Link href="/" className={cn(buttonVariants({ variant: "outline" }), "rounded-xl inline-flex")}>
-        Back to Train
+      <Link href="/settings" className={cn(buttonVariants({ variant: "outline" }), "rounded-xl inline-flex")}>
+        Back to Settings
       </Link>
     </div>
   );

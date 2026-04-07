@@ -85,6 +85,9 @@ export default function HistoryPage() {
           Open a session to edit sets or the workout date. Deleting removes it from history and analytics;
           it does not change your current program week or next day.
         </p>
+        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+          ← Back to Settings
+        </Link>
       </div>
 
       {sessions.length === 0 ? (

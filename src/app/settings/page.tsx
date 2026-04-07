@@ -334,6 +334,9 @@ export default function SettingsPage() {
           <CardDescription>Additional pages moved here to keep the top header uncluttered.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
+          <Link href="/account" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            Account
+          </Link>
           <Link href="/analytics" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
             Analytics
           </Link>
@@ -345,6 +348,27 @@ export default function SettingsPage() {
               Admin
             </Link>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Training pages</CardTitle>
+          <CardDescription>Shortcuts to your training setup and logs.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Link href="/programs" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            Programs
+          </Link>
+          <Link href="/exercises" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            Exercises
+          </Link>
+          <Link href="/history" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            History
+          </Link>
+          <Link href="/strength" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            1RM
+          </Link>
         </CardContent>
       </Card>
 

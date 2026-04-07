@@ -194,6 +194,9 @@ export default function ProgramsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-heading">Programs</h1>
           <p className="text-muted-foreground text-sm">Mesocycle templates and activation</p>
+          <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+            ← Back to Settings
+          </Link>
           <p className="text-muted-foreground text-xs mt-1 max-w-xl">
             Prebuilts range from 2–6 training templates per cycle. You choose how many sessions to do each calendar week;
             the app advances one template per workout. Fewer weekly sessions = longer to finish one full pass.

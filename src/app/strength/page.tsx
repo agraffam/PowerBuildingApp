@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -123,6 +124,9 @@ export default function StrengthPage() {
           Log estimated (or tested) 1RM per lift. With %1RM prescriptions, working weights pre-fill for each
           session and adjust after your readiness survey.
         </p>
+        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+          ← Back to Settings
+        </Link>
       </div>
 
       <Input

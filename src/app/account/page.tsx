@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -86,6 +87,9 @@ export default function AccountPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-heading">Account</h1>
         <p className="text-muted-foreground text-sm">Profile, email, password, and sign out.</p>
+        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+          ← Back to Settings
+        </Link>
       </div>
 
       {msg && <p className="text-sm text-emerald-600 dark:text-emerald-400">{msg}</p>}

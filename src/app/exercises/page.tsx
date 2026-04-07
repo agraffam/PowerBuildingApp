@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,9 @@ export default function ExercisesPage() {
           <p className="text-muted-foreground text-sm">
             Built-in catalog plus your custom movements for programs.
           </p>
+          <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+            ← Back to Settings
+          </Link>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <Button className="rounded-xl gap-2 shrink-0" onClick={() => setOpen(true)}>
