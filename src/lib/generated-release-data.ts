@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.041";
+export const GENERATED_APP_VERSION = "0.042";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "cff74fd",
+    "date": "2026-04-08",
+    "subject": "fix(build): make release metadata generation docker-safe",
+    "title": "make release metadata generation docker-safe",
+    "version": "0.042"
+  },
   {
     "hash": "f23d643",
     "date": "2026-04-08",

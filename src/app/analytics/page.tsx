@@ -63,6 +63,25 @@ export default function AnalyticsPage() {
     },
   });
 
+  useEffect(() => {
+    if (!q.data?.availableExercises?.length) return;
+    setTrackedIds((prev) => {
+      if (prev.length === 0) return prev;
+      const byId = new Map(q.data.availableExercises.map((ex) => [ex.id, ex.id]));
+      const bySlug = new Map(q.data.availableExercises.map((ex) => [ex.slug.toLowerCase(), ex.id]));
+      const normalized = prev
+        .map((value) => {
+          if (byId.has(value)) return byId.get(value)!;
+          const fromSlug = bySlug.get(value.toLowerCase());
+          return fromSlug ?? null;
+        })
+        .filter((v): v is string => v != null);
+      const unique = Array.from(new Set(normalized));
+      const unchanged = unique.length === prev.length && unique.every((v, i) => v === prev[i]);
+      return unchanged ? prev : unique;
+    });
+  }, [q.data?.availableExercises]);
+
   if (q.isLoading || !q.data) {
     return (
       <div className="flex justify-center py-20">
@@ -157,7 +176,7 @@ export default function AnalyticsPage() {
                     className="rounded-xl"
                     onClick={() => setTrackedIds((prev) => prev.filter((v) => v !== id))}
                   >
-                    {ex?.name ?? id} ×
+                    {ex?.name ?? "Unknown exercise"} ×
                   </Button>
                 );
               })}
