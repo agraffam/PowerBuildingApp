@@ -57,6 +57,11 @@ export const trainingSessionPatchBodySchema = z.discriminatedUnion("action", [
     action: z.literal("updateMetadata"),
     performedAt: z.string().min(1),
   }),
+  z.object({
+    action: z.literal("setExerciseNotes"),
+    programExerciseId: z.string().min(1),
+    notes: z.union([z.string().max(500), z.null()]),
+  }),
 ]);
 
 export type TrainingSessionPatchBody = z.infer<typeof trainingSessionPatchBodySchema>;

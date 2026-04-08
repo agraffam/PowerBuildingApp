@@ -497,6 +497,13 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     [patch, qc, sessionId, startRest],
   );
 
+  const commitExerciseNotes = useCallback(
+    async (programExerciseId: string, notes: string | null) => {
+      await patch.mutateAsync({ action: "setExerciseNotes", programExerciseId, notes });
+    },
+    [patch],
+  );
+
   const onDragEndBlocks = useCallback(
     async (event: DragEndEvent) => {
       const { active, over } = event;
@@ -777,6 +784,14 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                               <Badge variant="outline">
                                 Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
                               </Badge>
+                              <ExerciseNotesButton
+                                programExerciseId={ex.id}
+                                notes={ex.notes}
+                                savePending={patch.isPending}
+                                onSave={(programExerciseId, notes) =>
+                                  void commitExerciseNotes(programExerciseId, notes)
+                                }
+                              />
                               {ex.prescription.pctOf1rm != null && (
                                 <Badge variant="outline">{ex.prescription.pctOf1rm}% 1RM</Badge>
                               )}
@@ -934,6 +949,14 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                     <Badge variant="outline">
                                       Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
                                     </Badge>
+                                    <ExerciseNotesButton
+                                      programExerciseId={ex.id}
+                                      notes={ex.notes}
+                                      savePending={patch.isPending}
+                                      onSave={(programExerciseId, notes) =>
+                                        void commitExerciseNotes(programExerciseId, notes)
+                                      }
+                                    />
                                     {ex.prescription.pctOf1rm != null && (
                                       <Badge variant="outline">{ex.prescription.pctOf1rm}% 1RM</Badge>
                                     )}
@@ -1324,8 +1347,6 @@ function SetRowEditor({
   onCommitSet: (body: object) => void;
 }) {
   const cardio = Boolean(isCardio);
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [notesDraft, setNotesDraft] = useState("");
   const [local, setLocal] = useState(() => {
     const rpeStep = snapToLoggedRpeStep(row.rpe ?? targetRpe);
     return {
@@ -1334,7 +1355,6 @@ function SetRowEditor({
       rpe: String(rpeStep),
       durationSec: row.durationSec != null ? String(row.durationSec) : "",
       calories: row.calories != null ? String(row.calories) : "",
-      notes: row.notes ?? "",
     };
   });
 
@@ -1346,7 +1366,6 @@ function SetRowEditor({
       rpe: String(rpeStep),
       durationSec: row.durationSec != null ? String(row.durationSec) : "",
       calories: row.calories != null ? String(row.calories) : "",
-      notes: row.notes ?? "",
     });
   }, [
     row.weight,
@@ -1354,7 +1373,6 @@ function SetRowEditor({
     row.rpe,
     row.durationSec,
     row.calories,
-    row.notes,
     repTarget,
     targetRpe,
     bodyweight,
@@ -1365,20 +1383,15 @@ function SetRowEditor({
   const baselineRpe = String(snapToLoggedRpeStep(row.rpe ?? targetRpe));
   const baselineDur = row.durationSec != null ? String(row.durationSec) : "";
   const baselineCal = row.calories != null ? String(row.calories) : "";
-  const baselineNotes = row.notes ?? "";
 
   const dirty = cardio
-    ? local.durationSec !== baselineDur ||
-      local.calories !== baselineCal ||
-      local.notes.trim() !== baselineNotes.trim()
+    ? local.durationSec !== baselineDur || local.calories !== baselineCal
     : local.reps !== baselineReps ||
       local.rpe !== baselineRpe ||
-      (!bodyweight && local.weight !== baselineWeight) ||
-      local.notes.trim() !== baselineNotes.trim();
+      (!bodyweight && local.weight !== baselineWeight);
 
   const weightForCommit = bodyweight || cardio ? 0 : Number(local.weight) || 0;
   const shouldPropagateWeight = !cardio && !bodyweight && local.weight !== baselineWeight;
-  const notesForCommit = local.notes.trim() === "" ? null : local.notes.trim().slice(0, 500);
 
   const saveFields = () => {
     if (cardio) {
@@ -1391,7 +1404,6 @@ function SetRowEditor({
         rpe: null,
         durationSec: local.durationSec === "" ? null : Math.max(0, Math.floor(Number(local.durationSec) || 0)),
         calories: local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
-        notes: notesForCommit,
       });
       return;
     }
@@ -1403,7 +1415,6 @@ function SetRowEditor({
       reps: local.reps === "" ? null : Number(local.reps),
       rpe: local.rpe === "" ? null : Number(local.rpe),
       propagateWeight: shouldPropagateWeight,
-      notes: notesForCommit,
     });
   };
 
@@ -1424,24 +1435,6 @@ function SetRowEditor({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className={cn(
-              "rounded-lg h-9 px-2.5 text-muted-foreground",
-              (row.notes?.trim() || local.notes.trim()) && "text-primary",
-            )}
-            disabled={savePending}
-            aria-label="Set notes"
-            onClick={() => {
-              setNotesDraft((row.notes ?? local.notes ?? "").slice(0, 500));
-              setNotesOpen(true);
-            }}
-          >
-            <StickyNote className="size-4" />
-            <span className="text-xs font-medium">Notes</span>
-          </Button>
           {row.done && (
             <Button
               type="button"
@@ -1473,7 +1466,6 @@ function SetRowEditor({
                       durationSec: d,
                       calories:
                         local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
-                      notes: notesForCommit,
                       done: true,
                     });
                   } else {
@@ -1485,7 +1477,6 @@ function SetRowEditor({
                       reps: local.reps === "" ? null : Number(local.reps),
                       rpe: local.rpe === "" ? null : Number(local.rpe),
                       propagateWeight: true,
-                      notes: notesForCommit,
                       done: true,
                     });
                   }
@@ -1499,11 +1490,6 @@ function SetRowEditor({
           )}
         </div>
       </div>
-      {(row.notes?.trim() || local.notes.trim()) ? (
-        <p className="text-xs text-foreground/90 line-clamp-6 rounded-md border border-border/60 bg-muted/30 px-2 py-1.5 whitespace-pre-wrap break-words">
-          {row.notes?.trim() ? row.notes : local.notes}
-        </p>
-      ) : null}
       {dirty && (
         <p className="text-xs text-amber-600 dark:text-amber-500">Unsaved changes — Save or use Done to log the set.</p>
       )}
@@ -1628,31 +1614,61 @@ function SetRowEditor({
           {progressionStep % 1 === 0 ? progressionStep.toFixed(0) : progressionStep.toFixed(1)} {unit} step
         </p>
       )}
-      <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
+    </div>
+  );
+}
+
+function ExerciseNotesButton({
+  programExerciseId,
+  notes,
+  savePending,
+  onSave,
+}: {
+  programExerciseId: string;
+  notes: string | null;
+  savePending: boolean;
+  onSave: (programExerciseId: string, notes: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(notes ?? "");
+
+  useEffect(() => {
+    setDraft(notes ?? "");
+  }, [notes]);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={cn("h-6 rounded-md px-2 text-[11px]", notes?.trim() && "text-primary border-primary/40")}
+        disabled={savePending}
+        onClick={() => setOpen(true)}
+      >
+        <StickyNote className="size-3.5" />
+        Notes
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="rounded-2xl sm:max-w-md" showCloseButton>
           <DialogHeader>
-            <DialogTitle>{cardio ? `Bout ${idx + 1} notes` : `Set ${idx + 1} notes`}</DialogTitle>
-            <DialogDescription>Optional. Saved with this set.</DialogDescription>
+            <DialogTitle>Exercise notes</DialogTitle>
+            <DialogDescription>Optional note for this exercise in your workout.</DialogDescription>
           </DialogHeader>
           <textarea
-            id={`set-notes-${row.id}`}
+            id={`exercise-notes-${programExerciseId}`}
             className={cn(
               "min-h-[108px] w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none",
               "placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
               "dark:bg-input/30 disabled:opacity-50",
             )}
             maxLength={500}
-            value={notesDraft}
-            onChange={(e) => setNotesDraft(e.target.value.slice(0, 500))}
-            placeholder="e.g. belted, paused first rep…"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.slice(0, 500))}
+            placeholder="e.g. use straps for top set, keep bar path vertical..."
           />
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => setNotesOpen(false)}
-            >
+            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -1660,15 +1676,9 @@ function SetRowEditor({
               className="rounded-xl"
               disabled={savePending}
               onClick={() => {
-                const trimmed = notesDraft.trim();
-                const next = trimmed === "" ? null : trimmed.slice(0, 500);
-                setLocal((l) => ({ ...l, notes: next ?? "" }));
-                onCommitSet({
-                  action: "set",
-                  setId: row.id,
-                  notes: next,
-                });
-                setNotesOpen(false);
+                const trimmed = draft.trim();
+                onSave(programExerciseId, trimmed === "" ? null : trimmed.slice(0, 500));
+                setOpen(false);
               }}
             >
               Save note
@@ -1676,7 +1686,7 @@ function SetRowEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 

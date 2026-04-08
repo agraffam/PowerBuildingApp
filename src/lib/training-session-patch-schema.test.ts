@@ -71,4 +71,12 @@ describe("trainingSessionPatchBodySchema", () => {
     });
     expect(r.success).toBe(true);
   });
+  it("accepts setExerciseNotes with note text", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({
+      action: "setExerciseNotes",
+      programExerciseId: "pe1",
+      notes: "Use straps on back-off sets",
+    });
+    expect(r.success).toBe(true);
+  });
 });

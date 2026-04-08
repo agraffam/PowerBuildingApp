@@ -285,6 +285,22 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
 
+  if (body.action === "setExerciseNotes") {
+    if (session.status !== "PLANNED" && session.status !== "IN_PROGRESS") {
+      return NextResponse.json({ error: "Cannot edit exercise notes now" }, { status: 409 });
+    }
+    const pe = await prisma.programExercise.findFirst({
+      where: { id: body.programExerciseId, programDayId: session.programDayId },
+      select: { id: true },
+    });
+    if (!pe) return NextResponse.json({ error: "Exercise not found in this workout" }, { status: 404 });
+    await prisma.programExercise.update({
+      where: { id: body.programExerciseId },
+      data: { notes: body.notes === "" ? null : body.notes },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
 
   if (session.status === "COMPLETED" || session.status === "CANCELLED") {
     return NextResponse.json({ error: "Session is no longer active" }, { status: 409 });
