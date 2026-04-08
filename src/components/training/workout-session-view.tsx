@@ -1429,7 +1429,7 @@ function SetRowEditor({
             size="sm"
             variant="ghost"
             className={cn(
-              "rounded-lg h-9 min-w-9 px-2 text-muted-foreground",
+              "rounded-lg h-9 px-2.5 text-muted-foreground",
               (row.notes?.trim() || local.notes.trim()) && "text-primary",
             )}
             disabled={savePending}
@@ -1440,7 +1440,7 @@ function SetRowEditor({
             }}
           >
             <StickyNote className="size-4" />
-            <span className="sr-only">Notes</span>
+            <span className="text-xs font-medium">Notes</span>
           </Button>
           {row.done && (
             <Button
