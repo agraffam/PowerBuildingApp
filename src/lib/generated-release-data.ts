@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.040";
+export const GENERATED_APP_VERSION = "0.041";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "f23d643",
+    "date": "2026-04-08",
+    "subject": "feat: expand analytics tracking and stabilize version/update metadata",
+    "title": "expand analytics tracking and stabilize version/update metadata",
+    "version": "0.041"
+  },
   {
     "hash": "fa8e562",
     "date": "2026-04-08",

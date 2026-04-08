@@ -1,9 +1,13 @@
 import { execSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-function run(cmd) {
-  return execSync(cmd, { encoding: "utf8" }).trim();
+function tryRun(cmd) {
+  try {
+    return execSync(cmd, { encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
 }
 
 function versionFromCount(count) {
@@ -16,8 +20,20 @@ function cleanSubject(subject) {
   return subject.replace(/\s+/g, " ").trim();
 }
 
-const count = Number.parseInt(run("git rev-list --count HEAD"), 10) || 0;
-const raw = run("git log -n 80 --date=short --pretty=format:%h\\|%ad\\|%s");
+const outputPath = resolve(process.cwd(), "src/lib/generated-release-data.ts");
+const countRaw = tryRun("git rev-list --count HEAD");
+const raw = tryRun("git log -n 80 --date=short --pretty=format:%h\\|%ad\\|%s");
+
+if (countRaw == null || raw == null) {
+  if (existsSync(outputPath)) {
+    const existing = readFileSync(outputPath, "utf8");
+    writeFileSync(outputPath, existing, "utf8");
+    console.log(`Git metadata unavailable; kept existing ${outputPath}.`);
+    process.exit(0);
+  }
+}
+
+const count = Number.parseInt(countRaw ?? "0", 10) || 0;
 const lines = raw ? raw.split("\n") : [];
 
 const entries = lines.map((line, idx) => {
@@ -33,7 +49,6 @@ const entries = lines.map((line, idx) => {
   };
 });
 
-const outputPath = resolve(process.cwd(), "src/lib/generated-release-data.ts");
 const out = `export type ReleaseEntry = {
   hash: string;
   date: string;
