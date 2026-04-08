@@ -764,7 +764,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           </span>
                         </p>
                       ) : (
-                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:justify-start justify-center">
                           <Badge variant="secondary">
                             {ex.exercise.kind === "CARDIO"
                               ? `${ex.prescription.sets} bouts`
@@ -781,8 +781,17 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                             </>
                           ) : (
                             <>
-                              <Badge variant="outline">
+                              <Badge
+                                variant="outline"
+                                className="max-w-full truncate whitespace-nowrap"
+                                title={
+                                  ex.prescription.pctOf1rm != null
+                                    ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
+                                    : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
+                                }
+                              >
                                 Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
+                                {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
                               </Badge>
                               <ExerciseNotesButton
                                 programExerciseId={ex.id}
@@ -792,9 +801,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                   void commitExerciseNotes(programExerciseId, notes)
                                 }
                               />
-                              {ex.prescription.pctOf1rm != null && (
-                                <Badge variant="outline">{ex.prescription.pctOf1rm}% 1RM</Badge>
-                              )}
                             </>
                           )}
                         </div>
@@ -934,7 +940,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           return (
                             <div key={ex.id} className="rounded-xl border bg-muted/20 p-3 space-y-2">
                               {renderExerciseHeader(ex)}
-                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:justify-start justify-center">
                                 {ex.exercise.kind === "CARDIO" ? (
                                   <>
                                     {ex.prescription.targetDurationSec != null && (
@@ -946,8 +952,17 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                   </>
                                 ) : (
                                   <>
-                                    <Badge variant="outline">
+                                    <Badge
+                                      variant="outline"
+                                      className="max-w-full truncate whitespace-nowrap"
+                                      title={
+                                        ex.prescription.pctOf1rm != null
+                                          ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
+                                          : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
+                                      }
+                                    >
                                       Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
+                                      {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
                                     </Badge>
                                     <ExerciseNotesButton
                                       programExerciseId={ex.id}
@@ -957,9 +972,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                         void commitExerciseNotes(programExerciseId, notes)
                                       }
                                     />
-                                    {ex.prescription.pctOf1rm != null && (
-                                      <Badge variant="outline">{ex.prescription.pctOf1rm}% 1RM</Badge>
-                                    )}
                                   </>
                                 )}
                               </div>
