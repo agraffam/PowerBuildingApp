@@ -1,4 +1,5 @@
 import { formatVersionTickerFromCount, getGitCommitCount } from "@/lib/git-commits";
+import { GENERATED_APP_VERSION } from "@/lib/generated-release-data";
 
 let cachedVersion: string | null = null;
 
@@ -10,6 +11,6 @@ export function getAppVersionTicker(): string {
     return cachedVersion;
   }
   const count = getGitCommitCount();
-  cachedVersion = formatVersionTickerFromCount(count);
+  cachedVersion = count > 0 ? formatVersionTickerFromCount(count) : GENERATED_APP_VERSION;
   return cachedVersion;
 }

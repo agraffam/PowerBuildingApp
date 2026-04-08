@@ -26,7 +26,10 @@ export default function UpdatesPage() {
               <CardDescription>{entry.date}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">Commit `{entry.hash}`</p>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li>- {entry.subject}</li>
+              </ul>
+              <p className="mt-2 text-xs text-muted-foreground">Commit `{entry.hash}`</p>
             </CardContent>
           </Card>
         ))}

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack -p 3500",
     "dev:lan": "next dev --turbopack --hostname 0.0.0.0 -p 3500",
+    "prebuild": "node scripts/generate-release-data.mjs",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
@@ -19,7 +20,8 @@
     "db:seed": "prisma db seed",
     "db:ensure-if-empty": "tsx prisma/ensure-seed-if-empty.ts",
     "db:backfill-multiuser": "tsx prisma/backfill-multiuser.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "release:sync": "node scripts/generate-release-data.mjs"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

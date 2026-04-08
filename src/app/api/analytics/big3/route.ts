@@ -1,27 +1,47 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { brzyckiOneRm, normalizeWeightToKg } from "@/lib/calculators";
+import { brzyckiOneRm, displayFromKg, normalizeWeightToKg } from "@/lib/calculators";
 import type { WeightUnit } from "@prisma/client";
 import { startOfWeek, format } from "date-fns";
 import { requireUserId } from "@/lib/auth/require-user";
 
 const BIG3_SLUGS = ["squat", "bench-press", "deadlift"] as const;
 
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await requireUserId();
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
 
-  const exercises = await prisma.exercise.findMany({
-    where: { slug: { in: [...BIG3_SLUGS] } },
+  const settings = await prisma.userSettings.findUnique({
+    where: { userId },
+    select: { preferredWeightUnit: true },
   });
+  const displayUnit: WeightUnit = settings?.preferredWeightUnit ?? "LB";
+  const allStrength = await prisma.exercise.findMany({
+    where: { kind: "STRENGTH", isBodyweight: false },
+    select: { id: true, slug: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  const exById = new Map(allStrength.map((e) => [e.id, e]));
+  const qIds = new URL(req.url).searchParams.get("exerciseIds");
+  const requestedIds = (qIds ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const fallback = BIG3_SLUGS
+    .map((slug) => allStrength.find((e) => e.slug === slug)?.id)
+    .filter((v): v is string => Boolean(v));
+  const selectedExerciseIds = (requestedIds.length > 0 ? requestedIds : fallback).filter((id) => exById.has(id));
+  if (selectedExerciseIds.length === 0) {
+    return NextResponse.json({ displayUnit, availableExercises: allStrength, series: [] });
+  }
 
   type WeekPoint = { week: string; volumeKg: number; bestE1rmKg: number; sessions: number };
 
   const weekly = new Map<string, Map<string, WeekPoint>>();
 
-  for (const slug of BIG3_SLUGS) {
-    weekly.set(slug, new Map());
+  for (const id of selectedExerciseIds) {
+    weekly.set(id, new Map());
   }
 
   const sets = await prisma.loggedSet.findMany({
@@ -29,7 +49,10 @@ export async function GET() {
       done: true,
       reps: { gt: 0 },
       weight: { gt: 0 },
-      programExercise: { exercise: { slug: { in: [...BIG3_SLUGS] } } },
+      OR: [
+        { loggedExerciseId: { in: selectedExerciseIds } },
+        { programExercise: { exerciseId: { in: selectedExerciseIds } } },
+      ],
       workoutSession: {
         status: "COMPLETED",
         programInstance: { userId },
@@ -43,12 +66,12 @@ export async function GET() {
   });
 
   for (const s of sets) {
-    const slug = s.programExercise.exercise.slug;
-    if (!BIG3_SLUGS.includes(slug as (typeof BIG3_SLUGS)[number])) continue;
+    const exerciseId = s.loggedExerciseId ?? s.programExercise.exerciseId;
+    if (!selectedExerciseIds.includes(exerciseId)) continue;
     const performed = s.completedAt ?? s.workoutSession.performedAt;
     const weekStart = startOfWeek(performed, { weekStartsOn: 1 });
     const weekKey = format(weekStart, "yyyy-MM-dd");
-    const m = weekly.get(slug)!;
+    const m = weekly.get(exerciseId)!;
     if (!m.has(weekKey)) {
       m.set(weekKey, { week: weekKey, volumeKg: 0, bestE1rmKg: 0, sessions: 0 });
     }
@@ -62,11 +85,38 @@ export async function GET() {
     }
   }
 
-  const result = BIG3_SLUGS.map((slug) => {
-    const m = weekly.get(slug)!;
+  const profiles = await prisma.userStrengthProfile.findMany({
+    where: { userId, exerciseId: { in: selectedExerciseIds } },
+    select: { exerciseId: true, estimatedOneRm: true, weightUnit: true },
+  });
+  const profileByExerciseId = new Map(profiles.map((p) => [p.exerciseId, p]));
+
+  const result = selectedExerciseIds.map((exerciseId) => {
+    const m = weekly.get(exerciseId)!;
     const points = [...m.values()].sort((a, b) => a.week.localeCompare(b.week));
-    return { slug, label: exercises.find((e) => e.slug === slug)?.name ?? slug, points };
+    const lastBestE1rmKg = points.length > 0 ? points[points.length - 1]!.bestE1rmKg : 0;
+    const profile = profileByExerciseId.get(exerciseId);
+    const currentEstimatedOneRmDisplay = profile
+      ? displayFromKg(normalizeWeightToKg(profile.estimatedOneRm, profile.weightUnit as WeightUnit), displayUnit)
+      : lastBestE1rmKg > 0
+        ? displayFromKg(lastBestE1rmKg, displayUnit)
+        : null;
+    return {
+      exerciseId,
+      slug: exById.get(exerciseId)?.slug ?? exerciseId,
+      label: exById.get(exerciseId)?.name ?? exerciseId,
+      currentEstimatedOneRmDisplay: currentEstimatedOneRmDisplay != null ? Math.round(currentEstimatedOneRmDisplay * 10) / 10 : null,
+      points: points.map((p) => ({
+        week: p.week,
+        volume: Math.round(displayFromKg(p.volumeKg, displayUnit) * 10) / 10,
+        bestE1rm: Math.round(displayFromKg(p.bestE1rmKg, displayUnit) * 10) / 10,
+      })),
+    };
   });
 
-  return NextResponse.json({ series: result });
+  return NextResponse.json({
+    displayUnit,
+    availableExercises: allStrength,
+    series: result,
+  });
 }

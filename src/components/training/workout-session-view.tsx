@@ -640,7 +640,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   }
 
   const { session, settings, previousByExerciseId } = q.data;
-  const appVersion = q.data.appVersion ?? "0.000";
   const unit = settings?.preferredWeightUnit ?? "LB";
   const isHistorySession = session.status === "COMPLETED";
   const sessionBlockTypes = Array.from(
@@ -1195,8 +1194,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           )}
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground text-center">v{appVersion}</p>
-
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="rounded-2xl" showCloseButton={false}>
           <DialogHeader>

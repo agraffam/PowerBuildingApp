@@ -55,6 +55,15 @@ export default function SettingsPage() {
       }>;
     },
   });
+  const { data: versionData } = useQuery({
+    queryKey: ["app-version"],
+    queryFn: async () => {
+      const r = await fetch("/api/version");
+      if (!r.ok) throw new Error("Failed");
+      return r.json() as Promise<{ version: string }>;
+    },
+    staleTime: 300_000,
+  });
 
   const [unitDraft, setUnitDraft] = useState<"KG" | "LB">("LB");
   const [defaultRestDraft, setDefaultRestDraft] = useState(180);
@@ -142,7 +151,10 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <div className="flex items-end justify-between gap-2">
+          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+          <span className="text-xs text-muted-foreground">v{versionData?.version ?? "0.000"}</span>
+        </div>
         <p className="text-muted-foreground text-sm">Appearance, units, and timer defaults</p>
       </div>
 

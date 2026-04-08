@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { GENERATED_APP_VERSION, GENERATED_RELEASE_ENTRIES } from "@/lib/generated-release-data";
 
 export type GitCommitEntry = {
   hash: string;
@@ -21,7 +22,8 @@ export function getGitCommitCount(): number {
   try {
     return parseCommitCount(execSync("git rev-list --count HEAD", { encoding: "utf8" }));
   } catch {
-    return 0;
+    const n = Number.parseInt(GENERATED_APP_VERSION.replace("0.", ""), 10);
+    return Number.isFinite(n) ? n : 0;
   }
 }
 
@@ -49,7 +51,12 @@ export function getGitCommitEntries(limit = 40): GitCommitEntry[] {
       })
       .filter((entry) => entry.hash.length > 0);
   } catch {
-    return [];
+    return GENERATED_RELEASE_ENTRIES.slice(0, Math.max(1, Math.floor(limit))).map((e) => ({
+      hash: e.hash,
+      date: e.date,
+      subject: e.subject,
+      version: e.version,
+    }));
   }
 }
 
