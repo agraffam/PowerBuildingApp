@@ -26,6 +26,7 @@ export async function GET() {
   const completedSessions = await prisma.workoutSession.findMany({
     where: { status: "COMPLETED" },
     select: {
+      performedAt: true,
       programInstance: {
         select: {
           userId: true,
@@ -34,13 +35,17 @@ export async function GET() {
     },
   });
   const sessionsByUser = new Map<string, number>();
+  const lastLoggedAtByUser = new Map<string, Date>();
   for (const row of completedSessions) {
     const uid = row.programInstance.userId;
     sessionsByUser.set(uid, (sessionsByUser.get(uid) ?? 0) + 1);
+    const prev = lastLoggedAtByUser.get(uid);
+    if (!prev || row.performedAt > prev) lastLoggedAtByUser.set(uid, row.performedAt);
   }
   const usersWithSessions = users.map((u) => ({
     ...u,
     sessionsCompleted: sessionsByUser.get(u.id) ?? 0,
+    lastLoggedSessionAt: lastLoggedAtByUser.get(u.id)?.toISOString() ?? null,
   }));
 
   return NextResponse.json({ users: usersWithSessions });

@@ -11,6 +11,7 @@ import {
   sortedProgramDays,
 } from "@/lib/program-week-state";
 import { buildWeekCompletionSummary } from "@/lib/week-completion-summary";
+import { getAppVersionTicker } from "@/lib/app-version";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,7 @@ export async function GET() {
 
     return NextResponse.json(
       {
+        appVersion: getAppVersionTicker(),
         instance: instanceOut,
         nextDay: weekPendingFinalize ? null : nextDay,
         inProgressSession,

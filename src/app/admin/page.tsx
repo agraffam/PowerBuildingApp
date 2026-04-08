@@ -26,6 +26,7 @@ type AdminUserRow = {
   createdAt: string;
   updatedAt: string;
   sessionsCompleted: number;
+  lastLoggedSessionAt: string | null;
   _count: { programInstances: number; strengthProfiles: number };
 };
 
@@ -207,6 +208,7 @@ export default function AdminPage() {
                     <th className="px-3 py-3 font-medium">Name</th>
                     <th className="px-3 py-3 font-medium">Programs</th>
                     <th className="px-3 py-3 font-medium">Sessions</th>
+                    <th className="px-3 py-3 font-medium">Last logged</th>
                     <th className="px-3 py-3 font-medium">1RM rows</th>
                     <th className="px-3 py-3 font-medium">Joined</th>
                     <th className="px-6 py-3 font-medium text-right">Actions</th>
@@ -228,6 +230,9 @@ export default function AdminPage() {
                         </td>
                         <td className="px-3 py-3 tabular-nums">{u._count.programInstances}</td>
                         <td className="px-3 py-3 tabular-nums">{u.sessionsCompleted}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">
+                          {u.lastLoggedSessionAt ? new Date(u.lastLoggedSessionAt).toLocaleDateString() : "—"}
+                        </td>
                         <td className="px-3 py-3 tabular-nums">{u._count.strengthProfiles}</td>
                         <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">
                           {new Date(u.createdAt).toLocaleDateString()}

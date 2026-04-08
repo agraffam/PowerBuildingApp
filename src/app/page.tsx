@@ -20,6 +20,7 @@ import type { WeekCompletionSummaryPayload } from "@/lib/week-completion-summary
 import { browserApiFetchInit } from "@/lib/browser-api-fetch";
 
 type TrainingActivePayload = {
+  appVersion?: string;
   instance: {
     id: string;
     weekIndex: number;
@@ -149,7 +150,10 @@ export default function HomePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight font-heading">Train</h1>
+        <div className="flex items-end justify-between gap-2">
+          <h1 className="text-2xl font-bold tracking-tight font-heading">Train</h1>
+          <span className="text-xs text-muted-foreground">v{active.data?.appVersion ?? "0.000"}</span>
+        </div>
         <p className="text-muted-foreground text-sm">{inst.program.name}</p>
       </div>
 
