@@ -111,6 +111,7 @@ export default function AnalyticsPage() {
           <div className="grid gap-2 sm:grid-cols-3">
             {[0, 1, 2].map((slot) => {
               const current = trackedIds[slot] ?? "";
+              const currentName = q.data.availableExercises.find((ex) => ex.id === current)?.name ?? "";
               return (
                 <Select
                   key={slot}
@@ -122,7 +123,9 @@ export default function AnalyticsPage() {
                   }}
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder={`Primary ${slot + 1}`} />
+                    <SelectValue placeholder={`Primary ${slot + 1}`}>
+                      {currentName || `Primary ${slot + 1}`}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {q.data.availableExercises.map((ex) => (
