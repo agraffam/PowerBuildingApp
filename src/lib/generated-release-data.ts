@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.044";
+export const GENERATED_APP_VERSION = "0.045";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "42e75b8",
+    "date": "2026-04-08",
+    "subject": "fix(training): enforce week progression via completion modal",
+    "title": "enforce week progression via completion modal",
+    "version": "0.045"
+  },
   {
     "hash": "f931bdc",
     "date": "2026-04-08",

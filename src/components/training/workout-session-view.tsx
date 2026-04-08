@@ -60,6 +60,12 @@ import {
 } from "@/lib/workout-blocks";
 import { restSecForRpe, rpeToBandId, snapToLoggedRpeStep } from "@/lib/rest-by-rpe";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
+import {
+  getWarmupContent,
+  resolveWarmupFocus,
+  sessionWarmupStorageKey,
+  type WarmupContent,
+} from "@/lib/session-warmup";
 
 type LoggedSetRow = {
   id: string;
@@ -445,6 +451,14 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   }, [q.data?.session]);
   const sessionEarly = q.data?.session;
   const [performedAtLocal, setPerformedAtLocal] = useState("");
+  const [warmupDismissed, setWarmupDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      setWarmupDismissed(sessionStorage.getItem(sessionWarmupStorageKey(sessionId)) === "1");
+    } catch {
+      setWarmupDismissed(false);
+    }
+  }, [sessionId]);
   useEffect(() => {
     if (sessionEarly?.performedAt) {
       setPerformedAtLocal(toDatetimeLocalValue(sessionEarly.performedAt));
@@ -658,6 +672,13 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const readinessNeeded =
     session.sleep == null && (session.status === "PLANNED" || session.status === "IN_PROGRESS");
   const canCancel = session.status === "PLANNED" || session.status === "IN_PROGRESS";
+  const firstExercise = orderedExercises[0] ?? null;
+  const warmupNeeded =
+    !readinessNeeded &&
+    !isHistorySession &&
+    canCancel &&
+    firstExercise != null &&
+    !warmupDismissed;
 
   return (
     <div className="space-y-6 pb-28">
@@ -712,7 +733,24 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         />
       )}
 
-      {!readinessNeeded &&
+      {!readinessNeeded && warmupNeeded && firstExercise && (
+        <WarmupCard
+          content={getWarmupContent(
+            resolveWarmupFocus(firstExercise.exercise.slug),
+            firstExercise.exercise.name,
+          )}
+          onContinue={() => {
+            try {
+              sessionStorage.setItem(sessionWarmupStorageKey(sessionId), "1");
+            } catch {
+              /* storage unavailable */
+            }
+            setWarmupDismissed(true);
+          }}
+        />
+      )}
+
+      {!readinessNeeded && !warmupNeeded &&
         (() => {
           const canReorderBlocks = canCancel && blocks.length > 1;
 
@@ -1169,7 +1207,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           >
             Cancel session
           </Button>
-          {!readinessNeeded && (
+          {!readinessNeeded && !warmupNeeded && (
             <Button
               className="h-12 w-full rounded-xl"
               onClick={async () => {
@@ -1876,6 +1914,43 @@ function ExerciseNotesButton({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function WarmupCard({ content, onContinue }: { content: WarmupContent; onContinue: () => void }) {
+  return (
+    <Card className="rounded-2xl border-primary/30">
+      <CardHeader>
+        <CardTitle className="text-lg">{content.title}</CardTitle>
+        <p className="text-muted-foreground text-sm">{content.subtitle}</p>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {content.sections.map((sec) => (
+          <div key={sec.heading} className="space-y-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-sm font-semibold">{sec.heading}</h3>
+              <span className="text-xs text-muted-foreground">{sec.minutesHint}</span>
+            </div>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {sec.bullets.map((b) => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        <div className="space-y-2 rounded-xl border border-muted-foreground/20 bg-muted/30 p-3">
+          <h3 className="text-sm font-semibold">Then at the bar</h3>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+            {content.atTheBar.map((line, i) => (
+              <li key={`${i}-${line.slice(0, 24)}`}>{line}</li>
+            ))}
+          </ul>
+        </div>
+        <Button type="button" className="w-full rounded-xl" onClick={onContinue}>
+          Start workout
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

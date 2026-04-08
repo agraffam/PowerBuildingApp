@@ -1,5 +1,6 @@
 import { PrismaClient, BlockType, type Prisma, WeightUnit, type ExerciseKind } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { bodyweightProgramCreateData } from "./bodyweight-seed-programs";
 import { homeGymProgramCreateData } from "./home-gym-seed-programs";
 import { powerbuildingBlueprintProgramCreateData } from "./powerbuilding-blueprint-seed";
 
@@ -10,13 +11,17 @@ const SEED_PASSWORD = "Seed12345678";
 
 const CARDIO_SLUGS = new Set(["bike-erg", "assault-runner-intervals"]);
 
-async function ensureExerciseDef(def: { name: string; slug: string; muscleTags: string }) {
+type SeedExerciseDef = { name: string; slug: string; muscleTags: string; isBodyweight?: boolean };
+
+async function ensureExerciseDef(def: SeedExerciseDef) {
   const wantKind: ExerciseKind = CARDIO_SLUGS.has(def.slug) ? "CARDIO" : "STRENGTH";
+  const wantBw = def.isBodyweight;
   const existing = await prisma.exercise.findUnique({ where: { slug: def.slug } });
   if (existing) {
     const data: { kind?: ExerciseKind; isBodyweight?: boolean } = {};
     if (existing.kind !== wantKind) data.kind = wantKind;
     if (wantKind === "CARDIO" && existing.isBodyweight) data.isBodyweight = false;
+    if (wantBw !== undefined && existing.isBodyweight !== wantBw) data.isBodyweight = wantBw;
     if (Object.keys(data).length > 0) {
       return prisma.exercise.update({ where: { id: existing.id }, data });
     }
@@ -28,6 +33,7 @@ async function ensureExerciseDef(def: { name: string; slug: string; muscleTags: 
       slug: def.slug,
       muscleTags: def.muscleTags,
       kind: wantKind,
+      isBodyweight: wantBw ?? false,
     },
   });
 }
@@ -109,7 +115,7 @@ async function main() {
   }
   console.log("Seed user:", SEED_EMAIL, "/", SEED_PASSWORD);
 
-  const exerciseDefs = [
+  const exerciseDefs: SeedExerciseDef[] = [
     { name: "Competition Bench Press", slug: "bench-press", muscleTags: "chest,triceps,shoulders" },
     { name: "Back Squat", slug: "squat", muscleTags: "quads,glutes,back" },
     { name: "Conventional Deadlift", slug: "deadlift", muscleTags: "posterior,back,glutes" },
@@ -125,10 +131,10 @@ async function main() {
     { name: "Triceps Pushdown", slug: "triceps-pushdown", muscleTags: "triceps" },
     { name: "Barbell Curl", slug: "barbell-curl", muscleTags: "biceps" },
     { name: "Calf Raise", slug: "calf-raise", muscleTags: "calves" },
-    { name: "Pull-Up", slug: "pull-up", muscleTags: "lats,biceps,back" },
-    { name: "Chin-Up", slug: "chin-up", muscleTags: "lats,biceps,back" },
-    { name: "Chest Dip", slug: "chest-dip", muscleTags: "chest,triceps" },
-    { name: "Triceps Dip", slug: "triceps-dip", muscleTags: "triceps,chest" },
+    { name: "Pull-Up", slug: "pull-up", muscleTags: "lats,biceps,back", isBodyweight: true },
+    { name: "Chin-Up", slug: "chin-up", muscleTags: "lats,biceps,back", isBodyweight: true },
+    { name: "Chest Dip", slug: "chest-dip", muscleTags: "chest,triceps", isBodyweight: true },
+    { name: "Triceps Dip", slug: "triceps-dip", muscleTags: "triceps,chest", isBodyweight: true },
     { name: "Dumbbell Bench Press", slug: "dumbbell-bench-press", muscleTags: "chest,triceps" },
     { name: "Incline Barbell Bench", slug: "incline-barbell-bench", muscleTags: "chest,shoulders,triceps" },
     { name: "Incline Dumbbell Press", slug: "incline-dumbbell-press", muscleTags: "chest,shoulders" },
@@ -138,7 +144,7 @@ async function main() {
     { name: "Bulgarian Split Squat", slug: "bulgarian-split-squat", muscleTags: "quads,glutes" },
     { name: "Walking Lunge", slug: "walking-lunge", muscleTags: "quads,glutes" },
     { name: "Hip Thrust", slug: "hip-thrust", muscleTags: "glutes,hamstrings" },
-    { name: "Glute Bridge", slug: "glute-bridge", muscleTags: "glutes" },
+    { name: "Glute Bridge", slug: "glute-bridge", muscleTags: "glutes", isBodyweight: true },
     { name: "Sumo Deadlift", slug: "sumo-deadlift", muscleTags: "posterior,glutes,back" },
     { name: "Rack Pull", slug: "rack-pull", muscleTags: "back,posterior,traps" },
     { name: "T-Bar Row", slug: "t-bar-row", muscleTags: "back,biceps" },
@@ -158,10 +164,10 @@ async function main() {
     { name: "Pec Deck", slug: "pec-deck", muscleTags: "chest" },
     { name: "Smith Machine Squat", slug: "smith-squat", muscleTags: "quads,glutes" },
     { name: "Step-Up", slug: "step-up", muscleTags: "quads,glutes" },
-    { name: "Nordic Hamstring Curl", slug: "nordic-hamstring-curl", muscleTags: "hamstrings" },
+    { name: "Nordic Hamstring Curl", slug: "nordic-hamstring-curl", muscleTags: "hamstrings", isBodyweight: true },
     { name: "Cable Crunch", slug: "cable-crunch", muscleTags: "core" },
-    { name: "Hanging Knee Raise", slug: "hanging-knee-raise", muscleTags: "core" },
-    { name: "Ab Wheel Rollout", slug: "ab-wheel-rollout", muscleTags: "core" },
+    { name: "Hanging Knee Raise", slug: "hanging-knee-raise", muscleTags: "core", isBodyweight: true },
+    { name: "Ab Wheel Rollout", slug: "ab-wheel-rollout", muscleTags: "core", isBodyweight: true },
     { name: "Landmine Press", slug: "landmine-press", muscleTags: "shoulders,chest" },
     { name: "Arnold Press", slug: "arnold-press", muscleTags: "shoulders" },
     { name: "Close-Grip Bench Press", slug: "close-grip-bench", muscleTags: "triceps,chest" },
@@ -170,11 +176,14 @@ async function main() {
     { name: "Pin Press", slug: "pin-press", muscleTags: "chest,triceps,lockout" },
     { name: "Low Bar Back Squat", slug: "low-bar-squat", muscleTags: "quads,glutes,back" },
     { name: "BikeErg", slug: "bike-erg", muscleTags: "conditioning,cardio" },
-    { name: "Hanging Leg Raise", slug: "hanging-leg-raise", muscleTags: "core" },
+    { name: "Hanging Leg Raise", slug: "hanging-leg-raise", muscleTags: "core", isBodyweight: true },
     { name: "Alternating Dumbbell Curl", slug: "alternating-dumbbell-curl", muscleTags: "biceps" },
     { name: "Cable Straight-Bar Curl", slug: "cable-straight-bar-curl", muscleTags: "biceps" },
     { name: "Dumbbell Shrug", slug: "dumbbell-shrug", muscleTags: "traps" },
-    { name: "Neutral-Grip Pull-Up", slug: "neutral-grip-pull-up", muscleTags: "lats,biceps,back" },
+    { name: "Neutral-Grip Pull-Up", slug: "neutral-grip-pull-up", muscleTags: "lats,biceps,back", isBodyweight: true },
+    { name: "Air Squat", slug: "air-squat", muscleTags: "quads,glutes", isBodyweight: true },
+    { name: "Inverted Row", slug: "inverted-row", muscleTags: "back,biceps", isBodyweight: true },
+    { name: "Push-Up", slug: "push-up", muscleTags: "chest,triceps,shoulders", isBodyweight: true },
     { name: "Assault Runner (Intervals)", slug: "assault-runner-intervals", muscleTags: "conditioning,cardio" },
   ];
 
@@ -541,6 +550,10 @@ async function main() {
 
   for (const data of homeGymProgramCreateData(E)) {
     programs.push(await ensureSeededProgram(data as Prisma.ProgramCreateInput & { seedKey: string }));
+  }
+
+  for (const data of bodyweightProgramCreateData(E)) {
+    programs.push(await ensureSeededProgram(data));
   }
 
   programs.push(
