@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
 import { Loader2, Play, SkipForward } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -50,7 +49,6 @@ type TrainingActivePayload = {
 
 export default function HomePage() {
   const qc = useQueryClient();
-  const [dismissedWeekKey, setDismissedWeekKey] = useState<string | null>(null);
 
   const active = useQuery({
     queryKey: ["training-active"],
@@ -61,29 +59,9 @@ export default function HomePage() {
     },
   });
 
-  const instance = active.data?.instance;
-  const weekKey = instance ? `${instance.id}-${instance.weekIndex}` : "";
   const weekPendingFinalize = Boolean(active.data?.weekPendingFinalize);
   const weekSummary = active.data?.weekSummary ?? null;
-
-  const showWeekSplash = Boolean(
-    weekPendingFinalize && weekSummary && dismissedWeekKey !== weekKey,
-  );
-
-  const showWeekBanner = Boolean(
-    weekPendingFinalize && weekSummary && dismissedWeekKey === weekKey,
-  );
-
-  useEffect(() => {
-    if (!weekPendingFinalize) setDismissedWeekKey(null);
-  }, [weekPendingFinalize]);
-
-  const dismissWeekStay = useCallback(() => {
-    const d = qc.getQueryData<TrainingActivePayload>(["training-active"]);
-    if (d?.weekPendingFinalize && d?.weekSummary && d.instance) {
-      setDismissedWeekKey(`${d.instance.id}-${d.instance.weekIndex}`);
-    }
-  }, [qc]);
+  const showWeekSplash = Boolean(weekPendingFinalize && weekSummary);
 
   const start = useMutation({
     mutationFn: async () => {
@@ -156,20 +134,6 @@ export default function HomePage() {
         </div>
         <p className="text-muted-foreground text-sm">{inst.program.name}</p>
       </div>
-
-      {showWeekBanner && weekSummary && (
-        <Card className="rounded-xl border-primary/30 bg-primary/5 shadow-sm">
-          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm">
-              <span className="font-medium">Week {weekSummary.weekIndex + 1} is ready to close.</span>{" "}
-              Open the summary to move on or finish the program.
-            </p>
-            <Button type="button" className="rounded-xl shrink-0" onClick={() => setDismissedWeekKey(null)}>
-              Open week summary
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       <TrainWeekOverview
         instanceId={inst.id}
@@ -256,7 +220,6 @@ export default function HomePage() {
           open={showWeekSplash}
           summary={weekSummary}
           instanceId={inst.id}
-          onDismissStay={dismissWeekStay}
         />
       )}
     </div>

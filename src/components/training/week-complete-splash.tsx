@@ -20,12 +20,11 @@ type Props = {
   open: boolean;
   summary: WeekCompletionSummaryPayload | null;
   instanceId: string;
-  onDismissStay: () => void;
   /** After a successful week advance (e.g. navigate away from workout). */
   onAfterAdvance?: () => void;
 };
 
-export function WeekCompleteSplash({ open, summary, instanceId, onDismissStay, onAfterAdvance }: Props) {
+export function WeekCompleteSplash({ open, summary, instanceId, onAfterAdvance }: Props) {
   const qc = useQueryClient();
 
   const advance = useMutation({
@@ -77,8 +76,8 @@ export function WeekCompleteSplash({ open, summary, instanceId, onDismissStay, o
           </DialogHeader>
 
           <p className="text-sm text-muted-foreground">
-            Every training day this week was either finished or skipped. When you&apos;re ready, continue to
-            the next week — nothing moves forward automatically.
+            Every training day this week was either finished or skipped. Review this week, then continue to
+            the next week.
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -145,15 +144,6 @@ export function WeekCompleteSplash({ open, summary, instanceId, onDismissStay, o
               ) : (
                 `Start week ${summary.weekIndex + 2}`
               )}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full rounded-xl h-11"
-              disabled={advance.isPending}
-              onClick={onDismissStay}
-            >
-              Close for now
             </Button>
             {advance.isError && (
               <p className="text-destructive text-sm text-center">{(advance.error as Error).message}</p>

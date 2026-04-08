@@ -1495,10 +1495,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           open
           summary={weekSplash}
           instanceId={sessionEarly.programInstanceId}
-          onDismissStay={() => {
-            setWeekSplash(null);
-            router.push("/");
-          }}
           onAfterAdvance={() => {
             setWeekSplash(null);
             router.push("/");
