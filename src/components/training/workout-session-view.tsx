@@ -148,6 +148,8 @@ type SessionPayload = {
     restDurationsByRpe: Record<string, number>;
     keepAwakeDuringWorkout: boolean;
   } | null;
+  appVersion?: string;
+  strengthProfileByExerciseId?: Record<string, { estimatedOneRm: number; weightUnit: "KG" | "LB" }>;
   canEditProgramRest: boolean;
   previousByExerciseId: Record<
     string,
@@ -207,6 +209,15 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     kind: "STRENGTH" | "CARDIO";
     muscleTags?: string;
   } | null>(null);
+  const [exerciseSettingsTarget, setExerciseSettingsTarget] = useState<{
+    id: string;
+    exerciseId: string;
+    name: string;
+    hasOneRm: boolean;
+  } | null>(null);
+  const [exerciseRestDraft, setExerciseRestDraft] = useState("180");
+  const [exerciseOneRmDraft, setExerciseOneRmDraft] = useState("");
+  const [exerciseIncrementDraft, setExerciseIncrementDraft] = useState("2.5");
   const [keepAwakeEnabled, setKeepAwakeEnabled] = useState(false);
   const [wakeLockSupported, setWakeLockSupported] = useState(true);
   const wakeLockRef = useRef<{ release: () => Promise<void>; released?: boolean } | null>(null);
@@ -337,6 +348,53 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["session", sessionId] });
       void qc.invalidateQueries({ queryKey: ["training-history"] });
+    },
+  });
+  const patchProgramExercise = useMutation({
+    mutationFn: async (payload: { programExerciseId: string; restSec: number | null }) => {
+      const r = await fetch(`/api/program-exercises/${payload.programExerciseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ restSec: payload.restSec }),
+      });
+      if (!r.ok) throw new Error("Failed to update exercise rest");
+      return r.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["session", sessionId] });
+    },
+  });
+  const patchStrength = useMutation({
+    mutationFn: async (payload: { exerciseId: string; estimatedOneRm: number; weightUnit: "KG" | "LB" }) => {
+      const r = await fetch(`/api/strength/${payload.exerciseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) throw new Error("Failed to save 1RM");
+      return r.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["session", sessionId] });
+      void qc.invalidateQueries({ queryKey: ["strength"] });
+    },
+  });
+  const patchSettings = useMutation({
+    mutationFn: async (payload: { plateIncrementLb?: number; plateIncrementKg?: number }) => {
+      const r = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) throw new Error("Failed to save increment");
+      return r.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["settings"] });
+      void qc.invalidateQueries({ queryKey: ["session", sessionId] });
     },
   });
 
@@ -582,6 +640,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   }
 
   const { session, settings, previousByExerciseId } = q.data;
+  const appVersion = q.data.appVersion ?? "0.000";
   const unit = settings?.preferredWeightUnit ?? "LB";
   const isHistorySession = session.status === "COMPLETED";
   const sessionBlockTypes = Array.from(
@@ -662,7 +721,9 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 space-y-1">
-                  <CardTitle className="text-lg">{ex.exercise.name}</CardTitle>
+                  <div className="rounded-xl bg-muted/60 px-3 py-2 text-left">
+                    <CardTitle className="text-lg text-left">{ex.exercise.name}</CardTitle>
+                  </div>
                   <div className="flex flex-wrap gap-1">
                     {ex.exercise.kind === "CARDIO" && (
                       <Badge variant="outline" className="text-xs">
@@ -710,7 +771,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 </div>
               </div>
               {(ex.notes?.trim() || ex.exercise.notes?.trim()) && (
-                <p className="text-xs text-muted-foreground border-l-2 border-primary/30 pl-2">
+                <p className="text-xs leading-relaxed text-muted-foreground border-l-2 border-primary/30 pl-2 py-1 mt-2">
                   {ex.notes?.trim() || ex.exercise.notes}
                 </p>
               )}
@@ -764,7 +825,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           </span>
                         </p>
                       ) : (
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:justify-start justify-center">
+                        <div className="flex flex-wrap items-center justify-start gap-2 text-xs text-muted-foreground">
                           <Badge variant="secondary">
                             {ex.exercise.kind === "CARDIO"
                               ? `${ex.prescription.sets} bouts`
@@ -940,7 +1001,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           return (
                             <div key={ex.id} className="rounded-xl border bg-muted/20 p-3 space-y-2">
                               {renderExerciseHeader(ex)}
-                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:justify-start justify-center">
+                              <div className="flex flex-wrap items-center justify-start gap-2 text-xs text-muted-foreground">
                                 {ex.exercise.kind === "CARDIO" ? (
                                   <>
                                     {ex.prescription.targetDurationSec != null && (
@@ -1134,6 +1195,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           )}
         </div>
       )}
+      <p className="text-[11px] text-muted-foreground text-center">v{appVersion}</p>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="rounded-2xl" showCloseButton={false}>
@@ -1292,7 +1354,126 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
               <Replace className="size-4" />
               Swap exercise
             </Button>
+            {exerciseActionsTarget?.kind !== "CARDIO" && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start rounded-xl"
+                onClick={() => {
+                  if (!exerciseActionsTarget) return;
+                  const targetEx = orderedExercises.find((e) => e.id === exerciseActionsTarget.id);
+                  const profile = q.data?.strengthProfileByExerciseId?.[targetEx?.exercise.id ?? ""];
+                  setExerciseSettingsTarget({
+                    id: exerciseActionsTarget.id,
+                    exerciseId: targetEx?.exercise.id ?? "",
+                    name: exerciseActionsTarget.name,
+                    hasOneRm: profile != null,
+                  });
+                  setExerciseRestDraft(String(targetEx?.restSec ?? settings?.defaultRestSec ?? 180));
+                  setExerciseOneRmDraft(profile ? String(profile.estimatedOneRm) : "");
+                  setExerciseIncrementDraft(
+                    String(unit === "KG" ? settings?.plateIncrementKg ?? 2.5 : settings?.plateIncrementLb ?? 2.5),
+                  );
+                  setExerciseActionsTarget(null);
+                }}
+              >
+                Exercise settings
+              </Button>
+            )}
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={exerciseSettingsTarget != null}
+        onOpenChange={(o) => {
+          if (!o) setExerciseSettingsTarget(null);
+        }}
+      >
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>{exerciseSettingsTarget?.name}</DialogTitle>
+            <DialogDescription>Update rest, 1RM, and increment while you train.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Rest (seconds)</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={exerciseRestDraft}
+                className="rounded-xl text-base"
+                onChange={(e) => setExerciseRestDraft(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
+            {!exerciseSettingsTarget?.hasOneRm && (
+              <div className="space-y-1">
+                <Label className="text-xs">Set 1RM ({unit})</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={exerciseOneRmDraft}
+                  className="rounded-xl text-base"
+                  onChange={(e) => setExerciseOneRmDraft(e.target.value.replace(/[^0-9.]/g, "").slice(0, 6))}
+                />
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs">Increment ({unit})</Label>
+              <div className="flex gap-2">
+                {["2.5", "5", "10"].map((opt) => (
+                  <Button
+                    key={opt}
+                    type="button"
+                    size="sm"
+                    variant={exerciseIncrementDraft === opt ? "default" : "outline"}
+                    className="rounded-xl"
+                    onClick={() => setExerciseIncrementDraft(opt)}
+                  >
+                    {opt}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setExerciseSettingsTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-xl"
+              disabled={patchProgramExercise.isPending || patchStrength.isPending || patchSettings.isPending}
+              onClick={async () => {
+                if (!exerciseSettingsTarget) return;
+                const rest = Number(exerciseRestDraft);
+                if (Number.isFinite(rest) && rest >= 15 && rest <= 3600) {
+                  await patchProgramExercise.mutateAsync({
+                    programExerciseId: exerciseSettingsTarget.id,
+                    restSec: rest,
+                  });
+                }
+                if (!exerciseSettingsTarget.hasOneRm) {
+                  const oneRm = Number(exerciseOneRmDraft);
+                  if (exerciseSettingsTarget.exerciseId && Number.isFinite(oneRm) && oneRm > 0) {
+                    await patchStrength.mutateAsync({
+                      exerciseId: exerciseSettingsTarget.exerciseId,
+                      estimatedOneRm: oneRm,
+                      weightUnit: unit,
+                    });
+                  }
+                }
+                const nextInc = Number(exerciseIncrementDraft);
+                if (Number.isFinite(nextInc) && [2.5, 5, 10].includes(nextInc)) {
+                  await patchSettings.mutateAsync(
+                    unit === "KG" ? { plateIncrementKg: nextInc } : { plateIncrementLb: nextInc },
+                  );
+                }
+                setExerciseSettingsTarget(null);
+              }}
+            >
+              Save settings
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       {completeSplash && (
@@ -1404,6 +1585,7 @@ function SetRowEditor({
 
   const weightForCommit = bodyweight || cardio ? 0 : Number(local.weight) || 0;
   const shouldPropagateWeight = !cardio && !bodyweight && local.weight !== baselineWeight;
+  const shouldPropagateRpeReps = !cardio && (local.reps !== baselineReps || local.rpe !== baselineRpe);
 
   const saveFields = () => {
     if (cardio) {
@@ -1427,6 +1609,7 @@ function SetRowEditor({
       reps: local.reps === "" ? null : Number(local.reps),
       rpe: local.rpe === "" ? null : Number(local.rpe),
       propagateWeight: shouldPropagateWeight,
+      propagateRpeReps: shouldPropagateRpeReps,
     });
   };
 
@@ -1489,6 +1672,7 @@ function SetRowEditor({
                       reps: local.reps === "" ? null : Number(local.reps),
                       rpe: local.rpe === "" ? null : Number(local.rpe),
                       propagateWeight: true,
+                      propagateRpeReps: true,
                       done: true,
                     });
                   }
@@ -1552,7 +1736,7 @@ function SetRowEditor({
               <Input
                 type="text"
                 inputMode="decimal"
-                className="rounded-lg w-full max-w-[4.25rem] px-2 text-center font-mono tabular-nums text-sm"
+                className="rounded-lg w-full max-w-[4.5rem] px-2 text-center font-mono tabular-nums text-base"
                 maxLength={5}
                 value={local.weight}
                 placeholder={ghost ? `${ghost.weight}` : "0"}
@@ -1584,18 +1768,18 @@ function SetRowEditor({
             <Input
               type="text"
               inputMode="numeric"
-              className="rounded-lg w-full max-w-[3.25rem] px-2 text-center font-mono tabular-nums text-sm"
-              maxLength={3}
+              className="rounded-lg w-full max-w-[3.85rem] px-2 text-center font-mono tabular-nums text-base"
+              maxLength={4}
               value={local.reps}
               onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(0, 3);
+                const v = e.target.value.replace(/\D/g, "").slice(0, 4);
                 setLocal((l) => ({ ...l, reps: v }));
               }}
             />
           </div>
           <div className="min-w-0 space-y-1 max-[430px]:col-span-2">
             <Label className="text-xs">RPE</Label>
-            <div className="rounded-lg border bg-background px-2 py-2 space-y-1 min-w-0">
+            <div className="rounded-lg border bg-background px-2 py-2 space-y-1 min-w-0 sm:max-w-[13.5rem]">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">6.0</span>
                 <span className="font-medium">{local.rpe || baselineRpe}</span>

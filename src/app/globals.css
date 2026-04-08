@@ -126,9 +126,18 @@
   }
   html {
     @apply font-sans;
+    -webkit-text-size-adjust: 100%;
   }
   .font-heading {
     font-family: var(--font-heading);
     letter-spacing: -0.02em;
+  }
+
+  @media (max-width: 768px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
   }
 }

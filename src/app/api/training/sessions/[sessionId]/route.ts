@@ -6,6 +6,7 @@ import { syncProgramInstanceCursor } from "@/lib/program-week-state";
 import { buildWeekCompletionSummary } from "@/lib/week-completion-summary";
 import {
   mirrorWorkingWeightToRemainingSets,
+  mirrorSetRpeRepsToFollowingUncompletedSets,
   mirrorSetWeightToFollowingUncompletedSets,
   prefillHistoryWeightsForSession,
   prefillPctWeightsForSession,
@@ -24,6 +25,7 @@ import { applyBodyweightScope } from "@/lib/bodyweight-scope";
 import { buildSessionCompletionSummary } from "@/lib/session-completion-summary";
 import { trainingSessionPatchBodySchema } from "@/lib/training-session-patch-schema";
 import { resolveProgramExercisePrescription } from "@/lib/block-prescription";
+import { getAppVersionTicker } from "@/lib/app-version";
 
 export async function GET(
   _req: Request,
@@ -140,6 +142,28 @@ export async function GET(
 
   const prog = session.programInstance.program;
   const canEditProgramRest = userCanEditProgramIncludingAdmin(prog.ownerId, userId, email);
+  const exerciseIds = programDayWithRx.exercises
+    .filter((pe) => pe.exercise.kind === "STRENGTH" && pe.exercise.isBodyweight !== true)
+    .map((pe) => pe.exercise.id);
+  const strengthProfiles = exerciseIds.length
+    ? await prisma.userStrengthProfile.findMany({
+        where: {
+          userId,
+          exerciseId: { in: [...new Set(exerciseIds)] },
+        },
+        select: {
+          exerciseId: true,
+          estimatedOneRm: true,
+          weightUnit: true,
+        },
+      })
+    : [];
+  const strengthProfileByExerciseId = Object.fromEntries(
+    strengthProfiles.map((row) => [
+      row.exerciseId,
+      { estimatedOneRm: row.estimatedOneRm, weightUnit: row.weightUnit },
+    ]),
+  );
 
   return NextResponse.json({
     session: sessionOut,
@@ -147,6 +171,8 @@ export async function GET(
     previousByExerciseId: prevObj,
     displayUnit,
     canEditProgramRest,
+    appVersion: getAppVersionTicker(),
+    strengthProfileByExerciseId,
   });
 }
 
@@ -390,6 +416,9 @@ export async function PATCH(
     });
     if (body.propagateWeight === true) {
       await mirrorSetWeightToFollowingUncompletedSets(sessionId, body.setId, userId);
+    }
+    if (body.propagateRpeReps === true) {
+      await mirrorSetRpeRepsToFollowingUncompletedSets(sessionId, body.setId, userId);
     }
     if (body.done === true) {
       await mirrorWorkingWeightToRemainingSets(sessionId, body.setId, userId);

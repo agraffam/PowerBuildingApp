@@ -343,6 +343,9 @@ export default function SettingsPage() {
           <Link href="/help" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
             Help
           </Link>
+          <Link href="/updates" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            Updates
+          </Link>
           {me?.user?.isSuperAdmin && (
             <Link href="/admin" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
               Admin
@@ -365,6 +368,9 @@ export default function SettingsPage() {
           </Link>
           <Link href="/history" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
             History
+          </Link>
+          <Link href="/week-end-review" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            Week-end review
           </Link>
           <Link href="/strength" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
             1RM

@@ -20,6 +20,7 @@ const setBody = z
     calories: z.number().int().min(0).max(50000).nullable().optional(),
     done: z.boolean().optional(),
     propagateWeight: z.boolean().optional(),
+    propagateRpeReps: z.boolean().optional(),
     notes: z.union([z.string().max(500), z.null()]).optional(),
   })
   .superRefine((data, ctx) => {
