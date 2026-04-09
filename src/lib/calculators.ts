@@ -5,7 +5,8 @@
 
 export type WeightUnit = "KG" | "LB";
 
-const KG_PER_LB = 0.45359237;
+/** Kilograms per pound (for lb ↔ kg conversion). */
+export const KG_PER_LB = 0.45359237;
 
 /** Standard bar / smallest jump in lb for progression and %1RM rounding when working in pounds. */
 export const STANDARD_BAR_INCREMENTS_LB = [2.5, 5, 10] as const;

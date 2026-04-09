@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 const baseLinks = [
   { href: "/", label: "Train" },
+  { href: "/board", label: "Board" },
   { href: "/settings", label: "Settings" },
 ] as const;
 

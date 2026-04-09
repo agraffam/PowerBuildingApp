@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.045";
+export const GENERATED_APP_VERSION = "0.046";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "c6dc1b1",
+    "date": "2026-04-08",
+    "subject": "feat: pre-workout warmup after readiness; bodyweight program seeds",
+    "title": "pre-workout warmup after readiness; bodyweight program seeds",
+    "version": "0.046"
+  },
   {
     "hash": "42e75b8",
     "date": "2026-04-08",
