@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 import { Loader2, Play, SkipForward } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { TrainWeekOverview, type ScheduleDay } from "@/components/training/train-week-overview";
 import { WeekCompleteSplash } from "@/components/training/week-complete-splash";
 import type { WeekCompletionSummaryPayload } from "@/lib/week-completion-summary";
@@ -49,6 +58,7 @@ type TrainingActivePayload = {
 
 export default function HomePage() {
   const qc = useQueryClient();
+  const [skipOpen, setSkipOpen] = useState(false);
 
   const active = useQuery({
     queryKey: ["training-active"],
@@ -194,26 +204,76 @@ export default function HomePage() {
             </Button>
           )}
 
-          {!inProgressSession && (
-            <Button
-              variant="outline"
-              className="h-12 rounded-xl"
-              disabled={skip.isPending || weekPendingFinalize}
-              onClick={() => skip.mutate({ instanceId: inst.id })}
-            >
-              <SkipForward className="size-4" />
-              Skip next workout
-            </Button>
-          )}
-
           {start.isError && (
             <p className="text-destructive text-sm">{(start.error as Error).message}</p>
           )}
-          {skip.isError && (
+          {skip.isError && !skipOpen && (
             <p className="text-destructive text-sm">{(skip.error as Error).message}</p>
+          )}
+
+          {!inProgressSession && (
+            <div className="border-t pt-3 mt-1">
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0 text-muted-foreground text-sm font-normal"
+                disabled={skip.isPending || weekPendingFinalize}
+                onClick={() => {
+                  skip.reset();
+                  setSkipOpen(true);
+                }}
+              >
+                <SkipForward className="size-3.5 mr-1.5 inline align-middle" />
+                Skip this workout instead…
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={skipOpen}
+        onOpenChange={(open) => {
+          setSkipOpen(open);
+          if (!open) skip.reset();
+        }}
+      >
+        <DialogContent className="rounded-2xl sm:max-w-md" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Skip {nextDay?.label ?? "next workout"}?</DialogTitle>
+            <DialogDescription>
+              This counts the session as skipped for the current week (no workout logged). You can unskip from the
+              week list on Train if you change your mind.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col border-0 bg-transparent p-0 -mx-0 -mb-0">
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full rounded-xl"
+              disabled={skip.isPending || weekPendingFinalize}
+              onClick={() =>
+                skip.mutate(
+                  { instanceId: inst.id },
+                  {
+                    onSuccess: () => {
+                      setSkipOpen(false);
+                    },
+                  },
+                )
+              }
+            >
+              {skip.isPending ? <Loader2 className="size-4 animate-spin" /> : "Skip workout"}
+            </Button>
+            <Button type="button" variant="outline" className="w-full rounded-xl" onClick={() => setSkipOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+          {skip.isError && (
+            <p className="text-destructive text-sm">{(skip.error as Error).message}</p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {weekSummary && (
         <WeekCompleteSplash

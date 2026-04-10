@@ -14,10 +14,18 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ChevronDown, Loader2, Play, Replace, SkipForward } from "lucide-react";
+import { ChevronDown, Loader2, Play, Replace, RotateCcw, SkipForward } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ExerciseSwapDialog } from "@/components/training/exercise-swap-dialog";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 import { cn } from "@/lib/utils";
@@ -128,6 +136,23 @@ export function TrainWeekOverview({
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["training-active"] }),
   });
 
+  const unskipDay = useMutation({
+    mutationFn: async (programDayId: string) => {
+      const r = await fetch("/api/training/unskip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instanceId, programDayId }),
+        ...browserApiFetchInit,
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error((j as { error?: string }).error ?? "Unskip failed");
+      }
+      return r.json();
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["training-active"] }),
+  });
+
   const reorderDay = useMutation({
     mutationFn: async (p: { programDayId: string; programExerciseIds: string[] }) => {
       const r = await fetch("/api/training/active", {
@@ -183,6 +208,7 @@ export function TrainWeekOverview({
     muscleTags?: string;
     dayId: string;
   } | null>(null);
+  const [skipConfirmDay, setSkipConfirmDay] = useState<{ id: string; label: string } | null>(null);
 
   const sorted = useMemo(() => [...days].sort((a, b) => a.sortOrder - b.sortOrder), [days]);
 
@@ -286,8 +312,37 @@ export function TrainWeekOverview({
                   </div>
                 </div>
                 <DayStatusBadge status={status} />
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {inProgressSession?.programDayId === day.id ? (
+                <div
+                  className="flex shrink-0 flex-col items-end gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {skipped ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="rounded-lg"
+                      disabled={
+                        unskipDay.isPending ||
+                        (inProgressSession != null && inProgressSession.programDayId !== day.id)
+                      }
+                      title={
+                        inProgressSession != null && inProgressSession.programDayId !== day.id
+                          ? "Finish or cancel the in-progress workout before changing skips"
+                          : "Remove skip so you can train this day this week"
+                      }
+                      onClick={() => unskipDay.mutate(day.id)}
+                    >
+                      {unskipDay.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <>
+                          <RotateCcw className="size-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Unskip</span>
+                        </>
+                      )}
+                    </Button>
+                  ) : inProgressSession?.programDayId === day.id ? (
                     <Link
                       href={`/workout/${inProgressSession.id}`}
                       className={cn(
@@ -298,60 +353,57 @@ export function TrainWeekOverview({
                       Continue
                     </Link>
                   ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-lg"
-                      disabled={
-                        weekPendingFinalize ||
-                        startDay.isPending ||
-                        done ||
-                        skipped ||
-                        (inProgressSession != null && inProgressSession.programDayId !== day.id)
-                      }
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startDay.mutate(day.id, {
-                          onSuccess: (d) => {
-                            window.location.href = `/workout/${d.sessionId}`;
-                          },
-                        });
-                      }}
-                    >
-                      {startDay.isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Play className="size-4 sm:mr-1" />
-                          <span className="hidden sm:inline">Start</span>
-                        </>
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-lg"
+                        disabled={
+                          weekPendingFinalize ||
+                          startDay.isPending ||
+                          done ||
+                          (inProgressSession != null && inProgressSession.programDayId !== day.id)
+                        }
+                        onClick={() =>
+                          startDay.mutate(day.id, {
+                            onSuccess: (d) => {
+                              window.location.href = `/workout/${d.sessionId}`;
+                            },
+                          })
+                        }
+                      >
+                        {startDay.isPending ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Play className="size-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Start</span>
+                          </>
+                        )}
+                      </Button>
+                      {!done && !inProgress && !weekPendingFinalize && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
+                          disabled={
+                            skipDay.isPending ||
+                            (inProgressSession != null && inProgressSession.programDayId !== day.id)
+                          }
+                          title={
+                            inProgressSession != null && inProgressSession.programDayId !== day.id
+                              ? "Finish or cancel the in-progress workout before skipping other days"
+                              : "Mark this day skipped for the week (no workout logged)"
+                          }
+                          onClick={() => setSkipConfirmDay({ id: day.id, label: day.label })}
+                        >
+                          <SkipForward className="size-3.5 sm:mr-1" />
+                          <span className="hidden sm:inline">Skip</span>
+                        </Button>
                       )}
-                    </Button>
-                  )}
-                  {!done && !skipped && !inProgress && !weekPendingFinalize && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="rounded-lg px-2 sm:px-3"
-                      disabled={
-                        skipDay.isPending ||
-                        (inProgressSession != null && inProgressSession.programDayId !== day.id)
-                      }
-                      title={
-                        inProgressSession != null && inProgressSession.programDayId !== day.id
-                          ? "Finish or cancel the in-progress workout before skipping other days"
-                          : "Mark this day skipped for the week (no workout logged)"
-                      }
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        skipDay.mutate(day.id);
-                      }}
-                    >
-                      <SkipForward className="size-4 sm:mr-1" />
-                      <span className="hidden sm:inline">Skip</span>
-                    </Button>
+                    </>
                   )}
                 </div>
               </button>
@@ -417,6 +469,50 @@ export function TrainWeekOverview({
           );
         })}
       </div>
+
+      <Dialog
+        open={skipConfirmDay != null}
+        onOpenChange={(open) => {
+          if (!open) setSkipConfirmDay(null);
+        }}
+      >
+        <DialogContent className="rounded-2xl sm:max-w-md" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Skip {skipConfirmDay?.label ?? "this day"}?</DialogTitle>
+            <DialogDescription>
+              This counts the day as skipped for the current week (no workout logged). You can unskip it from the
+              week list later if you change your mind.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col border-0 bg-transparent p-0 -mx-0 -mb-0">
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full rounded-xl"
+              disabled={skipDay.isPending}
+              onClick={() => {
+                if (!skipConfirmDay) return;
+                skipDay.mutate(skipConfirmDay.id, {
+                  onSuccess: () => setSkipConfirmDay(null),
+                });
+              }}
+            >
+              {skipDay.isPending ? <Loader2 className="size-4 animate-spin" /> : "Skip this day"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full rounded-xl"
+              onClick={() => setSkipConfirmDay(null)}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+          {skipDay.isError && (
+            <p className="text-destructive text-sm">{(skipDay.error as Error).message}</p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ExerciseSwapDialog
         open={swapTarget != null}

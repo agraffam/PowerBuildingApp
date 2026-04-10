@@ -24,6 +24,7 @@ import { effectiveUseBodyweightResolved } from "@/lib/exercise-bodyweight";
 import { applyBodyweightScope } from "@/lib/bodyweight-scope";
 import { buildSessionCompletionSummary } from "@/lib/session-completion-summary";
 import { trainingSessionPatchBodySchema } from "@/lib/training-session-patch-schema";
+import { skipProgramDayForInstance } from "@/lib/skip-program-day";
 import { resolveProgramExercisePrescription } from "@/lib/block-prescription";
 import { getAppVersionTicker } from "@/lib/app-version";
 
@@ -215,6 +216,33 @@ export async function PATCH(
       where: { id: sessionId },
       data: { status: "CANCELLED" },
     });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "skipDay") {
+    if (session.status !== "PLANNED" && session.status !== "IN_PROGRESS") {
+      return NextResponse.json({ error: "Session cannot be marked skipped" }, { status: 409 });
+    }
+    const instanceId = session.programInstanceId;
+    const programDayId = session.programDayId;
+    await prisma.workoutSession.delete({ where: { id: sessionId } });
+    try {
+      await skipProgramDayForInstance(instanceId, userId, programDayId);
+    } catch (e) {
+      const code = e instanceof Error ? e.message : "";
+      if (code === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (code === "INVALID_DAY") return NextResponse.json({ error: "Invalid training day" }, { status: 400 });
+      if (code === "ALREADY_DONE") {
+        return NextResponse.json({ error: "That day is already completed this week." }, { status: 409 });
+      }
+      if (code === "SESSION_IN_PROGRESS") {
+        return NextResponse.json(
+          { error: "Finish or cancel your in-progress workout before skipping." },
+          { status: 409 },
+        );
+      }
+      throw e;
+    }
     return NextResponse.json({ ok: true });
   }
 

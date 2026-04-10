@@ -35,6 +35,7 @@ const setBody = z
 
 export const trainingSessionPatchBodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel") }),
+  z.object({ action: z.literal("skipDay") }),
   z.object({ action: z.literal("complete") }),
   readiness,
   setBody,

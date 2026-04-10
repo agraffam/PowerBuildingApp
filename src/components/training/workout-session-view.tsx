@@ -11,6 +11,7 @@ import {
   Ellipsis,
   Loader2,
   Replace,
+  SkipForward,
   StickyNote,
   Trash2,
 } from "lucide-react";
@@ -195,6 +196,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const startRest = useWorkoutSessionStore((s) => s.startRest);
   const clearRest = useWorkoutSessionStore((s) => s.clearRest);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [skipDayOpen, setSkipDayOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [swapTarget, setSwapTarget] = useState<{
     programExerciseId: string;
@@ -1230,6 +1232,19 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
               Complete session
             </Button>
           )}
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-10 w-full rounded-xl text-muted-foreground text-sm hover:text-foreground"
+            onClick={() => {
+              patch.reset();
+              setSkipDayOpen(true);
+            }}
+            disabled={patch.isPending}
+          >
+            <SkipForward className="size-4 mr-1.5 shrink-0" />
+            Skip this day for the week
+          </Button>
         </div>
       )}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -1298,6 +1313,57 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
               Keep going
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={skipDayOpen}
+        onOpenChange={(open) => {
+          setSkipDayOpen(open);
+          if (!open) patch.reset();
+        }}
+      >
+        <DialogContent className="rounded-2xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Skip this day for the week?</DialogTitle>
+            <DialogDescription>
+              Your in-progress session will be removed and this day will count as skipped (same as skipping from
+              Train). You can unskip from the week list if you change your mind.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              variant="destructive"
+              className="w-full rounded-xl"
+              disabled={patch.isPending}
+              onClick={() => {
+                patch.mutate(
+                  { action: "skipDay" },
+                  {
+                    onSuccess: () => {
+                      setSkipDayOpen(false);
+                      void qc.invalidateQueries({ queryKey: ["training-active"] });
+                      void qc.invalidateQueries({ queryKey: ["session", sessionId] });
+                      window.location.href = "/";
+                    },
+                  },
+                );
+              }}
+            >
+              {patch.isPending ? <Loader2 className="size-4 animate-spin" /> : "Yes, skip this day"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full rounded-xl"
+              type="button"
+              onClick={() => setSkipDayOpen(false)}
+            >
+              Keep going
+            </Button>
+          </DialogFooter>
+          {patch.isError && (
+            <p className="text-destructive text-sm">{(patch.error as Error).message}</p>
+          )}
         </DialogContent>
       </Dialog>
 

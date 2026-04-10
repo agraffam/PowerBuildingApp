@@ -6,6 +6,10 @@ describe("trainingSessionPatchBodySchema", () => {
     const r = trainingSessionPatchBodySchema.safeParse({ action: "cancel" });
     expect(r.success).toBe(true);
   });
+  it("accepts skipDay", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({ action: "skipDay" });
+    expect(r.success).toBe(true);
+  });
   it("accepts readiness with valid sliders", () => {
     const r = trainingSessionPatchBodySchema.safeParse({
       action: "readiness",
