@@ -158,6 +158,12 @@ export function roundToIncrement(weight: number, increment: number): number {
   return Math.round(weight / increment) * increment;
 }
 
+/** Smallest load ≥ `weight` on the plate ladder (progression bumps). */
+export function roundWeightUpToIncrement(weight: number, increment: number): number {
+  if (!(increment > 0)) return weight;
+  return Math.ceil(weight / increment - 1e-9) * increment;
+}
+
 export function oneRmToWorkingWeight(
   oneRm: number,
   pctOf1rm: number,
@@ -204,7 +210,7 @@ export function suggestNextWeekLoad(input: ProgressionInput): {
   const bumpPct = 0.0375;
   const inc = plateIncrement != null && plateIncrement > 0 ? plateIncrement : 2.5;
   return {
-    suggested: roundToIncrement(currentWeight * (1 + bumpPct), inc),
+    suggested: roundWeightUpToIncrement(currentWeight * (1 + bumpPct), inc),
     bumped: true,
     bumpPct,
   };

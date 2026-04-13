@@ -330,7 +330,7 @@ export default function SettingsPage() {
               variant="outline"
               className="rounded-xl"
               disabled={save.isPending}
-              onClick={() => setRpeRestDraft({ ...defaultRestDurationsByRpe() })}
+              onClick={() => setRpeRestDraft({ ...defaultRestDurationsByRpe(defaultRestDraft) })}
             >
               Reset RPE times to defaults (draft)
             </Button>

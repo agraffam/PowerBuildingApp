@@ -123,7 +123,10 @@ export function RestTimerRing({ sessionId: propSessionId }: Props) {
     queryFn: async () => {
       const r = await fetch("/api/settings");
       if (!r.ok) throw new Error("Failed");
-      return r.json() as Promise<{ restDurationsByRpe: Record<string, number> }>;
+      return r.json() as Promise<{
+        restDurationsByRpe: Record<string, number>;
+        defaultRestSec: number;
+      }>;
     },
     enabled: isRunning && restMeta?.rpeBand != null,
     staleTime: 60_000,
@@ -199,7 +202,10 @@ export function RestTimerRing({ sessionId: propSessionId }: Props) {
 
   const onSaveBand = () => {
     if (band == null || !settingsData?.restDurationsByRpe) return;
-    const merged = mergeRestDurationsByRpe(settingsData.restDurationsByRpe);
+    const merged = mergeRestDurationsByRpe(
+      settingsData.restDurationsByRpe,
+      settingsData.defaultRestSec ?? 180,
+    );
     const snapped = snapRestSecToOption(restTargetSec);
     const next = applyBandRestSec(merged, band as RpeRestBandId, snapped);
     saveBand.mutate({ restDurationsByRpe: next });

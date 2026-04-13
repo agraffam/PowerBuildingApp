@@ -81,4 +81,18 @@ describe("suggestNextWeekLoad", () => {
     expect(r.suggested % 5).toBe(0);
     expect(r.suggested).toBeGreaterThan(200);
   });
+
+  it("uses next plate up when nearest rounding would not exceed current weight", () => {
+    const r = suggestNextWeekLoad({
+      currentWeight: 201,
+      repGoal: 8,
+      actualReps: 8,
+      prescribedRpe: 8,
+      actualRpe: 8,
+      plateIncrement: 2.5,
+    });
+    expect(r.bumped).toBe(true);
+    expect(r.suggested % 2.5).toBe(0);
+    expect(r.suggested).toBeGreaterThan(201);
+  });
 });

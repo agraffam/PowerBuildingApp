@@ -5,6 +5,13 @@ export type RpeRestKey = (typeof RPE_REST_KEYS)[number];
 
 const RPE_REST_KEY_NUMS = RPE_REST_KEYS as readonly number[];
 
+/** Allowed rest lengths in the RPE grid (15s steps, 30–210s). */
+export const RPE_REST_SEC_OPTIONS = [
+  30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210,
+] as const;
+
+export type RpeRestSecOption = (typeof RPE_REST_SEC_OPTIONS)[number];
+
 /** True if `n` matches a logged-RPE step (half-point ladder). */
 export function isLoggedRpeStep(n: number): boolean {
   if (!Number.isFinite(n)) return false;
@@ -24,11 +31,6 @@ export function snapToLoggedRpeStep(n: number): RpeRestKey {
   }
   return best;
 }
-
-/** Allowed rest lengths in the RPE grid (seconds). */
-export const RPE_REST_SEC_OPTIONS = [30, 60, 90, 120, 150, 180, 210] as const;
-
-export type RpeRestSecOption = (typeof RPE_REST_SEC_OPTIONS)[number];
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
@@ -55,13 +57,25 @@ export function snapRestSecToOption(sec: number): RpeRestSecOption {
 
 const ALLOWED_REST_SEC = new Set<number>(RPE_REST_SEC_OPTIONS);
 
-/** Built-in defaults: RPE 6–6.5 → 60s, 7–7.5 → 120s, 8+ → 180s. */
-export function defaultRestDurationsByRpe(): Record<string, number> {
+/**
+ * Default rest per RPE key: RPE 8–8.5 use `baseRestSec` (snapped); each 0.5 step below 8
+ * subtracts 15s, each 0.5 step above 8.5 adds 15s; result snapped to the 15s ladder (30–210s).
+ */
+export function defaultRestDurationsByRpe(baseRestSec = 180): Record<string, number> {
+  const baseSnapped = snapRestSecToOption(clamp(Math.round(baseRestSec), 30, 600));
   const out: Record<string, number> = {};
   for (const rpe of RPE_REST_KEYS) {
-    if (rpe <= 6.5) out[String(rpe)] = 60;
-    else if (rpe <= 7.5) out[String(rpe)] = 120;
-    else out[String(rpe)] = 180;
+    let raw: number;
+    if (rpe === 8 || rpe === 8.5) {
+      raw = baseSnapped;
+    } else if (rpe < 8) {
+      const halfSteps = (8 - rpe) / 0.5;
+      raw = baseSnapped - 15 * halfSteps;
+    } else {
+      const halfSteps = (rpe - 8.5) / 0.5;
+      raw = baseSnapped + 15 * halfSteps;
+    }
+    out[String(rpe)] = snapRestSecToOption(clamp(raw, 30, 210));
   }
   return out;
 }
@@ -79,9 +93,9 @@ export function parseRestDurationsOverrides(raw: unknown): Partial<Record<string
   return out;
 }
 
-/** Merged map: override wins when present for that key. */
-export function mergeRestDurationsByRpe(storedJson: unknown): Record<string, number> {
-  const defaults = defaultRestDurationsByRpe();
+/** Merged map: override wins when present for that key. Defaults depend on `baseRestSec` (global default rest). */
+export function mergeRestDurationsByRpe(storedJson: unknown, baseRestSec = 180): Record<string, number> {
+  const defaults = defaultRestDurationsByRpe(baseRestSec);
   const overrides = parseRestDurationsOverrides(storedJson);
   const merged = { ...defaults };
   for (const key of RPE_REST_KEYS) {
@@ -91,9 +105,12 @@ export function mergeRestDurationsByRpe(storedJson: unknown): Record<string, num
   return merged;
 }
 
-/** From a full merged map, persist only keys that differ from built-in defaults. */
-export function overridesFromMerged(merged: Record<string, number>): Record<string, number> | null {
-  const defaults = defaultRestDurationsByRpe();
+/** From a full merged map, persist only keys that differ from built-in defaults for this base rest. */
+export function overridesFromMerged(
+  merged: Record<string, number>,
+  baseRestSec = 180,
+): Record<string, number> | null {
+  const defaults = defaultRestDurationsByRpe(baseRestSec);
   const diff: Record<string, number> = {};
   for (const key of RPE_REST_KEYS) {
     const sk = String(key);
@@ -180,12 +197,16 @@ export function applyBandRestSec(
 }
 
 /** One value per band (first key in band) for settings UI. */
-export function bandDraftFromMerged(merged: Record<string, number>): Record<RpeRestBandId, number> {
+export function bandDraftFromMerged(
+  merged: Record<string, number>,
+  baseRestSec = 180,
+): Record<RpeRestBandId, number> {
+  const defaults = defaultRestDurationsByRpe(baseRestSec);
   const out = {} as Record<RpeRestBandId, number>;
   for (const band of RPE_REST_BAND_IDS) {
     const keys = rpeKeysForBand(band);
     const sk = String(keys[0]!);
-    out[band] = merged[sk] ?? defaultRestDurationsByRpe()[sk]!;
+    out[band] = merged[sk] ?? defaults[sk]!;
   }
   return out;
 }

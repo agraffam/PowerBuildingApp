@@ -27,7 +27,7 @@ export async function GET() {
       },
     });
   }
-  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe);
+  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe, s.defaultRestSec);
   return NextResponse.json({
     ...s,
     plateIncrementLb: coerceDefaultBarIncrementLb(s.plateIncrementLb),
@@ -76,7 +76,7 @@ export async function PATCH(req: Request) {
     if (!merged) {
       return NextResponse.json({ error: "Invalid restDurationsByRpe" }, { status: 400 });
     }
-    const ov = overridesFromMerged(merged);
+    const ov = overridesFromMerged(merged, nextDefaultRest);
     restJson = ov ?? Prisma.JsonNull;
   }
 
@@ -95,7 +95,7 @@ export async function PATCH(req: Request) {
     },
   });
 
-  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe);
+  const merged = mergeRestDurationsByRpe(s.restDurationsByRpe, s.defaultRestSec);
   return NextResponse.json({
     ...s,
     plateIncrementLb: coerceDefaultBarIncrementLb(s.plateIncrementLb),

@@ -64,6 +64,10 @@ export const trainingSessionPatchBodySchema = z.discriminatedUnion("action", [
     programExerciseId: z.string().min(1),
     notes: z.union([z.string().max(500), z.null()]),
   }),
+  z.object({
+    action: z.literal("addSet"),
+    programExerciseId: z.string().min(1),
+  }),
 ]);
 
 export type TrainingSessionPatchBody = z.infer<typeof trainingSessionPatchBodySchema>;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { ProgramBuilderForm } from "@/components/programs/program-builder-form";
@@ -95,10 +96,14 @@ export default function EditProgramPage() {
   const initial = toWizard(data.program);
 
   return (
-    <ProgramBuilderForm
-      mode="edit"
-      programId={programId}
-      initial={initial}
-    />
+    <div className="space-y-4">
+      <Link
+        href="/"
+        className="text-sm text-primary underline-offset-4 hover:underline inline-block"
+      >
+        ← Train
+      </Link>
+      <ProgramBuilderForm mode="edit" programId={programId} initial={initial} />
+    </div>
   );
 }

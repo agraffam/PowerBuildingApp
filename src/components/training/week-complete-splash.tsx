@@ -1,8 +1,9 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { CalendarCheck, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -130,7 +131,35 @@ export function WeekCompleteSplash({ open, summary, instanceId, onAfterAdvance }
             </div>
           )}
 
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">PRs this week</p>
+            {summary.prs.length > 0 ? (
+              <ul className="rounded-xl border divide-y max-h-36 overflow-y-auto">
+                {summary.prs.map((p, i) => (
+                  <li key={`${p.exerciseName}-${i}`} className="px-3 py-2.5 text-sm flex flex-col gap-0.5">
+                    <span className="font-medium">{p.exerciseName}</span>
+                    <span className="text-muted-foreground text-xs tabular-nums">{p.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground rounded-xl border border-dashed px-3 py-2.5">
+                No new estimated-1RM bests vs your prior log this week.
+              </p>
+            )}
+          </div>
+
           <DialogFooter className="flex-col sm:flex-col gap-2 pt-2">
+            <Link
+              href={`/programs/${summary.programId}/edit`}
+              prefetch
+              className={cn(
+                buttonVariants({ variant: "outline", size: "default" }),
+                "w-full rounded-xl h-12 justify-center no-underline",
+              )}
+            >
+              Edit program
+            </Link>
             <Button
               type="button"
               className="w-full rounded-xl h-12"

@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.048";
+export const GENERATED_APP_VERSION = "0.049";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "7189aa8",
+    "date": "2026-04-10",
+    "subject": "refactor(train): remove per-day skip; keep skip on Up next card",
+    "title": "remove per-day skip; keep skip on Up next card",
+    "version": "0.049"
+  },
   {
     "hash": "2bbdf28",
     "date": "2026-04-10",

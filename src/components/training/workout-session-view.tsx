@@ -59,6 +59,7 @@ import {
   orderExercises,
   parseExerciseOrderJson,
 } from "@/lib/workout-blocks";
+import { formatSecAsMmSs, parseDurationInputToSec } from "@/lib/format-duration";
 import { restSecForRpe, rpeToBandId, snapToLoggedRpeStep } from "@/lib/rest-by-rpe";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 import {
@@ -493,17 +494,27 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     });
     prevBlockProgressRef.current = nextPrev;
     if (toCollapse.length > 0) {
-      const anchorId = toCollapse[0]!;
-      const anchorNode = blockAnchorRefs.current.get(anchorId);
-      const anchorTop = anchorNode ? anchorNode.getBoundingClientRect().top : null;
       setCollapsedBlockIds((prev) => {
         const next = new Set(prev);
         for (const id of toCollapse) next.add(id);
         return next;
       });
-      preserveScrollForBlockCollapse(anchorId, anchorTop);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          for (let bi = 0; bi < blocks.length; bi++) {
+            const id = blockIds[bi]!;
+            const blk = blocks[bi]!;
+            const prog = blockSetProgress(blk, byExercise);
+            if (prog.total === 0) continue;
+            if (prog.done < prog.total) {
+              blockAnchorRefs.current.get(id)?.scrollIntoView({ block: "start", behavior: "smooth" });
+              break;
+            }
+          }
+        });
+      });
     }
-  }, [sessionEarly, sessionEarly?.status, blocks, blockIds, byExercise, preserveScrollForBlockCollapse]);
+  }, [sessionEarly, sessionEarly?.status, blocks, blockIds, byExercise]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -756,28 +767,63 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         (() => {
           const canReorderBlocks = canCancel && blocks.length > 1;
 
-          const renderExerciseHeader = (ex: ProgramExerciseRow) => (
+          const renderExerciseHeader = (ex: ProgramExerciseRow) => {
+            const cardioLine =
+              ex.exercise.kind === "CARDIO" ? (
+                <div
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground mt-0.5"
+                  title={[
+                    "Cardio",
+                    `${ex.prescription.sets} bouts`,
+                    ex.prescription.targetDurationSec != null
+                      ? formatSecAsMmSs(ex.prescription.targetDurationSec)
+                      : null,
+                    ex.prescription.targetCalories != null ? `~${ex.prescription.targetCalories} kcal` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                >
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    Cardio
+                  </Badge>
+                  {ex.prescription.isDeloadWeek && (
+                    <Badge
+                      variant="outline"
+                      className="text-xs shrink-0 border-amber-500/50 text-amber-800 dark:text-amber-400"
+                    >
+                      Deload week
+                    </Badge>
+                  )}
+                  <span className="text-foreground/90 tabular-nums font-medium">
+                    {ex.prescription.sets} bouts
+                  </span>
+                  {ex.prescription.targetDurationSec != null && (
+                    <span className="tabular-nums">· {formatSecAsMmSs(ex.prescription.targetDurationSec)}</span>
+                  )}
+                  {ex.prescription.targetCalories != null && (
+                    <span className="tabular-nums">· ~{ex.prescription.targetCalories} kcal</span>
+                  )}
+                </div>
+              ) : null;
+
+            return (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 space-y-1">
                   <div className="rounded-xl bg-muted/60 px-3 py-2 text-left">
                     <CardTitle className="text-lg text-left">{ex.exercise.name}</CardTitle>
+                    {cardioLine}
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {ex.exercise.kind === "CARDIO" && (
-                      <Badge variant="outline" className="text-xs">
-                        Cardio
-                      </Badge>
-                    )}
-                    {ex.prescription.isDeloadWeek && (
+                  {ex.exercise.kind !== "CARDIO" && ex.prescription.isDeloadWeek && (
+                    <div className="flex flex-wrap gap-1">
                       <Badge
                         variant="outline"
                         className="text-xs border-amber-500/50 text-amber-800 dark:text-amber-400"
                       >
                         Deload week
                       </Badge>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1 justify-end shrink-0">
                   {canCancel && (
@@ -815,7 +861,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 </p>
               )}
             </div>
-          );
+            );
+          };
 
           const renderSoloCard = (
             ex: ProgramExerciseRow,
@@ -860,51 +907,34 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                       {collapsed ? (
                         <p className="text-xs text-muted-foreground">
                           <span className="font-medium text-foreground">
-                            {done}/{total} sets done
+                            {done}/{total} {ex.exercise.kind === "CARDIO" ? "bouts" : "sets"} done
                           </span>
                         </p>
-                      ) : (
+                      ) : ex.exercise.kind !== "CARDIO" ? (
                         <div className="flex flex-wrap items-center justify-start gap-2 text-xs text-muted-foreground">
-                          <Badge variant="secondary">
-                            {ex.exercise.kind === "CARDIO"
-                              ? `${ex.prescription.sets} bouts`
-                              : `${ex.prescription.sets} sets`}
+                          <Badge variant="secondary">{ex.prescription.sets} sets</Badge>
+                          <Badge
+                            variant="outline"
+                            className="max-w-full truncate whitespace-nowrap"
+                            title={
+                              ex.prescription.pctOf1rm != null
+                                ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
+                                : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
+                            }
+                          >
+                            Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
+                            {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
                           </Badge>
-                          {ex.exercise.kind === "CARDIO" ? (
-                            <>
-                              {ex.prescription.targetDurationSec != null && (
-                                <Badge variant="outline">Target {ex.prescription.targetDurationSec}s</Badge>
-                              )}
-                              {ex.prescription.targetCalories != null && (
-                                <Badge variant="outline">~{ex.prescription.targetCalories} kcal</Badge>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <Badge
-                                variant="outline"
-                                className="max-w-full truncate whitespace-nowrap"
-                                title={
-                                  ex.prescription.pctOf1rm != null
-                                    ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
-                                    : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
-                                }
-                              >
-                                Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
-                                {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
-                              </Badge>
-                              <ExerciseNotesButton
-                                programExerciseId={ex.id}
-                                notes={ex.notes}
-                                savePending={patch.isPending}
-                                onSave={(programExerciseId, notes) =>
-                                  void commitExerciseNotes(programExerciseId, notes)
-                                }
-                              />
-                            </>
-                          )}
+                          <ExerciseNotesButton
+                            programExerciseId={ex.id}
+                            notes={ex.notes}
+                            savePending={patch.isPending}
+                            onSave={(programExerciseId, notes) =>
+                              void commitExerciseNotes(programExerciseId, notes)
+                            }
+                          />
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </CardHeader>
@@ -945,6 +975,20 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                         />
                       );
                     })}
+                    {canCancel && (
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl"
+                          disabled={patch.isPending}
+                          onClick={() => void patch.mutateAsync({ action: "addSet", programExerciseId: ex.id })}
+                        >
+                          Add set
+                        </Button>
+                      </div>
+                    )}
                     <Separator />
                   </CardContent>
                 )}
@@ -1040,41 +1084,30 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           return (
                             <div key={ex.id} className="rounded-xl border bg-muted/20 p-3 space-y-2">
                               {renderExerciseHeader(ex)}
-                              <div className="flex flex-wrap items-center justify-start gap-2 text-xs text-muted-foreground">
-                                {ex.exercise.kind === "CARDIO" ? (
-                                  <>
-                                    {ex.prescription.targetDurationSec != null && (
-                                      <Badge variant="outline">Target {ex.prescription.targetDurationSec}s</Badge>
-                                    )}
-                                    {ex.prescription.targetCalories != null && (
-                                      <Badge variant="outline">~{ex.prescription.targetCalories} kcal</Badge>
-                                    )}
-                                  </>
-                                ) : (
-                                  <>
-                                    <Badge
-                                      variant="outline"
-                                      className="max-w-full truncate whitespace-nowrap"
-                                      title={
-                                        ex.prescription.pctOf1rm != null
-                                          ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
-                                          : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
-                                      }
-                                    >
-                                      Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
-                                      {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
-                                    </Badge>
-                                    <ExerciseNotesButton
-                                      programExerciseId={ex.id}
-                                      notes={ex.notes}
-                                      savePending={patch.isPending}
-                                      onSave={(programExerciseId, notes) =>
-                                        void commitExerciseNotes(programExerciseId, notes)
-                                      }
-                                    />
-                                  </>
-                                )}
-                              </div>
+                              {ex.exercise.kind !== "CARDIO" && (
+                                <div className="flex flex-wrap items-center justify-start gap-2 text-xs text-muted-foreground">
+                                  <Badge
+                                    variant="outline"
+                                    className="max-w-full truncate whitespace-nowrap"
+                                    title={
+                                      ex.prescription.pctOf1rm != null
+                                        ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
+                                        : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
+                                    }
+                                  >
+                                    Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
+                                    {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
+                                  </Badge>
+                                  <ExerciseNotesButton
+                                    programExerciseId={ex.id}
+                                    notes={ex.notes}
+                                    savePending={patch.isPending}
+                                    onSave={(programExerciseId, notes) =>
+                                      void commitExerciseNotes(programExerciseId, notes)
+                                    }
+                                  />
+                                </div>
+                              )}
                               <SetRowEditor
                                 row={row}
                                 idx={si}
@@ -1643,7 +1676,7 @@ function SetRowEditor({
       weight: String(row.weight || ""),
       reps: row.reps != null ? String(row.reps) : String(repTarget),
       rpe: String(rpeStep),
-      durationSec: row.durationSec != null ? String(row.durationSec) : "",
+      durationSec: row.durationSec != null ? formatSecAsMmSs(row.durationSec) : "",
       calories: row.calories != null ? String(row.calories) : "",
     };
   });
@@ -1654,7 +1687,7 @@ function SetRowEditor({
       weight: bodyweight ? "0" : String(row.weight || ""),
       reps: row.reps != null ? String(row.reps) : String(repTarget),
       rpe: String(rpeStep),
-      durationSec: row.durationSec != null ? String(row.durationSec) : "",
+      durationSec: row.durationSec != null ? formatSecAsMmSs(row.durationSec) : "",
       calories: row.calories != null ? String(row.calories) : "",
     });
   }, [
@@ -1671,7 +1704,7 @@ function SetRowEditor({
   const baselineWeight = bodyweight ? "0" : String(row.weight || "");
   const baselineReps = row.reps != null ? String(row.reps) : String(repTarget);
   const baselineRpe = String(snapToLoggedRpeStep(row.rpe ?? targetRpe));
-  const baselineDur = row.durationSec != null ? String(row.durationSec) : "";
+  const baselineDur = row.durationSec != null ? formatSecAsMmSs(row.durationSec) : "";
   const baselineCal = row.calories != null ? String(row.calories) : "";
 
   const dirty = cardio
@@ -1686,6 +1719,7 @@ function SetRowEditor({
 
   const saveFields = () => {
     if (cardio) {
+      const parsedDur = parseDurationInputToSec(local.durationSec);
       onCommitSet({
         action: "set",
         setId: row.id,
@@ -1693,7 +1727,7 @@ function SetRowEditor({
         weightUnit: unit,
         reps: null,
         rpe: null,
-        durationSec: local.durationSec === "" ? null : Math.max(0, Math.floor(Number(local.durationSec) || 0)),
+        durationSec: parsedDur == null ? null : parsedDur,
         calories: local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
       });
       return;
@@ -1745,8 +1779,7 @@ function SetRowEditor({
               onPressedChange={(nextDone) => {
                 if (nextDone) {
                   if (cardio) {
-                    const d =
-                      local.durationSec === "" ? null : Math.max(0, Math.floor(Number(local.durationSec) || 0));
+                    const d = parseDurationInputToSec(local.durationSec);
                     if (d == null || d <= 0) return;
                     onCommitSet({
                       action: "set",
@@ -1799,11 +1832,12 @@ function SetRowEditor({
       {cardio ? (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">Duration (seconds)</Label>
+            <Label className="text-xs">Duration (m:ss or sec)</Label>
             <Input
               type="text"
               inputMode="numeric"
-              className="rounded-lg"
+              className="rounded-lg font-mono tabular-nums"
+              placeholder="5:00"
               value={local.durationSec}
               onChange={(e) => setLocal((l) => ({ ...l, durationSec: e.target.value }))}
             />

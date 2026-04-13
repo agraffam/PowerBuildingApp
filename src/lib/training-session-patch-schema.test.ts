@@ -83,4 +83,11 @@ describe("trainingSessionPatchBodySchema", () => {
     });
     expect(r.success).toBe(true);
   });
+  it("accepts addSet", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({
+      action: "addSet",
+      programExerciseId: "pe1",
+    });
+    expect(r.success).toBe(true);
+  });
 });

@@ -139,6 +139,7 @@ export async function GET(
   const sessionOut = {
     ...session,
     programDay: programDayWithRx,
+    programId: session.programInstance.programId,
   };
 
   const prog = session.programInstance.program;
@@ -390,6 +391,76 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
 
+  if (body.action === "addSet") {
+    const full = await prisma.workoutSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        programInstance: {
+          include: { program: { include: { blocks: { orderBy: { sortOrder: "asc" } } } } },
+        },
+        sets: { where: { programExerciseId: body.programExerciseId } },
+      },
+    });
+    if (!full || full.programInstance.userId !== userId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (full.status !== "PLANNED" && full.status !== "IN_PROGRESS") {
+      return NextResponse.json({ error: "Cannot add set now" }, { status: 409 });
+    }
+    const pe = await prisma.programExercise.findFirst({
+      where: { id: body.programExerciseId, programDayId: full.programDayId },
+      include: { exercise: true },
+    });
+    if (!pe) return NextResponse.json({ error: "Exercise not found in this workout" }, { status: 404 });
+
+    const { sessionMap, instanceMap } = await loadSwapMapsForSession(sessionId, full.programInstanceId);
+    const eff = resolveEffectiveFromMaps(pe.id, pe.exerciseId, sessionMap, instanceMap);
+    const loggedExerciseId = eff !== pe.exerciseId ? eff : undefined;
+
+    const maxIdx = full.sets.reduce((m, s) => Math.max(m, s.setIndex), -1);
+    const nextIdx = maxIdx + 1;
+
+    const rx = resolveProgramExercisePrescription({
+      programExercise: {
+        sets: pe.sets,
+        repTarget: pe.repTarget,
+        targetRpe: pe.targetRpe,
+        pctOf1rm: pe.pctOf1rm,
+        restSec: pe.restSec,
+        targetDurationSec: pe.targetDurationSec,
+        targetCalories: pe.targetCalories,
+        loadRole: pe.loadRole,
+      },
+      exerciseKind: pe.exercise.kind,
+      autoBlockPrescriptions: full.programInstance.program.autoBlockPrescriptions,
+      deloadIntervalWeeks: full.programInstance.program.deloadIntervalWeeks,
+      blocks: full.programInstance.program.blocks,
+      instanceWeekIndex: full.weekIndex,
+    });
+
+    const settings = await prisma.userSettings.findUnique({ where: { userId } });
+    const unit = settings?.preferredWeightUnit ?? "LB";
+    const cardio = pe.exercise.kind === "CARDIO";
+
+    await prisma.loggedSet.create({
+      data: {
+        workoutSessionId: sessionId,
+        programExerciseId: pe.id,
+        loggedExerciseId,
+        setIndex: nextIdx,
+        weight: 0,
+        weightUnit: unit,
+        reps: cardio ? null : rx.repTarget,
+        rpe: cardio ? null : rx.targetRpe,
+        durationSec: cardio ? rx.targetDurationSec : null,
+        calories: cardio ? rx.targetCalories ?? null : null,
+        done: false,
+      },
+    });
+    await prefillPctWeightsForSession(sessionId, userId);
+    await prefillHistoryWeightsForSession(sessionId, userId);
+    return NextResponse.json({ ok: true });
+  }
 
   if (body.action === "readiness") {
     const m = readinessToIntensityScalar(body.sleep, body.stress, body.soreness);
