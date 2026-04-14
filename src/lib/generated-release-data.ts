@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.049";
+export const GENERATED_APP_VERSION = "0.050";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "327590d",
+    "date": "2026-04-13",
+    "subject": "feat(training): RPE rest ladder, scroll, week PRs, cardio mm:ss, progression ceil, add set",
+    "title": "RPE rest ladder, scroll, week PRs, cardio mm:ss, progression ceil, add set",
+    "version": "0.050"
+  },
   {
     "hash": "7189aa8",
     "date": "2026-04-10",

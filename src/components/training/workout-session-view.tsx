@@ -10,6 +10,8 @@ import {
   ChevronDown,
   Ellipsis,
   Loader2,
+  Minus,
+  Plus,
   Replace,
   SkipForward,
   StickyNote,
@@ -526,7 +528,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       await patch.mutateAsync(body);
       const st = qc.getQueryData<SessionPayload>(["session", sessionId])?.session.status;
       if (st === "COMPLETED") return;
-      const b = body as { action?: string; setId?: string; done?: boolean };
+      const b = body as { action?: string; setId?: string; done?: boolean; rpe?: number | null };
       if (b.action !== "set" || b.done !== true) return;
       await qc.refetchQueries({ queryKey: ["session", sessionId] });
       const payload = qc.getQueryData<SessionPayload>(["session", sessionId]);
@@ -535,6 +537,9 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       const row = payload.session.sets.find((s) => s.id === b.setId);
       if (!row) return;
       const setIndex = row.setIndex;
+      /** Prefer RPE from this PATCH so rest length matches the slider even if cache lags slightly. */
+      const rpeFromCommit =
+        typeof b.rpe === "number" && Number.isFinite(b.rpe) ? b.rpe : null;
       const ordered = orderExercises(
         payload.session.programDay.exercises,
         parseExerciseOrderJson(payload.session.exerciseOrder),
@@ -547,7 +552,23 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       const hasPrescribedRest = block.some((ex) => ex.restSec != null);
       const restSec = hasPrescribedRest
         ? Math.max(
-            ...block.map((ex) => ex.restSec ?? defaultRest),
+            ...block.map((ex) => {
+              const rs = payload.session.sets
+                .filter((s) => s.programExerciseId === ex.id)
+                .sort((a, b) => a.setIndex - b.setIndex);
+              const setRow = rs[setIndex];
+              const rpeForRest =
+                ex.id === row.programExerciseId && rpeFromCommit != null
+                  ? rpeFromCommit
+                  : (setRow?.rpe ?? ex.prescription.targetRpe);
+              const targetRpe = ex.prescription.targetRpe;
+              if (targetRpe == null || !Number.isFinite(targetRpe) || rpeForRest == null || !Number.isFinite(rpeForRest)) {
+                return ex.restSec ?? defaultRest;
+              }
+              const base = ex.restSec ?? defaultRest;
+              const halfSteps = Math.round(((rpeForRest - targetRpe) / 0.5) * 10) / 10;
+              return Math.max(30, Math.min(210, base + halfSteps * 15));
+            }),
             0,
           )
         : Math.max(
@@ -556,7 +577,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 .filter((s) => s.programExerciseId === ex.id)
                 .sort((a, b) => a.setIndex - b.setIndex);
               const setRow = rs[setIndex];
-              const rpeForRest = setRow?.rpe ?? ex.prescription.targetRpe;
+              const rpeForRest =
+                ex.id === row.programExerciseId && rpeFromCommit != null
+                  ? rpeFromCommit
+                  : (setRow?.rpe ?? ex.prescription.targetRpe);
               return restSecForRpe(rpeMap, rpeForRest, defaultRest);
             }),
             0,
@@ -569,7 +593,9 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       });
       if (allDone) {
         const peRow = payload.session.programDay.exercises.find((e) => e.id === row.programExerciseId);
-        const rpeBand = hasPrescribedRest ? null : rpeToBandId(row.rpe ?? peRow?.prescription.targetRpe ?? 8);
+        const rpeForBand =
+          rpeFromCommit ?? row.rpe ?? peRow?.prescription.targetRpe ?? 8;
+        const rpeBand = hasPrescribedRest ? null : rpeToBandId(rpeForBand);
         startRest(restSec, {
           rpeBand,
           prescribedRest: hasPrescribedRest,
@@ -1716,6 +1742,16 @@ function SetRowEditor({
   const weightForCommit = bodyweight || cardio ? 0 : Number(local.weight) || 0;
   const shouldPropagateWeight = !cardio && !bodyweight && local.weight !== baselineWeight;
   const shouldPropagateRpeReps = !cardio && (local.reps !== baselineReps || local.rpe !== baselineRpe);
+  const adjustWeightByStep = (dir: -1 | 1) => {
+    if (cardio || bodyweight) return;
+    const step = progressionStep > 0 ? progressionStep : 2.5;
+    const current = Number(local.weight);
+    const base = Number.isFinite(current) ? current : Number(row.weight) || 0;
+    const next = Math.max(0, Math.min(999.9, base + dir * step));
+    const rounded = Math.round(next * 10) / 10;
+    const display = Number.isInteger(rounded) ? String(rounded.toFixed(0)) : String(rounded.toFixed(1));
+    setLocal((l) => ({ ...l, weight: display }));
+  };
 
   const saveFields = () => {
     if (cardio) {
@@ -1864,28 +1900,52 @@ function SetRowEditor({
           {!bodyweight && (
             <div className="min-w-0 space-y-1">
               <Label className="text-xs">Weight ({unit})</Label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                className="rounded-lg w-full max-w-[4.5rem] px-2 text-center font-mono tabular-nums text-base"
-                maxLength={5}
-                value={local.weight}
-                placeholder={ghost ? `${ghost.weight}` : "0"}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9.]/g, "");
-                  const parts = raw.split(".");
-                  let next: string;
-                  if (parts.length === 1) {
-                    next = (parts[0] ?? "").slice(0, 3);
-                  } else {
-                    const w = (parts[0] ?? "").slice(0, 3);
-                    const d = (parts[1] ?? "").replace(/\D/g, "").slice(0, 1);
-                    const endsWithBareDot = raw.endsWith(".") && parts.length === 2 && parts[1] === "";
-                    next = endsWithBareDot ? `${w}.` : d ? `${w}.${d}` : w;
-                  }
-                  setLocal((l) => ({ ...l, weight: next }));
-                }}
-              />
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="h-9 w-9 rounded-lg shrink-0"
+                  onClick={() => adjustWeightByStep(-1)}
+                  disabled={savePending}
+                  aria-label="Decrease weight"
+                >
+                  <Minus className="size-4" />
+                </Button>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  className="rounded-lg w-full max-w-[4.5rem] px-2 text-center font-mono tabular-nums text-base"
+                  maxLength={5}
+                  value={local.weight}
+                  placeholder={ghost ? `${ghost.weight}` : "0"}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9.]/g, "");
+                    const parts = raw.split(".");
+                    let next: string;
+                    if (parts.length === 1) {
+                      next = (parts[0] ?? "").slice(0, 3);
+                    } else {
+                      const w = (parts[0] ?? "").slice(0, 3);
+                      const d = (parts[1] ?? "").replace(/\D/g, "").slice(0, 1);
+                      const endsWithBareDot = raw.endsWith(".") && parts.length === 2 && parts[1] === "";
+                      next = endsWithBareDot ? `${w}.` : d ? `${w}.${d}` : w;
+                    }
+                    setLocal((l) => ({ ...l, weight: next }));
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="h-9 w-9 rounded-lg shrink-0"
+                  onClick={() => adjustWeightByStep(1)}
+                  disabled={savePending}
+                  aria-label="Increase weight"
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </div>
             </div>
           )}
           {bodyweight && (
