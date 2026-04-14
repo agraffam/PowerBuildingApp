@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.056";
+export const GENERATED_APP_VERSION = "0.057";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "8635c3b",
+    "date": "2026-04-14",
+    "subject": "Workout: fix initial scroll after readiness/warmup; compact exercise meta row",
+    "title": "fix initial scroll after readiness/warmup; compact exercise meta row",
+    "version": "0.057"
+  },
   {
     "hash": "a42470e",
     "date": "2026-04-14",

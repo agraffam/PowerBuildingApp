@@ -1925,87 +1925,89 @@ function SetRowEditor({
         row.done ? "border-emerald-500/40 bg-emerald-500/5" : "bg-card/50",
       )}
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="text-sm font-medium">{cardio ? `Bout ${idx + 1}` : `Set ${idx + 1}`}</span>
+      <div className="space-y-1.5">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="text-sm font-medium shrink-0">
+              {cardio ? `Bout ${idx + 1}` : `Set ${idx + 1}`}
+            </span>
             {row.done && (
-              <Badge variant="secondary" className="text-[11px]">
+              <Badge variant="secondary" className="text-[11px] shrink-0">
                 Completed
               </Badge>
             )}
           </div>
-          {ghost && !cardio && (
-            <p
-              className="text-muted-foreground min-w-0 max-w-full text-xs sm:truncate"
-              title={`Last time: ${ghost.weight}${ghost.weightUnit} × ${ghost.reps ?? "—"}${
-                ghost.rpe != null ? ` @ ${ghost.rpe} RPE` : ""
-              }`}
-            >
-              <span className="text-muted-foreground">Last time:</span>{" "}
-              <span className="font-medium text-foreground">
-                {ghost.weight}
-                {ghost.weightUnit} × {ghost.reps}
-                {ghost.rpe != null ? ` @ ${ghost.rpe} RPE` : ""}
-              </span>
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-1 sm:justify-start">
-          {row.done && (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="rounded-lg h-9"
-              disabled={!dirty || savePending}
-              onClick={() => saveFields()}
-            >
-              Save
-            </Button>
-          )}
-          {!row.done && (
-            <Toggle
-              pressed={row.done}
-              onPressedChange={(nextDone) => {
-                if (nextDone) {
-                  if (cardio) {
-                    const d = parseDurationInputToSec(local.durationSec);
-                    if (d == null || d <= 0) return;
-                    onCommitSet({
-                      action: "set",
-                      setId: row.id,
-                      weight: 0,
-                      weightUnit: unit,
-                      reps: null,
-                      rpe: null,
-                      durationSec: d,
-                      calories:
-                        local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
-                      done: true,
-                    });
-                  } else {
-                    onCommitSet({
-                      action: "set",
-                      setId: row.id,
-                      weight: weightForCommit,
-                      weightUnit: unit,
-                      reps: local.reps === "" ? null : Number(local.reps),
-                      rpe: local.rpe === "" ? null : Number(local.rpe),
-                      propagateWeight: true,
-                      propagateRpeReps: true,
-                      done: true,
-                    });
+          <div className="flex shrink-0 items-center justify-end gap-1">
+            {row.done && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="rounded-lg h-9"
+                disabled={!dirty || savePending}
+                onClick={() => saveFields()}
+              >
+                Save
+              </Button>
+            )}
+            {!row.done && (
+              <Toggle
+                pressed={row.done}
+                onPressedChange={(nextDone) => {
+                  if (nextDone) {
+                    if (cardio) {
+                      const d = parseDurationInputToSec(local.durationSec);
+                      if (d == null || d <= 0) return;
+                      onCommitSet({
+                        action: "set",
+                        setId: row.id,
+                        weight: 0,
+                        weightUnit: unit,
+                        reps: null,
+                        rpe: null,
+                        durationSec: d,
+                        calories:
+                          local.calories === "" ? null : Math.max(0, Math.floor(Number(local.calories) || 0)),
+                        done: true,
+                      });
+                    } else {
+                      onCommitSet({
+                        action: "set",
+                        setId: row.id,
+                        weight: weightForCommit,
+                        weightUnit: unit,
+                        reps: local.reps === "" ? null : Number(local.reps),
+                        rpe: local.rpe === "" ? null : Number(local.rpe),
+                        propagateWeight: true,
+                        propagateRpeReps: true,
+                        done: true,
+                      });
+                    }
                   }
-                }
-              }}
-              className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-            >
-              <Check className="size-4" />
-              Done
-            </Toggle>
-          )}
+                }}
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                <Check className="size-4" />
+                Done
+              </Toggle>
+            )}
+          </div>
         </div>
+        {ghost && !cardio && (
+          <p
+            className="text-muted-foreground min-w-0 max-w-full text-xs"
+            title={`Last time: ${ghost.weight}${ghost.weightUnit} × ${ghost.reps ?? "—"}${
+              ghost.rpe != null ? ` @ ${ghost.rpe} RPE` : ""
+            }`}
+          >
+            <span className="text-muted-foreground">Last time:</span>{" "}
+            <span className="font-medium text-foreground">
+              {ghost.weight}
+              {ghost.weightUnit} × {ghost.reps}
+              {ghost.rpe != null ? ` @ ${ghost.rpe} RPE` : ""}
+            </span>
+          </p>
+        )}
       </div>
       {dirty && (
         <p className="text-xs text-amber-600 dark:text-amber-500">Unsaved changes — Save or use Done to log the set.</p>
