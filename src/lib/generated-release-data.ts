@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.054";
+export const GENERATED_APP_VERSION = "0.055";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "9263ab7",
+    "date": "2026-04-14",
+    "subject": "Workout UI: history-only sheet, More menu for history/notes",
+    "title": "history-only sheet, More menu for history/notes",
+    "version": "0.055"
+  },
   {
     "hash": "756ca89",
     "date": "2026-04-14",

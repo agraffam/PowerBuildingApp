@@ -239,6 +239,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const wakeLockRef = useRef<{ release: () => Promise<void>; released?: boolean } | null>(null);
   const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
   const prevBlockProgressRef = useRef<Map<string, { done: number; total: number }>>(new Map());
+  /** After first progress sync for this session, we only auto-collapse/scroll on real completions (not on mount). */
+  const workoutProgressBaselineReadyRef = useRef(false);
   const blockAnchorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const setBlockAnchorRef = useCallback((blockId: string, node: HTMLDivElement | null) => {
     if (node) blockAnchorRefs.current.set(blockId, node);
@@ -469,6 +471,19 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       setWarmupDismissed(false);
     }
   }, [sessionId]);
+
+  useEffect(() => {
+    workoutProgressBaselineReadyRef.current = false;
+    prevBlockProgressRef.current = new Map();
+  }, [sessionId]);
+
+  useEffect(() => {
+    const prevRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => {
+      window.history.scrollRestoration = prevRestoration;
+    };
+  }, []);
   useEffect(() => {
     if (sessionEarly?.performedAt) {
       setPerformedAtLocal(toDatetimeLocalValue(sessionEarly.performedAt));
@@ -488,39 +503,66 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     if (!sessionEarly || sessionEarly.status === "COMPLETED") return;
+    if (blocks.length === 0) return;
+
+    if (!workoutProgressBaselineReadyRef.current) {
+      const nextPrev = new Map<string, { done: number; total: number }>();
+      const initiallyCollapsed = new Set<string>();
+      blocks.forEach((block, bi) => {
+        const id = blockIds[bi]!;
+        const prog = blockSetProgress(block, byExercise);
+        nextPrev.set(id, prog);
+        if (prog.total > 0 && prog.done === prog.total) initiallyCollapsed.add(id);
+      });
+      prevBlockProgressRef.current = nextPrev;
+      setCollapsedBlockIds(initiallyCollapsed);
+      workoutProgressBaselineReadyRef.current = true;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        });
+      });
+      return;
+    }
+
     const toCollapse: string[] = [];
     const nextPrev = new Map<string, { done: number; total: number }>();
     blocks.forEach((block, bi) => {
       const id = blockIds[bi]!;
       const prog = blockSetProgress(block, byExercise);
       const prev = prevBlockProgressRef.current.get(id);
-      if (prog.total > 0 && prog.done === prog.total && (prev == null || prev.done < prev.total)) {
+      if (
+        prog.total > 0 &&
+        prog.done === prog.total &&
+        prev != null &&
+        prev.done < prev.total
+      ) {
         toCollapse.push(id);
       }
       nextPrev.set(id, prog);
     });
     prevBlockProgressRef.current = nextPrev;
-    if (toCollapse.length > 0) {
-      setCollapsedBlockIds((prev) => {
-        const next = new Set(prev);
-        for (const id of toCollapse) next.add(id);
-        return next;
-      });
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          for (let bi = 0; bi < blocks.length; bi++) {
-            const id = blockIds[bi]!;
-            const blk = blocks[bi]!;
-            const prog = blockSetProgress(blk, byExercise);
-            if (prog.total === 0) continue;
-            if (prog.done < prog.total) {
-              blockAnchorRefs.current.get(id)?.scrollIntoView({ block: "start", behavior: "smooth" });
-              break;
-            }
+    if (toCollapse.length === 0) return;
+
+    setCollapsedBlockIds((prev) => {
+      const next = new Set(prev);
+      for (const id of toCollapse) next.add(id);
+      return next;
+    });
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        for (let bi = 0; bi < blocks.length; bi++) {
+          const id = blockIds[bi]!;
+          const blk = blocks[bi]!;
+          const prog = blockSetProgress(blk, byExercise);
+          if (prog.total === 0) continue;
+          if (prog.done < prog.total) {
+            blockAnchorRefs.current.get(id)?.scrollIntoView({ block: "start", behavior: "smooth" });
+            break;
           }
-        });
+        }
       });
-    }
+    });
   }, [sessionEarly, sessionEarly?.status, blocks, blockIds, byExercise]);
 
   const sensors = useSensors(
@@ -932,34 +974,34 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             return (
               <Card className="overflow-hidden rounded-2xl border shadow-sm">
                 <CardHeader className="space-y-1 bg-muted/40 pb-3 sm:pb-2">
-                  <div className="flex items-start gap-0.5 sm:gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 size-9 rounded-lg mt-0.5"
-                      onClick={() => toggleBlockCollapsed(blockId)}
-                      aria-expanded={!collapsed}
-                      aria-label={collapsed ? "Expand exercise" : "Collapse exercise"}
-                    >
-                      <ChevronDown
-                        className={cn(
-                          "size-5 text-muted-foreground transition-transform",
-                          collapsed && "-rotate-90",
-                        )}
-                      />
-                    </Button>
-                    {dragHandle ? <div className="mt-0.5 shrink-0">{dragHandle}</div> : null}
-                    <div className="flex-1 min-w-0 space-y-1">
-                      {renderExerciseHeader(ex)}
-                      {collapsed ? (
-                        <p className="text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">
-                            {done}/{total} {ex.exercise.kind === "CARDIO" ? "bouts" : "sets"} done
-                          </span>
-                        </p>
-                      ) : null}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-start gap-0.5 sm:gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 size-9 rounded-lg mt-0.5"
+                        onClick={() => toggleBlockCollapsed(blockId)}
+                        aria-expanded={!collapsed}
+                        aria-label={collapsed ? "Expand exercise" : "Collapse exercise"}
+                      >
+                        <ChevronDown
+                          className={cn(
+                            "size-5 text-muted-foreground transition-transform",
+                            collapsed && "-rotate-90",
+                          )}
+                        />
+                      </Button>
+                      {dragHandle ? <div className="mt-0.5 shrink-0">{dragHandle}</div> : null}
+                      <div className="flex-1 min-w-0 space-y-1">{renderExerciseHeader(ex)}</div>
                     </div>
+                    {collapsed ? (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {done}/{total} {ex.exercise.kind === "CARDIO" ? "bouts" : "sets"} done
+                        </span>
+                      </p>
+                    ) : null}
                   </div>
                 </CardHeader>
                 {!collapsed && (
@@ -1033,44 +1075,47 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             return (
               <Card className="overflow-hidden rounded-2xl border shadow-sm border-primary/25">
                 <CardHeader className="space-y-1 bg-primary/5 pb-3 sm:pb-2">
-                  <div className="flex items-start gap-0.5 sm:gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 size-9 rounded-lg mt-0.5"
-                      onClick={() => toggleBlockCollapsed(blockId)}
-                      aria-expanded={!collapsed}
-                      aria-label={collapsed ? "Expand superset" : "Collapse superset"}
-                    >
-                      <ChevronDown
-                        className={cn(
-                          "size-5 text-muted-foreground transition-transform",
-                          collapsed && "-rotate-90",
-                        )}
-                      />
-                    </Button>
-                    {dragHandle ? <div className="mt-0.5 shrink-0">{dragHandle}</div> : null}
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <CardTitle className="text-lg">Superset ({label})</CardTitle>
-                      {collapsed ? (
-                        <p className="text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">
-                            {done}/{total} sets done
-                          </span>
-                          <span> · {names}</span>
-                        </p>
-                      ) : (
-                        <>
-                          <p className="text-muted-foreground text-xs">
-                            Alternate exercises each round, then rest when the full round is done.
-                          </p>
-                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            <Badge variant="secondary">{nSets} rounds</Badge>
-                          </div>
-                        </>
-                      )}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-start gap-0.5 sm:gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 size-9 rounded-lg mt-0.5"
+                        onClick={() => toggleBlockCollapsed(blockId)}
+                        aria-expanded={!collapsed}
+                        aria-label={collapsed ? "Expand superset" : "Collapse superset"}
+                      >
+                        <ChevronDown
+                          className={cn(
+                            "size-5 text-muted-foreground transition-transform",
+                            collapsed && "-rotate-90",
+                          )}
+                        />
+                      </Button>
+                      {dragHandle ? <div className="mt-0.5 shrink-0">{dragHandle}</div> : null}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <CardTitle className="text-lg">Superset ({label})</CardTitle>
+                        {!collapsed ? (
+                          <>
+                            <p className="text-muted-foreground text-xs">
+                              Alternate exercises each round, then rest when the full round is done.
+                            </p>
+                            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                              <Badge variant="secondary">{nSets} rounds</Badge>
+                            </div>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
+                    {collapsed ? (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {done}/{total} sets done
+                        </span>
+                        <span> · {names}</span>
+                      </p>
+                    ) : null}
                   </div>
                 </CardHeader>
                 {!collapsed && (
@@ -1137,10 +1182,12 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           const items = blocks.map((block, bi) => {
             const id = blockIds[bi]!;
             const isSuperset = block.length > 1;
+            const anchorClass =
+              "scroll-mt-[max(5.25rem,calc(env(safe-area-inset-top)+3.5rem))]";
             if (!canReorderBlocks) {
               const card = isSuperset ? renderSupersetCard(block, id) : renderSoloCard(block[0]!, id);
               return (
-                <div key={id} ref={(node) => setBlockAnchorRef(id, node)}>
+                <div key={id} ref={(node) => setBlockAnchorRef(id, node)} className={anchorClass}>
                   {card}
                 </div>
               );
@@ -1148,7 +1195,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             return (
               <SortableWorkoutBlock key={id} id={id}>
                 {(handle) => (
-                  <div ref={(node) => setBlockAnchorRef(id, node)}>
+                  <div ref={(node) => setBlockAnchorRef(id, node)} className={anchorClass}>
                     {isSuperset
                       ? renderSupersetCard(block, id, handle)
                       : renderSoloCard(block[0]!, id, handle)}
