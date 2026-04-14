@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.051";
+export const GENERATED_APP_VERSION = "0.052";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "969e6ff",
+    "date": "2026-04-14",
+    "subject": "fix(training): weight +/- layout and smaller step buttons",
+    "title": "weight +/- layout and smaller step buttons",
+    "version": "0.052"
+  },
   {
     "hash": "0d4e834",
     "date": "2026-04-14",

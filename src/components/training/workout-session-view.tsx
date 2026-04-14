@@ -1788,15 +1788,32 @@ function SetRowEditor({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{cardio ? `Bout ${idx + 1}` : `Set ${idx + 1}`}</span>
-          {row.done && (
-            <Badge variant="secondary" className="text-[11px]">
-              Completed
-            </Badge>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="text-sm font-medium">{cardio ? `Bout ${idx + 1}` : `Set ${idx + 1}`}</span>
+            {row.done && (
+              <Badge variant="secondary" className="text-[11px]">
+                Completed
+              </Badge>
+            )}
+          </div>
+          {ghost && !cardio && (
+            <p
+              className="text-muted-foreground min-w-0 max-w-full text-xs sm:truncate"
+              title={`Last time: ${ghost.weight}${ghost.weightUnit} × ${ghost.reps ?? "—"}${
+                ghost.rpe != null ? ` @ ${ghost.rpe} RPE` : ""
+              }`}
+            >
+              <span className="text-muted-foreground">Last time:</span>{" "}
+              <span className="font-medium text-foreground">
+                {ghost.weight}
+                {ghost.weightUnit} × {ghost.reps}
+                {ghost.rpe != null ? ` @ ${ghost.rpe} RPE` : ""}
+              </span>
+            </p>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex shrink-0 items-center gap-1">
           {row.done && (
             <Button
               type="button"
@@ -1854,16 +1871,6 @@ function SetRowEditor({
       </div>
       {dirty && (
         <p className="text-xs text-amber-600 dark:text-amber-500">Unsaved changes — Save or use Done to log the set.</p>
-      )}
-      {ghost && !cardio && (
-        <p className="text-muted-foreground text-xs">
-          Last time:{" "}
-          <span className="font-medium text-foreground">
-            {ghost.weight}
-            {ghost.weightUnit} × {ghost.reps}
-            {ghost.rpe != null ? ` @ ${ghost.rpe} RPE` : ""}
-          </span>
-        </p>
       )}
       {cardio ? (
         <div className="grid grid-cols-2 gap-3">
