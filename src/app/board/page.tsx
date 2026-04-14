@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Trophy } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { MonthlyBoardPayload } from "@/lib/monthly-board";
@@ -36,20 +37,18 @@ export default function BoardPage() {
   const data = q.data!;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-          <Trophy className="size-6" aria-hidden />
-        </span>
-        <div>
-          <h1 className="text-2xl font-bold font-heading tracking-tight">The Board</h1>
-          <p className="text-muted-foreground text-sm">
-            Top movers this month · {data.monthLabel}
-          </p>
-        </div>
-      </div>
+    <div className="page-stack">
+      <PageHeader
+        title="The Board"
+        description={`Top movers this month · ${data.monthLabel}`}
+        leading={
+          <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <Trophy className="size-6" aria-hidden />
+          </span>
+        }
+      />
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-7 md:grid-cols-2 md:gap-6">
         <BoardCard
           title="Workouts logged"
           description="Completed sessions this month"
@@ -103,7 +102,7 @@ function BoardCard({
                 <li
                   key={`${row.userId}-${row.rank}`}
                   className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm",
+                    "flex items-center justify-between gap-3 rounded-xl border px-3 py-3.5 text-sm",
                     isYou && "border-primary/40 bg-primary/5",
                   )}
                 >

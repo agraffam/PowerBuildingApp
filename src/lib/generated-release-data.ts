@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.052";
+export const GENERATED_APP_VERSION = "0.053";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "1ae53c2",
+    "date": "2026-04-14",
+    "subject": "fix(ui): show last session set ghost on same row as set number",
+    "title": "show last session set ghost on same row as set number",
+    "version": "0.053"
+  },
   {
     "hash": "969e6ff",
     "date": "2026-04-14",

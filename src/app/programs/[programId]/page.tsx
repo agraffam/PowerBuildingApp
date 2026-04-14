@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/page-header";
 import { browserApiFetchInit } from "@/lib/browser-api-fetch";
 
 type ProgramDetail = {
@@ -196,34 +197,40 @@ export default function ProgramDetailPage() {
   const currentName = current?.program?.name ?? "your current program";
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="page-stack max-w-2xl">
       <Link
         href="/programs"
-        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit -ml-2 inline-flex")}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit -ml-2 inline-flex rounded-xl")}
       >
         ← Programs
       </Link>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-heading">{program.name}</h1>
-          <p className="text-muted-foreground text-sm">
-            {program.durationWeeks} weeks · {program.days.length} days
-          </p>
-          <p className="text-muted-foreground text-xs mt-1">
-            {program.deloadIntervalWeeks == null
-              ? "Deload: off"
-              : `Deload: every ${program.deloadIntervalWeeks} weeks`}
-            {" · "}
-            {program.autoBlockPrescriptions
-              ? "Auto block prescriptions: on"
-              : "Auto block prescriptions: off"}
-          </p>
-          <div className="flex flex-wrap gap-2 mt-2">
+        <PageHeader
+          className="min-w-0 flex-1"
+          title={program.name}
+          description={
+            <>
+              <p>
+                {program.durationWeeks} weeks · {program.days.length} days
+              </p>
+              <p className="mt-1 text-xs leading-relaxed">
+                {program.deloadIntervalWeeks == null
+                  ? "Deload: off"
+                  : `Deload: every ${program.deloadIntervalWeeks} weeks`}
+                {" · "}
+                {program.autoBlockPrescriptions
+                  ? "Auto block prescriptions: on"
+                  : "Auto block prescriptions: off"}
+              </p>
+            </>
+          }
+        >
+          <div className="mt-2 flex flex-wrap gap-2">
             {isActive && <Badge>Active</Badge>}
             {hasWorkoutHistory && <Badge variant="secondary">Has logged sessions</Badge>}
           </div>
-        </div>
+        </PageHeader>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {!isActive && (
             <Button
@@ -450,15 +457,15 @@ export default function ProgramDetailPage() {
           <CardTitle className="text-lg">Template days</CardTitle>
           <CardDescription>Exercises and prescriptions</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-8">
+        <CardContent className="space-y-10 max-sm:space-y-9 sm:space-y-8">
           {program.days.map((d) => (
             <div key={d.sortOrder}>
-              <h3 className="font-semibold mb-3">{d.label}</h3>
-              <ul className="space-y-3">
+              <h3 className="mb-3 font-semibold leading-snug">{d.label}</h3>
+              <ul className="space-y-3 max-sm:space-y-3.5">
                 {d.exercises.map((ex, i) => (
-                  <li key={i} className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
-                    <div className="font-medium">{ex.exercise.name}</div>
-                    <div className="text-muted-foreground mt-1">
+                  <li key={i} className="rounded-xl border bg-muted/30 px-4 py-3.5 text-sm max-sm:py-4">
+                    <div className="font-medium leading-snug">{ex.exercise.name}</div>
+                    <div className="mt-1.5 text-muted-foreground leading-relaxed">
                       {ex.sets}×{ex.repTarget} @ ~{ex.targetRpe} RPE
                       {ex.pctOf1rm != null ? ` · ${ex.pctOf1rm}% 1RM` : ""}
                       {ex.restSec != null ? ` · ${ex.restSec}s rest` : ""}

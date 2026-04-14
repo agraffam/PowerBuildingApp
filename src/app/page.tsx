@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -22,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/page-header";
 import { TrainWeekOverview, type ScheduleDay } from "@/components/training/train-week-overview";
 import { WeekCompleteSplash } from "@/components/training/week-complete-splash";
 import type { WeekCompletionSummaryPayload } from "@/lib/week-completion-summary";
@@ -136,14 +138,12 @@ export default function HomePage() {
   const skippedDayIdsThisWeek = active.data?.skippedDayIdsThisWeek ?? [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex items-end justify-between gap-2">
-          <h1 className="text-2xl font-bold tracking-tight font-heading">Train</h1>
-          <span className="text-xs text-muted-foreground">v{active.data?.appVersion ?? "0.000"}</span>
-        </div>
-        <p className="text-muted-foreground text-sm">{inst.program.name}</p>
-      </div>
+    <div className="page-stack">
+      <PageHeader
+        title="Train"
+        meta={`v${active.data?.appVersion ?? "0.000"}`}
+        description={inst.program.name}
+      />
 
       <TrainWeekOverview
         instanceId={inst.id}
@@ -159,18 +159,20 @@ export default function HomePage() {
       />
 
       <Card className="overflow-hidden shadow-sm">
-        <CardHeader className="bg-muted/40">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <CardTitle className="text-xl">{nextDay?.label ?? "—"}</CardTitle>
-              <CardDescription>
-                {weekPendingFinalize ? "Finish the week review above to start week workouts." : "Next session in your split"}
-              </CardDescription>
-            </div>
-            <Badge variant="secondary">Up next</Badge>
-          </div>
+        <CardHeader className="bg-muted/40 [.border-b]:pb-4">
+          <CardTitle className="text-xl leading-snug">{nextDay?.label ?? "—"}</CardTitle>
+          <CardDescription className="text-pretty leading-relaxed">
+            {weekPendingFinalize
+              ? "Finish the week review above to start week workouts."
+              : "Next session in your split"}
+          </CardDescription>
+          <CardAction>
+            <Badge variant="secondary" className="shrink-0">
+              Up next
+            </Badge>
+          </CardAction>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 pt-6">
+        <CardContent className="flex flex-col gap-4 pt-5 sm:pt-6">
           {sessionHref ? (
             <Link
               href={sessionHref}
@@ -212,7 +214,7 @@ export default function HomePage() {
           )}
 
           {!inProgressSession && (
-            <div className="border-t pt-3 mt-1">
+            <div className="mt-1 border-t pt-4">
               <Button
                 type="button"
                 variant="link"

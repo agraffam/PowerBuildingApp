@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/page-header";
 import { browserApiFetchInit } from "@/lib/browser-api-fetch";
 
 type TrainingActivePayload = {
@@ -189,22 +190,28 @@ export default function ProgramsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-heading">Programs</h1>
-          <p className="text-muted-foreground text-sm">Mesocycle templates and activation</p>
-          <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
-            ← Back to Settings
-          </Link>
-          <p className="text-muted-foreground text-xs mt-1 max-w-xl">
+    <div className="page-stack">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <PageHeader
+          className="min-w-0 flex-1"
+          title="Programs"
+          description="Mesocycle templates and activation"
+          backLink={{ href: "/settings", label: "← Back to Settings" }}
+        >
+          <p className="mt-2 text-muted-foreground text-xs leading-relaxed sm:hidden">
+            Each workout advances one template slot in the cycle; fewer sessions per week means a longer full pass.
+          </p>
+          <p className="mt-2 hidden max-w-xl text-muted-foreground text-xs leading-relaxed sm:block">
             Prebuilts range from 2–6 training templates per cycle. You choose how many sessions to do each calendar week;
             the app advances one template per workout. Fewer weekly sessions = longer to finish one full pass.
           </p>
-        </div>
+        </PageHeader>
         <Link
           href="/programs/new"
-          className={cn(buttonVariants({ size: "default" }), "rounded-xl gap-2 inline-flex")}
+          className={cn(
+            buttonVariants({ size: "default" }),
+            "inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl sm:h-10 sm:w-auto",
+          )}
         >
           <Plus className="size-4" />
           New program
@@ -216,8 +223,13 @@ export default function ProgramsPage() {
           <CardHeader>
             <CardTitle className="text-lg">Resume a program</CardTitle>
             <CardDescription>
-              One entry per template (your most recent paused or finished run). Resuming makes it active and archives other
-              paused runs for that same template. Use End run to remove a row without resuming.
+              <span className="block sm:hidden">
+                One row per template. Resume makes it active; End run removes the saved position.
+              </span>
+              <span className="hidden sm:block">
+                One entry per template (your most recent paused or finished run). Resuming makes it active and archives other
+                paused runs for that same template. Use End run to remove a row without resuming.
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -273,23 +285,23 @@ export default function ProgramsPage() {
         </p>
       )}
 
-      <ul className="space-y-3">
+      <ul className="space-y-4 sm:space-y-3">
         {(data ?? []).map((p) => (
           <li key={p.id}>
             <Card className="rounded-2xl">
-              <CardHeader className="flex flex-row items-start justify-between gap-4">
-                <div className="space-y-1 min-w-0">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/programs/${p.id}`} className="hover:underline">
-                      <CardTitle className="text-lg">{p.name}</CardTitle>
+                      <CardTitle className="text-lg leading-snug">{p.name}</CardTitle>
                     </Link>
                     {activeProgram.data?.instance?.programId === p.id && (
-                      <span className="text-xs font-medium rounded-full bg-primary/15 text-primary px-2 py-0.5">
+                      <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
                         Active
                       </span>
                     )}
                   </div>
-                  <CardDescription>
+                  <CardDescription className="leading-relaxed">
                     {p.durationWeeks} weeks · {p._count.days} training days · {p._count.blocks} blocks
                   </CardDescription>
                   <Link
@@ -302,7 +314,7 @@ export default function ProgramsPage() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="rounded-xl shrink-0"
+                  className="h-11 w-full shrink-0 rounded-xl sm:h-9 sm:w-auto"
                   disabled={activate.isPending || activeProgram.data?.instance?.programId === p.id}
                   onClick={() => {
                     const cur = activeProgram.data?.instance;

@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -83,14 +83,12 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight font-heading">Account</h1>
-        <p className="text-muted-foreground text-sm">Profile, email, password, and sign out.</p>
-        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
-          ← Back to Settings
-        </Link>
-      </div>
+    <div className="page-stack mx-auto max-w-lg">
+      <PageHeader
+        title="Account"
+        description="Profile, email, password, and sign out."
+        backLink={{ href: "/settings", label: "← Back to Settings" }}
+      />
 
       {msg && <p className="text-sm text-emerald-600 dark:text-emerald-400">{msg}</p>}
       {err && <p className="text-sm text-destructive">{err}</p>}
@@ -113,7 +111,7 @@ export default function AccountPage() {
           </div>
           <Button
             type="button"
-            className="rounded-xl"
+            className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
             disabled={save.isPending}
             onClick={() => {
               setMsg(null);
@@ -157,7 +155,7 @@ export default function AccountPage() {
           <Button
             type="button"
             variant="secondary"
-            className="rounded-xl"
+            className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
             disabled={save.isPending}
             onClick={() => {
               setMsg(null);
@@ -205,7 +203,7 @@ export default function AccountPage() {
           <Button
             type="button"
             variant="secondary"
-            className="rounded-xl"
+            className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
             disabled={save.isPending}
             onClick={() => {
               setMsg(null);
@@ -227,7 +225,12 @@ export default function AccountPage() {
           <CardDescription>Sign out on this device.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button type="button" variant="outline" className="rounded-xl" onClick={() => void logout()}>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
+            onClick={() => void logout()}
+          >
             Log out
           </Button>
         </CardContent>

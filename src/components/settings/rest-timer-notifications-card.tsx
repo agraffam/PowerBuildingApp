@@ -63,16 +63,26 @@ export function RestTimerNotificationsCard() {
           Rest timer notifications
         </CardTitle>
         <CardDescription>
-          When a rest period finishes while this tab is in the background (or another app is open), a browser
-          notification can tell you to get back to your set. Sound and vibration are used when the browser allows
-          them; notifications need your permission and a secure site (HTTPS) in production.
+          <span className="block sm:hidden">
+            Optional browser alert when rest ends in the background. Needs permission; HTTPS in production.
+          </span>
+          <span className="hidden sm:block">
+            When a rest period finishes while this tab is in the background (or another app is open), a browser
+            notification can tell you to get back to your set. Sound and vibration are used when the browser allows
+            them; notifications need your permission and a secure site (HTTPS) in production.
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">{statusLabel(perm)}</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {(perm === "default" || perm === "denied") && (
-            <Button type="button" className="rounded-xl" disabled={asking} onClick={() => void onEnable()}>
+            <Button
+              type="button"
+              className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
+              disabled={asking}
+              onClick={() => void onEnable()}
+            >
               {asking ? (
                 <>
                   <Loader2 className="size-4 animate-spin mr-2 inline" />
@@ -86,7 +96,12 @@ export function RestTimerNotificationsCard() {
             </Button>
           )}
           {perm === "granted" && (
-            <Button type="button" variant="outline" className="rounded-xl" onClick={() => onTest()}>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
+              onClick={() => onTest()}
+            >
               Send test notification
             </Button>
           )}

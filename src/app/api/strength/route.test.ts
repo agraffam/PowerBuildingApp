@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const findManyMock = vi.fn();
+const { findManyMock } = vi.hoisted(() => ({
+  findManyMock: vi.fn(),
+}));
 
 vi.mock("@/lib/auth/require-user", () => ({
   requireUserId: vi.fn(async () => ({ userId: "u1" })),

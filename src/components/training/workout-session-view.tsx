@@ -720,18 +720,18 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     !warmupDismissed;
 
   return (
-    <div className="space-y-6 pb-28">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+    <div className="space-y-8 pb-32 max-sm:pb-40 sm:space-y-6 sm:pb-28">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+        <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{session.programDay.label}</h1>
+            <h1 className="text-2xl font-bold tracking-tight leading-snug">{session.programDay.label}</h1>
             {isHistorySession && (
               <Badge variant="secondary" className="text-xs">
                 Completed
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-sm leading-relaxed">
             Week {session.weekIndex + 1}
             {session.intensityMultiplier !== 1 && (
               <span>
@@ -742,7 +742,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             {sessionBlockTypeLabel && <span> · {sessionBlockTypeLabel}</span>}
           </p>
           {isHistorySession && (
-            <Link href="/history" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
+            <Link href="/history" className="mt-1 inline-block text-xs text-primary underline-offset-4 hover:underline">
               ← All workouts
             </Link>
           )}
@@ -750,7 +750,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         <Button
           variant="outline"
           size="sm"
-          className="rounded-xl shrink-0"
+          className="h-11 w-full shrink-0 rounded-xl sm:h-9 sm:w-auto"
           onClick={() => openLibrary("__all__")}
         >
           <BookOpen className="size-4" />
@@ -834,10 +834,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
 
             return (
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 space-y-1">
-                  <div className="rounded-xl bg-muted/60 px-3 py-2 text-left">
-                    <CardTitle className="text-lg text-left">{ex.exercise.name}</CardTitle>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
+                <div className="min-w-0 space-y-1 sm:flex-1">
+                  <div className="rounded-xl bg-muted/60 px-3 py-2.5 text-left sm:py-2">
+                    <CardTitle className="text-left text-lg leading-snug">{ex.exercise.name}</CardTitle>
                     {cardioLine}
                   </div>
                   {ex.exercise.kind !== "CARDIO" && ex.prescription.isDeloadWeek && (
@@ -851,12 +851,12 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-1 justify-end shrink-0">
+                <div className="flex w-full items-center gap-1 sm:w-auto sm:shrink-0 sm:justify-end">
                   {canCancel && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-muted-foreground min-h-11 px-2 sm:px-3"
+                      className="min-h-11 flex-1 text-muted-foreground sm:flex-initial sm:px-3"
                       onClick={() =>
                         setExerciseActionsTarget({
                           id: ex.id,
@@ -867,14 +867,14 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                       }
                       type="button"
                     >
-                      <Ellipsis className="size-4 sm:mr-1" />
-                      <span className="hidden sm:inline">More</span>
+                                           <Ellipsis className="size-4 sm:mr-1" />
+                      More
                     </Button>
                   )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-muted-foreground min-h-11 min-w-11 shrink-0 px-3 sm:min-w-0"
+                    className="min-h-11 flex-1 text-muted-foreground sm:min-w-0 sm:flex-initial sm:px-3"
                     onClick={() => openLibrary(ex.exercise.slug)}
                   >
                     History
@@ -909,7 +909,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             );
             return (
               <Card className="overflow-hidden rounded-2xl border shadow-sm">
-                <CardHeader className="bg-muted/40 space-y-1">
+                <CardHeader className="space-y-1 bg-muted/40 pb-3 sm:pb-2">
                   <div className="flex items-start gap-0.5 sm:gap-1">
                     <Button
                       type="button"
@@ -1034,7 +1034,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             const names = block.map((e) => e.exercise.name).join(" · ");
             return (
               <Card className="overflow-hidden rounded-2xl border shadow-sm border-primary/25">
-                <CardHeader className="bg-primary/5 space-y-1">
+                <CardHeader className="space-y-1 bg-primary/5 pb-3 sm:pb-2">
                   <div className="flex items-start gap-0.5 sm:gap-1">
                     <Button
                       type="button"
@@ -1192,12 +1192,12 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 onDragEnd={(e) => void onDragEndBlocks(e)}
               >
                 <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-4">{items}</div>
+                  <div className="space-y-5 max-sm:space-y-6 sm:space-y-4">{items}</div>
                 </SortableContext>
               </DndContext>
             );
           }
-          return <div className="space-y-4">{items}</div>;
+          return <div className="space-y-5 max-sm:space-y-6 sm:space-y-4">{items}</div>;
         })()}
 
       {isHistorySession && (
@@ -1787,7 +1787,7 @@ function SetRowEditor({
         row.done ? "border-emerald-500/40 bg-emerald-500/5" : "bg-card/50",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
           <div className="flex shrink-0 items-center gap-2">
             <span className="text-sm font-medium">{cardio ? `Bout ${idx + 1}` : `Set ${idx + 1}`}</span>
@@ -1813,7 +1813,7 @@ function SetRowEditor({
             </p>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center justify-end gap-1 sm:justify-start">
           {row.done && (
             <Button
               type="button"

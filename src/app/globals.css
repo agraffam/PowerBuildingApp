@@ -117,16 +117,24 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+@layer components {
+  .page-stack {
+    @apply space-y-8 max-sm:space-y-7;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
     -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
   .font-heading {
     font-family: var(--font-heading);

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { Loader2, Shield } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
+import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 
 type AdminUserRow = {
@@ -120,29 +120,24 @@ export default function AdminPage() {
 
   if (!allowed) {
     return (
-      <div className="mx-auto max-w-lg space-y-4">
-        <h1 className="text-2xl font-bold tracking-tight font-heading">Admin</h1>
-        <p className="text-muted-foreground text-sm">You do not have access to this area.</p>
+      <div className="page-stack mx-auto max-w-lg">
+        <PageHeader title="Admin" description="You do not have access to this area." />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight font-heading">
-            <Shield className="size-7 text-primary" aria-hidden />
+    <div className="page-stack">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
+            <Shield className="size-7 shrink-0 text-primary" aria-hidden />
             Admin
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            User accounts, password resets, and removals. Only visible to the app owner.
-          </p>
-          <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
-            ← Back to Settings
-          </Link>
-        </div>
-      </div>
+          </span>
+        }
+        description="User accounts, password resets, and removals. Only visible to the app owner."
+        backLink={{ href: "/settings", label: "← Back to Settings" }}
+      />
 
       {banner && (
         <p
@@ -156,7 +151,7 @@ export default function AdminPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="rounded-2xl shadow-sm">
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Accounts</CardTitle>
             <CardDescription>Registered users</CardDescription>
@@ -165,7 +160,7 @@ export default function AdminPage() {
             <p className="font-heading text-2xl font-semibold tabular-nums">{totals.users}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl shadow-sm">
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Program runs</CardTitle>
             <CardDescription>Total program instances (all users)</CardDescription>
@@ -174,7 +169,7 @@ export default function AdminPage() {
             <p className="font-heading text-2xl font-semibold tabular-nums">{totals.instances}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl shadow-sm">
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Sessions completed</CardTitle>
             <CardDescription>Total completed workouts (all users)</CardDescription>
@@ -185,22 +180,25 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      <Card className="rounded-2xl shadow-sm">
+      <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
         <CardHeader>
-          <CardTitle className="text-lg">Users</CardTitle>
-          <CardDescription>Delete removes the account and all associated training data (cascade).</CardDescription>
+          <CardTitle className="text-lg font-heading">Users</CardTitle>
+          <CardDescription className="leading-relaxed">
+            Delete removes the account and all associated training data (cascade).
+          </CardDescription>
         </CardHeader>
-        <CardContent className="p-0 sm:p-0">
+        <CardContent className="p-0">
           {usersQuery.isLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="size-8 animate-spin text-muted-foreground" />
             </div>
           ) : usersQuery.isError ? (
-            <p className="text-destructive px-6 pb-6 text-sm">
+            <p className="px-6 pb-6 text-sm text-destructive">
               {(usersQuery.error as Error).message}
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
@@ -273,7 +271,71 @@ export default function AdminPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+              <ul className="divide-y divide-border/80 lg:hidden">
+              {(usersQuery.data ?? []).map((u) => {
+                const isSelf = u.id === me.user!.id;
+                return (
+                  <li key={u.id} className="space-y-3 px-4 py-4">
+                    <div>
+                      <p className="break-all font-medium leading-snug">{u.email}</p>
+                      {isSelf && <p className="text-xs text-muted-foreground">You</p>}
+                      <p className="mt-1 text-sm text-muted-foreground">{u.name ?? "—"}</p>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-muted-foreground">
+                      <div>
+                        <dt className="font-medium text-foreground">Programs</dt>
+                        <dd className="tabular-nums">{u._count.programInstances}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-foreground">Sessions</dt>
+                        <dd className="tabular-nums">{u.sessionsCompleted}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-foreground">1RM rows</dt>
+                        <dd className="tabular-nums">{u._count.strengthProfiles}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-foreground">Joined</dt>
+                        <dd>{new Date(u.createdAt).toLocaleDateString()}</dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="font-medium text-foreground">Last logged</dt>
+                        <dd>{u.lastLoggedSessionAt ? new Date(u.lastLoggedSessionAt).toLocaleDateString() : "—"}</dd>
+                      </div>
+                    </dl>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full rounded-xl"
+                        onClick={() => {
+                          setBanner(null);
+                          setResetTarget(u);
+                          setResetPw("");
+                        }}
+                      >
+                        Reset password
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        className="h-11 w-full rounded-xl"
+                        disabled={isSelf}
+                        title={isSelf ? "You cannot delete your own account" : undefined}
+                        onClick={() => {
+                          setBanner(null);
+                          setDeleteTarget(u);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+              </ul>
+            </>
           )}
         </CardContent>
       </Card>

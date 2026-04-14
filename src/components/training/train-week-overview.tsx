@@ -203,14 +203,17 @@ export function TrainWeekOverview({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-xl border bg-muted/30 px-4 py-3">
+    <div className="space-y-4 sm:space-y-3">
+      <div className="rounded-xl border bg-muted/30 px-4 py-3.5 sm:py-3">
         <p className="text-sm font-medium font-heading">
           Week {displayWeek} of {durationWeeks}
         </p>
-        <p className="text-muted-foreground text-xs mt-1">
+        <p className="text-muted-foreground text-xs mt-1.5 sm:mt-1 hidden sm:block">
           Finish each day in the split (skip from Up next below if needed), then review the week on Train — the
           next week starts only when you confirm.
+        </p>
+        <p className="text-muted-foreground text-xs mt-1.5 sm:hidden">
+          Complete or skip each day, then confirm the week review here to advance.
         </p>
         {weekPendingFinalize && (
           <p className="text-sm mt-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-foreground">
@@ -233,7 +236,7 @@ export function TrainWeekOverview({
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2.5 sm:space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-0.5">
           Training split
         </p>
@@ -269,90 +272,97 @@ export function TrainWeekOverview({
             >
               <button
                 type="button"
-                className="flex w-full items-center gap-3 px-4 py-3 text-left min-h-12 hover:bg-muted/40"
+                className="flex w-full flex-col gap-2 px-4 py-3.5 text-left hover:bg-muted/40 sm:flex-row sm:items-center sm:gap-3 sm:py-3"
                 onClick={() => setExpanded((s) => ({ ...s, [day.id]: !isOpen }))}
                 aria-expanded={isOpen}
               >
-                <ChevronDown
-                  className={cn(
-                    "size-4 shrink-0 text-muted-foreground transition-transform",
-                    isOpen && "rotate-180",
-                  )}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">{day.label}</div>
-                  <div className="text-muted-foreground text-xs">
-                    {day.exercises.length} exercise{day.exercises.length === 1 ? "" : "s"}
+                <div className="flex w-full min-w-0 items-start gap-3 sm:items-center">
+                  <ChevronDown
+                    className={cn(
+                      "size-4 shrink-0 text-muted-foreground transition-transform mt-0.5 sm:mt-0",
+                      isOpen && "rotate-180",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="font-medium text-sm leading-snug">{day.label}</div>
+                    <div className="mt-0.5 text-muted-foreground text-xs">
+                      {day.exercises.length} exercise{day.exercises.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
+                  <div className="hidden shrink-0 sm:block">
+                    <DayStatusBadge status={status} />
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    {skipped ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg"
+                        disabled={
+                          unskipDay.isPending ||
+                          (inProgressSession != null && inProgressSession.programDayId !== day.id)
+                        }
+                        title={
+                          inProgressSession != null && inProgressSession.programDayId !== day.id
+                            ? "Finish or cancel the in-progress workout before changing skips"
+                            : "Remove skip so you can train this day this week"
+                        }
+                        onClick={() => unskipDay.mutate(day.id)}
+                      >
+                        {unskipDay.isPending ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <>
+                            <RotateCcw className="size-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Unskip</span>
+                          </>
+                        )}
+                      </Button>
+                    ) : inProgressSession?.programDayId === day.id ? (
+                      <Link
+                        href={`/workout/${inProgressSession.id}`}
+                        className={cn(
+                          buttonVariants({ size: "sm", variant: "default" }),
+                          "inline-flex min-h-9 items-center justify-center rounded-lg px-3",
+                        )}
+                      >
+                        Continue
+                      </Link>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-lg"
+                        disabled={
+                          weekPendingFinalize ||
+                          startDay.isPending ||
+                          done ||
+                          (inProgressSession != null && inProgressSession.programDayId !== day.id)
+                        }
+                        onClick={() =>
+                          startDay.mutate(day.id, {
+                            onSuccess: (d) => {
+                              window.location.href = `/workout/${d.sessionId}`;
+                            },
+                          })
+                        }
+                      >
+                        {startDay.isPending ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Play className="size-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Start</span>
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <DayStatusBadge status={status} />
-                <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                  {skipped ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="rounded-lg"
-                      disabled={
-                        unskipDay.isPending ||
-                        (inProgressSession != null && inProgressSession.programDayId !== day.id)
-                      }
-                      title={
-                        inProgressSession != null && inProgressSession.programDayId !== day.id
-                          ? "Finish or cancel the in-progress workout before changing skips"
-                          : "Remove skip so you can train this day this week"
-                      }
-                      onClick={() => unskipDay.mutate(day.id)}
-                    >
-                      {unskipDay.isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <>
-                          <RotateCcw className="size-4 sm:mr-1" />
-                          <span className="hidden sm:inline">Unskip</span>
-                        </>
-                      )}
-                    </Button>
-                  ) : inProgressSession?.programDayId === day.id ? (
-                    <Link
-                      href={`/workout/${inProgressSession.id}`}
-                      className={cn(
-                        buttonVariants({ size: "sm", variant: "default" }),
-                        "rounded-lg inline-flex items-center justify-center min-h-9 px-3",
-                      )}
-                    >
-                      Continue
-                    </Link>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-lg"
-                      disabled={
-                        weekPendingFinalize ||
-                        startDay.isPending ||
-                        done ||
-                        (inProgressSession != null && inProgressSession.programDayId !== day.id)
-                      }
-                      onClick={() =>
-                        startDay.mutate(day.id, {
-                          onSuccess: (d) => {
-                            window.location.href = `/workout/${d.sessionId}`;
-                          },
-                        })
-                      }
-                    >
-                      {startDay.isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Play className="size-4 sm:mr-1" />
-                          <span className="hidden sm:inline">Start</span>
-                        </>
-                      )}
-                    </Button>
-                  )}
+                <div className="pl-7 sm:hidden">
+                  <DayStatusBadge status={status} />
                 </div>
               </button>
               {isOpen && (

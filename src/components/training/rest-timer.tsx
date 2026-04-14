@@ -19,6 +19,7 @@ import {
   type RpeRestBandId,
 } from "@/lib/rest-by-rpe";
 import { useWorkoutSessionStore } from "@/stores/workout-session-store";
+import { cn } from "@/lib/utils";
 
 type Props = {
   /** When omitted, uses `restSessionId` from the store (set when rest starts from a workout). */
@@ -220,7 +221,12 @@ export function RestTimerRing({ sessionId: propSessionId }: Props) {
   const pending = saveBand.isPending || saveProgramRest.isPending;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex max-w-[min(100vw-2rem,280px)] flex-col items-center gap-2">
+    <div
+      className={cn(
+        "fixed z-50 flex max-w-[min(100vw-2rem,280px)] flex-col items-center gap-2",
+        "right-4 max-sm:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] bottom-6 sm:right-6",
+      )}
+    >
       <button
         type="button"
         onClick={() => clearRest()}

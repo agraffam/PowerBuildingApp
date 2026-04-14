@@ -252,31 +252,48 @@ export function ProgramBuilderForm({
     }
   };
 
+  const stepLabels = ["Details", "Blocks", "Days"] as const;
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="page-stack mx-auto max-w-2xl">
       <Link
         href="/programs"
-        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit -ml-2 gap-2 inline-flex")}
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "-ml-2 inline-flex w-fit gap-2 rounded-xl",
+        )}
       >
         <ArrowLeft className="size-4" />
         Programs
       </Link>
 
-      <div className="flex gap-2 text-sm text-muted-foreground">
-        {["Meta", "Blocks", "Days"].map((l, i) => (
-          <span key={l} className={step === i ? "text-foreground font-medium" : ""}>
+      <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {stepLabels.map((l, i) => (
+          <span
+            key={l}
+            className={cn(
+              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              step === i
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
             {i + 1}. {l}
           </span>
         ))}
       </div>
 
       {step === 0 && (
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
           <CardHeader>
-            <CardTitle>Program details</CardTitle>
-            <CardDescription>
-              6–12 week mesocycles. Nothing is sent to the server until you use <span className="font-medium">Next</span>{" "}
-              and finish with <span className="font-medium">Create program</span> or <span className="font-medium">Save</span>.
+            <CardTitle className="font-heading">Program details</CardTitle>
+            <CardDescription className="leading-relaxed">
+              <span className="sm:hidden">6–12 week mesocycles. Tap Next, then finish on the last step to save.</span>
+              <span className="hidden sm:inline">
+                6–12 week mesocycles. Nothing is sent to the server until you use <span className="font-medium">Next</span>{" "}
+                and finish with <span className="font-medium">Create program</span> or{" "}
+                <span className="font-medium">Save</span>.
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -318,32 +335,32 @@ export function ProgramBuilderForm({
                 Deload weeks ease volume and intensity on a fixed cadence (e.g. week 5, 10 when set to 5).
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
               <input
                 type="checkbox"
                 id="includePeaking"
-                className="rounded border-input"
+                className="mt-1 rounded border-input"
                 checked={includePeaking}
                 onChange={(e) => setIncludePeaking(e.target.checked)}
               />
-              <Label htmlFor="includePeaking" className="font-normal cursor-pointer">
+              <Label htmlFor="includePeaking" className="cursor-pointer font-normal leading-snug">
                 Include final peaking block (best for 10+ week programs)
               </Label>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
               <input
                 type="checkbox"
                 id="autoRx"
-                className="rounded border-input"
+                className="mt-1 rounded border-input"
                 checked={autoBlockPrescriptions}
                 onChange={(e) => setAutoBlockPrescriptions(e.target.checked)}
               />
-              <Label htmlFor="autoRx" className="font-normal cursor-pointer">
+              <Label htmlFor="autoRx" className="cursor-pointer font-normal leading-snug">
                 Auto-adjust sets/reps/RPE by block (hypertrophy → strength → peak)
               </Label>
             </div>
             <Button
-              className="rounded-xl"
+              className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
               onClick={() => {
                 setBlocks(defaultMesocycleBlocks(durationWeeks, includePeaking));
                 setStep(1);
@@ -357,30 +374,38 @@ export function ProgramBuilderForm({
       )}
 
       {step === 1 && (
-        <Card className="rounded-2xl">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Blocks</CardTitle>
-              <CardDescription>
-                Weeks must partition 1–{durationWeeks} with no gaps or overlaps so progression maps cleanly to
-                mesocycles (validated on save).
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="font-heading">Blocks</CardTitle>
+              <CardDescription className="leading-relaxed">
+                <span className="sm:hidden">
+                  Weeks 1–{durationWeeks} must partition cleanly (no gaps/overlaps). Checked when you save.
+                </span>
+                <span className="hidden sm:inline">
+                  Weeks must partition 1–{durationWeeks} with no gaps or overlaps so progression maps cleanly to
+                  mesocycles (validated on save).
+                </span>
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" className="rounded-lg" onClick={addBlock}>
+            <Button variant="outline" size="sm" className="h-10 w-full shrink-0 rounded-xl sm:h-9 sm:w-auto" onClick={addBlock}>
               <Plus className="size-4" />
               Block
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             {blocks.map((b, i) => (
-              <div key={i} className="flex flex-wrap items-end gap-3 rounded-xl border p-3">
+              <div
+                key={i}
+                className="flex flex-col gap-3 rounded-xl border bg-muted/10 p-3 sm:flex-row sm:flex-wrap sm:items-end"
+              >
                 <div className="space-y-1">
                   <Label className="text-xs">Type</Label>
                   <Select
                     value={b.blockType}
                     onValueChange={(v) => v && updateBlock(i, { blockType: v })}
                   >
-                    <SelectTrigger className="w-[160px] rounded-lg">
+                    <SelectTrigger className="h-11 w-full rounded-lg sm:h-10 sm:w-[160px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -392,10 +417,10 @@ export function ProgramBuilderForm({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
+                <div className="flex flex-1 flex-col gap-1 sm:flex-initial">
                   <Label className="text-xs">Start week</Label>
                   <NumericInput
-                    className="w-20 rounded-lg"
+                    className="h-11 w-full rounded-lg sm:h-10 sm:w-20"
                     value={b.startWeek}
                     onValueChange={(n) => updateBlock(i, { startWeek: n })}
                     min={1}
@@ -403,10 +428,10 @@ export function ProgramBuilderForm({
                     fallback={b.startWeek}
                   />
                 </div>
-                <div className="space-y-1">
+                <div className="flex flex-1 flex-col gap-1 sm:flex-initial">
                   <Label className="text-xs">End week</Label>
                   <NumericInput
-                    className="w-20 rounded-lg"
+                    className="h-11 w-full rounded-lg sm:h-10 sm:w-20"
                     value={b.endWeek}
                     onValueChange={(n) => updateBlock(i, { endWeek: n })}
                     min={1}
@@ -417,7 +442,7 @@ export function ProgramBuilderForm({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-lg shrink-0"
+                  className="h-11 shrink-0 self-end rounded-lg sm:h-10 sm:self-end"
                   onClick={() => removeBlock(i)}
                   aria-label="Remove block"
                 >
@@ -425,11 +450,11 @@ export function ProgramBuilderForm({
                 </Button>
               </div>
             ))}
-            <div className="flex gap-2">
-              <Button variant="outline" className="rounded-xl" onClick={() => setStep(0)}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="outline" className="h-11 w-full rounded-xl sm:h-10 sm:w-auto" onClick={() => setStep(0)}>
                 Back
               </Button>
-              <Button className="rounded-xl" onClick={() => setStep(2)}>
+              <Button className="h-11 w-full rounded-xl sm:h-10 sm:w-auto" onClick={() => setStep(2)}>
                 Next
                 <ArrowRight className="size-4" />
               </Button>
@@ -439,22 +464,20 @@ export function ProgramBuilderForm({
       )}
 
       {step === 2 && (
-        <Card className="rounded-2xl">
-          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle>Training days</CardTitle>
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="font-heading">Training days</CardTitle>
               <CardDescription>Add exercises from your library.</CardDescription>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="rounded-lg" onClick={addDay}>
-                <Plus className="size-4" />
-                Day
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" className="h-10 w-full shrink-0 rounded-xl sm:h-9 sm:w-auto" onClick={addDay}>
+              <Plus className="size-4" />
+              Day
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-8">
+          <CardContent className="space-y-8 max-sm:space-y-9">
             {days.map((day, di) => (
-              <div key={di} className="rounded-2xl border bg-muted/20 p-4 space-y-3">
+              <div key={di} className="space-y-3 rounded-2xl border bg-muted/20 p-4 shadow-sm ring-1 ring-foreground/5">
                 <div className="flex flex-wrap items-center gap-2">
                   <>
                     <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => moveDay(di, -1)}>
@@ -467,7 +490,7 @@ export function ProgramBuilderForm({
                   <Input
                     value={day.label}
                     onChange={(e) => updateDayLabel(di, e.target.value)}
-                    className="max-w-xs rounded-lg font-medium"
+                    className="min-w-0 flex-1 rounded-lg font-medium sm:max-w-xs"
                   />
                   <Button variant="ghost" size="sm" onClick={() => removeDay(di)}>
                     <Trash2 className="size-4" />
@@ -691,7 +714,7 @@ export function ProgramBuilderForm({
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="rounded-lg"
+                  className="h-10 w-full rounded-xl sm:h-9 sm:w-auto"
                   onClick={() => addExercise(di)}
                 >
                   <Plus className="size-4" />
@@ -702,11 +725,11 @@ export function ProgramBuilderForm({
 
             {error && <p className="text-destructive text-sm">{error}</p>}
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="rounded-xl" onClick={() => setStep(1)}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="outline" className="h-11 w-full rounded-xl sm:h-10 sm:w-auto" onClick={() => setStep(1)}>
                 Back
               </Button>
-              <Button className="rounded-xl" disabled={loading} onClick={submit}>
+              <Button className="h-11 w-full rounded-xl sm:h-10 sm:w-auto" disabled={loading} onClick={submit}>
                 {loading ? <Loader2 className="animate-spin" /> : mode === "create" ? "Create program" : "Save"}
               </Button>
             </div>

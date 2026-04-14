@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -62,43 +62,52 @@ function RowEditor({ ex }: { ex: Row }) {
   });
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{ex.name}</p>
-        <p className="text-muted-foreground text-xs truncate">{ex.muscleTags}</p>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-3">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <p className="truncate font-medium leading-snug">{ex.name}</p>
+        <p className="truncate text-xs text-muted-foreground">{ex.muscleTags}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          type="text"
-          inputMode="decimal"
-          className="w-24 rounded-lg font-mono"
-          placeholder="e1RM"
-          value={e1}
-          onChange={(e) => setE1(e.target.value)}
-        />
-        <Select value={unit} onValueChange={(v) => setUnit(v as "LB" | "KG")}>
-          <SelectTrigger className="w-[88px] rounded-lg">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="LB">lb</SelectItem>
-            <SelectItem value="KG">kg</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button size="sm" className="rounded-lg" disabled={save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? <Loader2 className="size-4 animate-spin" /> : "Save"}
-        </Button>
-        {ex.strengthProfile && (
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="text"
+            inputMode="decimal"
+            className="min-w-0 flex-1 rounded-lg font-mono sm:w-24 sm:flex-none"
+            placeholder="e1RM"
+            value={e1}
+            onChange={(e) => setE1(e.target.value)}
+          />
+          <Select value={unit} onValueChange={(v) => setUnit(v as "LB" | "KG")}>
+            <SelectTrigger className="w-[88px] shrink-0 rounded-lg">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="LB">lb</SelectItem>
+              <SelectItem value="KG">kg</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-2">
           <Button
             size="sm"
-            variant="ghost"
-            className="rounded-lg"
-            disabled={clear.isPending}
-            onClick={() => clear.mutate()}
+            className="h-10 flex-1 rounded-lg sm:h-9 sm:flex-initial"
+            disabled={save.isPending}
+            onClick={() => save.mutate()}
           >
-            Clear
+            {save.isPending ? <Loader2 className="size-4 animate-spin" /> : "Save"}
           </Button>
-        )}
+          {ex.strengthProfile && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-10 flex-1 rounded-lg sm:h-9 sm:flex-initial"
+              disabled={clear.isPending}
+              onClick={() => clear.mutate()}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -117,23 +126,23 @@ export default function StrengthPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight font-heading">Strength profile</h1>
-        <p className="text-muted-foreground text-sm">
-          Log estimated (or tested) 1RM per lift. With %1RM prescriptions, working weights pre-fill for each
-          session and adjust after your readiness survey.
-        </p>
-        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
-          ← Back to Settings
-        </Link>
-      </div>
+    <div className="page-stack">
+      <PageHeader
+        title="Strength profile"
+        description={
+          <>
+            Log estimated (or tested) 1RM per lift. With %1RM prescriptions, working weights pre-fill for each
+            session and adjust after your readiness survey.
+          </>
+        }
+        backLink={{ href: "/settings", label: "← Back to Settings" }}
+      />
 
       <Input
         placeholder="Filter exercises…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        className="max-w-md rounded-xl"
+        className="w-full max-w-md rounded-xl"
       />
 
       <Card className="rounded-2xl">
@@ -146,8 +155,8 @@ export default function StrengthPage() {
             <Loader2 className="size-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <ScrollArea className="h-[min(65svh,560px)] px-6 pb-6">
-            <ul className="space-y-6 pr-3">
+          <ScrollArea className="h-[min(58svh,520px)] px-4 pb-6 max-sm:h-[min(52svh,480px)] sm:px-6">
+            <ul className="space-y-7 pr-3 sm:space-y-6">
               {(data ?? []).map((ex) => (
                 <li
                   key={`${ex.id}-${ex.strengthProfile?.estimatedOneRm ?? "none"}-${ex.strengthProfile?.weightUnit ?? ""}`}

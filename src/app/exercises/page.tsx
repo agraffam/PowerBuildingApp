@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,19 +109,16 @@ export default function ExercisesPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-heading">Exercise library</h1>
-          <p className="text-muted-foreground text-sm">
-            Built-in catalog plus your custom movements for programs.
-          </p>
-          <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
-            ← Back to Settings
-          </Link>
-        </div>
+        <PageHeader
+          className="min-w-0 flex-1"
+          title="Exercise library"
+          description="Built-in catalog plus your custom movements for programs."
+          backLink={{ href: "/settings", label: "← Back to Settings" }}
+        />
         <Dialog open={open} onOpenChange={setOpen}>
-          <Button className="rounded-xl gap-2 shrink-0" onClick={() => setOpen(true)}>
+          <Button className="h-11 w-full shrink-0 gap-2 rounded-xl sm:h-10 sm:w-auto" onClick={() => setOpen(true)}>
             <Plus className="size-4" />
             Add exercise
           </Button>
@@ -177,7 +174,7 @@ export default function ExercisesPage() {
         placeholder="Search…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        className="max-w-md rounded-xl"
+        className="w-full max-w-md rounded-xl"
       />
 
       {isLoading ? (
@@ -185,8 +182,8 @@ export default function ExercisesPage() {
           <Loader2 className="size-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <ScrollArea className="h-[calc(100svh-14rem)] pr-3">
-          <ul className="grid gap-3 sm:grid-cols-2 pb-8">
+        <ScrollArea className="h-[calc(100svh-18rem)] pr-3 sm:h-[calc(100svh-14rem)]">
+          <ul className="grid gap-4 pb-8 sm:grid-cols-2 sm:gap-3">
             {(data ?? []).map((ex) => (
               <li key={ex.id}>
                 <Card className="rounded-2xl">

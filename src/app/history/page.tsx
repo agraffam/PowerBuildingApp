@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { format } from "date-fns";
 import { Loader2, Trash2 } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -78,17 +79,17 @@ export default function HistoryPage() {
   const { sessions, total } = q.data!;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight font-heading">Workout history</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Open a session to edit sets or the workout date. Deleting removes it from history and analytics;
-          it does not change your current program week or next day.
-        </p>
-        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
-          ← Back to Settings
-        </Link>
-      </div>
+    <div className="page-stack">
+      <PageHeader
+        title="Workout history"
+        description={
+          <>
+            Open a session to edit sets or the workout date. Deleting removes it from history and analytics;
+            it does not change your current program week or next day.
+          </>
+        }
+        backLink={{ href: "/settings", label: "← Back to Settings" }}
+      />
 
       {sessions.length === 0 ? (
         <Card className="rounded-2xl border-dashed">
@@ -103,15 +104,15 @@ export default function HistoryPage() {
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-3 sm:space-y-2">
           {sessions.map((s) => (
-            <li key={s.id} className="flex gap-2 items-stretch">
+            <li key={s.id} className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-2">
               <Link
                 href={`/workout/${s.id}`}
-                className="flex-1 min-w-0 rounded-2xl border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
+                className="min-w-0 flex-1 rounded-2xl border bg-card px-4 py-3.5 transition-colors hover:bg-muted/40 sm:py-3"
               >
-                <div className="font-medium text-sm">{s.programName}</div>
-                <div className="text-muted-foreground text-xs mt-0.5">
+                <div className="text-sm font-medium leading-snug">{s.programName}</div>
+                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {s.dayLabel} · Week {s.weekIndex + 1} ·{" "}
                   {format(new Date(s.performedAt), "EEE MMM d, yyyy")}
                 </div>
@@ -119,8 +120,7 @@ export default function HistoryPage() {
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
-                className="shrink-0 rounded-xl h-auto min-h-[4.5rem] border-destructive/30 text-destructive hover:bg-destructive/10"
+                className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 sm:h-auto sm:w-12 sm:min-h-[4.5rem] sm:gap-0 sm:p-0"
                 disabled={del.isPending}
                 aria-label="Delete workout"
                 onClick={() => {
@@ -131,7 +131,10 @@ export default function HistoryPage() {
                 {del.isPending ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <Trash2 className="size-4" />
+                  <>
+                    <Trash2 className="size-4 sm:mx-auto" />
+                    <span className="text-sm font-medium sm:sr-only">Delete</span>
+                  </>
                 )}
               </Button>
             </li>

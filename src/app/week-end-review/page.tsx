@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { PageHeader } from "@/components/page-header";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -39,13 +40,16 @@ export default function WeekEndReviewPage() {
 
   if (!q.data.review) {
     return (
-      <Card className="rounded-2xl">
+      <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
         <CardHeader>
-          <CardTitle>Week-end review</CardTitle>
+          <CardTitle className="font-heading">Week-end review</CardTitle>
           <CardDescription>No active program yet.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/" className="text-sm text-primary underline-offset-4 hover:underline">
+          <Link
+            href="/"
+            className="inline-flex h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
             Back to Train
           </Link>
         </CardContent>
@@ -56,49 +60,48 @@ export default function WeekEndReviewPage() {
   const r = q.data.review;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Week-end review</h1>
-        <p className="text-muted-foreground text-sm">
-          {r.programName} · Week {r.weekIndex + 1}
-        </p>
-      </div>
+    <div className="page-stack mx-auto max-w-3xl">
+      <PageHeader
+        title="Week-end review"
+        description={`${r.programName} · Week ${r.weekIndex + 1}`}
+        backLink={{ href: "/", label: "← Train" }}
+      />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Sessions completed</CardTitle>
+            <CardTitle className="text-base font-medium text-muted-foreground">Sessions completed</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{r.sessionsCompleted}</p>
+            <p className="font-heading text-2xl font-semibold tabular-nums">{r.sessionsCompleted}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Total volume</CardTitle>
+            <CardTitle className="text-base font-medium text-muted-foreground">Total volume</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">
+            <p className="font-heading text-2xl font-semibold tabular-nums">
               {r.totalVolume} {r.totalVolumeUnit.toLowerCase()}
             </p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Best top set</CardTitle>
+            <CardTitle className="text-base font-medium text-muted-foreground">Best top set</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm">{r.bestTopSet ?? "No top set logged yet"}</p>
+            <p className="text-sm leading-relaxed">{r.bestTopSet ?? "No top set logged yet"}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Adherence</CardTitle>
+            <CardTitle className="text-base font-medium text-muted-foreground">Adherence</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">
+            <p className="font-heading text-2xl font-semibold tabular-nums">
               {(r.adherenceRate * 100).toFixed(0)}%
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               {r.accountedDays}/{r.daysInWeek} days completed or skipped
             </p>
           </CardContent>

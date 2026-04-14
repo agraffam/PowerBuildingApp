@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageHeader } from "@/components/page-header";
 import { RestTimerNotificationsCard } from "@/components/settings/rest-timer-notifications-card";
 import { Button } from "@/components/ui/button";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -149,14 +150,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex items-end justify-between gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-          <span className="text-xs text-muted-foreground">v{versionData?.version ?? "0.000"}</span>
-        </div>
-        <p className="text-muted-foreground text-sm">Appearance, units, and timer defaults</p>
-      </div>
+    <div className="page-stack">
+      <PageHeader
+        title="Settings"
+        meta={`v${versionData?.version ?? "0.000"}`}
+        description="Appearance, units, and timer defaults"
+      />
 
       <Card>
         <CardHeader>
@@ -191,17 +190,17 @@ export default function SettingsPage() {
           <CardDescription>Behavior while a workout screen is open.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
-            <div>
-              <p className="text-sm font-medium">Keep screen awake during workouts</p>
-              <p className="text-xs text-muted-foreground">
+          <div className="flex flex-col gap-3 rounded-xl border p-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-medium leading-snug">Keep screen awake during workouts</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 Best effort using browser support (may be limited on some iPhone Safari versions).
               </p>
             </div>
             <Button
               type="button"
               variant={keepAwakeDuringWorkout ? "default" : "outline"}
-              className="rounded-xl shrink-0"
+              className="h-11 w-full shrink-0 rounded-xl sm:h-9 sm:w-auto"
               onClick={() => setKeepAwakeDuringWorkout((v) => !v)}
             >
               {keepAwakeDuringWorkout ? "On" : "Off"}
@@ -240,7 +239,10 @@ export default function SettingsPage() {
                 max={600}
                 fallback={defaultRestDraft}
               />
-              <p className="text-muted-foreground text-xs">
+              <p className="text-muted-foreground text-xs leading-relaxed sm:hidden">
+                Fallback rest when the RPE table doesn&apos;t apply. Bands below use 30–210s steps.
+              </p>
+              <p className="hidden text-muted-foreground text-xs leading-relaxed sm:block">
                 Fallback when rest can&apos;t be read from the RPE table (e.g. missing data). The table below uses
                 fixed steps (30–210s); reset uses RPE 6–6.5 → 60s, 7–7.5 → 120s, 8+ → 180s.
               </p>
@@ -285,10 +287,16 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Rest timer by RPE</CardTitle>
           <CardDescription>
-            After a set, rest length when your program does not set a fixed <span className="font-medium">rest</span>{" "}
-            per exercise. If any lift in a superset has a prescribed rest (program editor), that still wins (longest
-            in the group). Otherwise we use the RPE from your log (or target RPE) to pick a duration. Four bands (6–6.5
-            through 9+) each use the same 30–210s steps; changing a band updates every half-step RPE in that range.
+            <span className="block sm:hidden">
+              When a lift doesn&apos;t have fixed rest in the program, the app picks duration from your logged RPE (four
+              bands, 30–210s each). Superset prescribed rest still wins.
+            </span>
+            <span className="hidden sm:block">
+              After a set, rest length when your program does not set a fixed <span className="font-medium">rest</span>{" "}
+              per exercise. If any lift in a superset has a prescribed rest (program editor), that still wins (longest
+              in the group). Otherwise we use the RPE from your log (or target RPE) to pick a duration. Four bands (6–6.5
+              through 9+) each use the same 30–210s steps; changing a band updates every half-step RPE in that range.
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -324,17 +332,15 @@ export default function SettingsPage() {
               })}
             </div>
           )}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              disabled={save.isPending}
-              onClick={() => setRpeRestDraft({ ...defaultRestDurationsByRpe(defaultRestDraft) })}
-            >
-              Reset RPE times to defaults (draft)
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full rounded-xl sm:h-9 sm:w-auto"
+            disabled={save.isPending}
+            onClick={() => setRpeRestDraft({ ...defaultRestDurationsByRpe(defaultRestDraft) })}
+          >
+            Reset RPE times to defaults (draft)
+          </Button>
         </CardContent>
       </Card>
 
@@ -345,21 +351,36 @@ export default function SettingsPage() {
           <CardTitle>Settings menu</CardTitle>
           <CardDescription>Additional pages moved here to keep the top header uncluttered.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Link href="/account" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+        <CardContent className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Link
+            href="/account"
+            className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
+          >
             Account
           </Link>
-          <Link href="/analytics" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+          <Link
+            href="/analytics"
+            className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
+          >
             Analytics
           </Link>
-          <Link href="/help" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+          <Link
+            href="/help"
+            className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
+          >
             Help
           </Link>
-          <Link href="/updates" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+          <Link
+            href="/updates"
+            className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
+          >
             Updates
           </Link>
           {me?.user?.isSuperAdmin && (
-            <Link href="/admin" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            <Link
+              href="/admin"
+              className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80 sm:col-span-1"
+            >
               Admin
             </Link>
           )}
@@ -371,26 +392,38 @@ export default function SettingsPage() {
           <CardTitle>Training pages</CardTitle>
           <CardDescription>Shortcuts to your training setup and logs.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Link href="/programs" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+        <CardContent className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Link
+            href="/programs"
+            className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
+          >
             Programs
           </Link>
-          <Link href="/exercises" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+          <Link
+            href="/exercises"
+            className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
+          >
             Exercises
           </Link>
-          <Link href="/history" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+          <Link
+            href="/history"
+            className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
+          >
             History
           </Link>
-          <Link href="/strength" className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+          <Link
+            href="/strength"
+            className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
+          >
             1RM
           </Link>
         </CardContent>
       </Card>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border bg-muted/30 p-4">
+      <div className="flex flex-col gap-4 rounded-2xl border bg-muted/30 p-4 sm:flex-row sm:items-center sm:gap-3">
         <Button
           type="button"
-          className="rounded-xl sm:w-auto w-full"
+          className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
           disabled={!dirty || save.isPending}
           onClick={() => saveAll()}
         >

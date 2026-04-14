@@ -96,12 +96,12 @@ export default function EditProgramPage() {
   const initial = toWizard(data.program);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 max-sm:space-y-5">
       <Link
-        href="/"
-        className="text-sm text-primary underline-offset-4 hover:underline inline-block"
+        href="/programs"
+        className="inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
       >
-        ← Train
+        ← Programs
       </Link>
       <ProgramBuilderForm mode="edit" programId={programId} initial={initial} />
     </div>

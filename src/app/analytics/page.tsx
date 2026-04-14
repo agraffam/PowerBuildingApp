@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -14,6 +13,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -91,24 +91,25 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-muted-foreground text-sm">
-          Volume and best e1RM trends in your preferred unit ({q.data.displayUnit.toLowerCase()}).
-        </p>
-        <Link href="/settings" className="text-xs text-primary underline-offset-4 hover:underline mt-1 inline-block">
-          ← Back to Settings
-        </Link>
-      </div>
+    <div className="page-stack mx-auto max-w-5xl">
+      <PageHeader
+        title="Analytics"
+        description={`Volume and best e1RM trends in your preferred unit (${q.data.displayUnit.toLowerCase()}).`}
+        backLink={{ href: "/settings", label: "← Back to Settings" }}
+      />
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
         <CardHeader>
-          <CardTitle className="text-base">Tracked exercises</CardTitle>
-          <CardDescription>Select up to 3 primary lifts, and add/remove additional tracked lifts.</CardDescription>
+          <CardTitle className="text-base font-heading">Tracked exercises</CardTitle>
+          <CardDescription className="leading-relaxed">
+            <span className="sm:hidden">Pick up to three primaries, then add more lifts to track.</span>
+            <span className="hidden sm:inline">
+              Select up to 3 primary lifts, and add/remove additional tracked lifts.
+            </span>
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-3">
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-2">
             {[0, 1, 2].map((slot) => {
               const current = trackedIds[slot] ?? "";
               const currentName = q.data.availableExercises.find((ex) => ex.id === current)?.name ?? "";
@@ -122,7 +123,7 @@ export default function AnalyticsPage() {
                     setTrackedIds(Array.from(new Set(next.filter(Boolean))));
                   }}
                 >
-                  <SelectTrigger className="rounded-xl">
+                  <SelectTrigger className="h-11 rounded-xl sm:h-10">
                     <SelectValue placeholder={`Primary ${slot + 1}`}>
                       {currentName || `Primary ${slot + 1}`}
                     </SelectValue>
@@ -138,9 +139,9 @@ export default function AnalyticsPage() {
               );
             })}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <Select value={addExerciseId} onValueChange={(v) => setAddExerciseId(v ?? "")}>
-              <SelectTrigger className="rounded-xl w-[260px]">
+              <SelectTrigger className="h-11 w-full min-w-0 rounded-xl sm:h-10 sm:w-[260px]">
                 <SelectValue placeholder="Add another exercise to track" />
               </SelectTrigger>
               <SelectContent>
@@ -156,7 +157,7 @@ export default function AnalyticsPage() {
             <Button
               type="button"
               variant="outline"
-              className="rounded-xl"
+              className="h-11 w-full shrink-0 rounded-xl sm:h-10 sm:w-auto"
               onClick={() => {
                 if (!addExerciseId) return;
                 setTrackedIds((prev) => Array.from(new Set([...prev, addExerciseId])));
@@ -176,10 +177,11 @@ export default function AnalyticsPage() {
                     type="button"
                     variant="secondary"
                     size="sm"
-                    className="rounded-xl"
+                    className="inline-flex max-w-full items-center gap-1 rounded-xl sm:max-w-none"
                     onClick={() => setTrackedIds((prev) => prev.filter((v) => v !== id))}
                   >
-                    {ex?.name ?? "Unknown exercise"} ×
+                    <span className="min-w-0 truncate">{ex?.name ?? "Unknown exercise"}</span>
+                    <span className="shrink-0">×</span>
                   </Button>
                 );
               })}
@@ -189,26 +191,30 @@ export default function AnalyticsPage() {
       </Card>
 
       {q.data.series.map((s) => (
-        <Card key={s.slug} className="rounded-2xl">
-          <CardHeader>
-            <CardTitle>{s.label}</CardTitle>
-            <CardDescription>
+        <Card key={s.slug} className="rounded-2xl shadow-sm ring-1 ring-foreground/5">
+          <CardHeader className="space-y-1">
+            <CardTitle className="font-heading text-lg leading-snug">{s.label}</CardTitle>
+            <CardDescription className="leading-relaxed">
               Current estimated 1RM:{" "}
               {s.currentEstimatedOneRmDisplay != null
                 ? `${s.currentEstimatedOneRmDisplay.toFixed(1)} ${q.data.displayUnit.toLowerCase()}`
                 : "not available yet"}
             </CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
+          <CardContent className="h-[min(42svh,20rem)] min-h-[220px] sm:h-72 sm:min-h-0">
             {s.points.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Log sessions to see trends.</p>
+              <p className="text-sm text-muted-foreground">Log sessions to see trends.</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={s.points}>
+                <LineChart
+                  data={s.points}
+                  margin={{ top: 8, right: 4, left: -18, bottom: 4 }}
+                  className="text-xs sm:text-sm"
+                >
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="v" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="e" orientation="right" tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                  <YAxis yAxisId="v" width={36} tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="e" orientation="right" width={36} tick={{ fontSize: 10 }} />
                   <Tooltip
                     formatter={(value, name) => {
                       const v = typeof value === "number" ? value : Number(value);
@@ -222,7 +228,7 @@ export default function AnalyticsPage() {
                       ];
                     }}
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
                   <Line
                     yAxisId="v"
                     type="monotone"

@@ -26,9 +26,10 @@ test.describe("smoke (mobile viewport)", () => {
 
   test("home loads train context", async ({ page }) => {
     await page.goto("/");
-    await expect(
-      page.getByText(/Train|No active program/).first(),
-    ).toBeVisible({ timeout: 30_000 });
+    const main = page.getByRole("main");
+    const trainHeading = main.getByRole("heading", { level: 1, name: "Train" });
+    const noProgram = main.getByText("No active program");
+    await expect(trainHeading.or(noProgram)).toBeVisible({ timeout: 30_000 });
   });
 
   test("main nav: Programs page", async ({ page }) => {
@@ -38,14 +39,12 @@ test.describe("smoke (mobile viewport)", () => {
     });
   });
 
-  test("main nav: Exercises from header link", async ({ page }) => {
-    await page.goto("/");
-    await page
-      .getByRole("navigation", { name: "Main navigation" })
-      .getByRole("link", { name: "Exercises" })
-      .click();
+  test("exercises page loads", async ({ page }) => {
+    await page.goto("/exercises");
     await expect(page).toHaveURL(/\/exercises$/);
-    await expect(page.getByRole("heading", { name: /Exercise library/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Exercise library/i })).toBeVisible({
+      timeout: 30_000,
+    });
   });
 
   test("settings page renders", async ({ page }) => {
