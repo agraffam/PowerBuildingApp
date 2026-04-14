@@ -55,7 +55,7 @@ export function ExerciseLibrarySheet() {
         { id: string; name: string; slug: string; muscleTags: string }[]
       >;
     },
-    enabled: open,
+    enabled: open && browseAll,
   });
 
   const top = useQuery({
@@ -87,161 +87,169 @@ export function ExerciseLibrarySheet() {
     if (!isOpen) openLibrary(null);
   };
 
+  const historyPanel = historySlug ? (
+    <div className="space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+        <History className="size-3.5" aria-hidden />
+        History
+      </p>
+
+      {top.isPending && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Loading history…
+        </div>
+      )}
+
+      {top.isError && (
+        <div className="space-y-2">
+          <p className="text-destructive text-sm">
+            {(top.error as Error)?.message ?? "Could not load history."}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => top.refetch()}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {top.data && !top.isPending && !top.isError && (
+        <>
+          {top.data.bestSet ? (
+            <p className="text-sm">
+              <span className="text-muted-foreground">Best est. set: </span>
+              <span className="font-medium">
+                {top.data.bestSet.weight}
+                {top.data.bestSet.weightUnit} × {top.data.bestSet.reps}
+                {top.data.bestSet.rpe != null ? ` @ ${top.data.bestSet.rpe} RPE` : ""}
+              </span>
+            </p>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              No completed sets for this lift yet. Finish and complete a session with logged sets to build
+              history.
+            </p>
+          )}
+
+          {top.data.recent.length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Recent sessions</p>
+              <ul className="space-y-2 pr-1" role="list">
+                {top.data.recent.map((row, i) => (
+                  <li
+                    key={`${row.performedAt}-${i}`}
+                    className="text-sm rounded-lg border bg-card/80 px-3 py-2"
+                  >
+                    <div className="text-muted-foreground text-xs">{formatSessionDate(row.performedAt)}</div>
+                    <div>
+                      {row.weight}
+                      {row.weightUnit} × {row.reps}
+                      {row.rpe != null ? ` @ ${row.rpe} RPE` : ""}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  ) : null;
+
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="right"
         className="gap-0 p-0 flex flex-col !w-full sm:!max-w-md h-[100dvh] max-h-[100dvh] min-h-0 border-l pt-[env(safe-area-inset-top)]"
       >
-        <div className="flex flex-col gap-3 px-4 pt-4 pb-2 shrink-0 pr-12">
-          <SheetHeader className="p-0 space-y-1">
-            <SheetTitle className="flex items-center gap-2">
-              <BookOpen className="size-5 shrink-0" />
-              {browseAll
-                ? "Exercise library"
-                : historySlug
-                  ? top.data?.exercise.name ?? "Exercise history"
-                  : "Exercise library"}
-            </SheetTitle>
-            {!browseAll && historySlug && (
-              <p className="text-muted-foreground text-xs font-normal">
-                Past sets from completed sessions only
-              </p>
-            )}
-          </SheetHeader>
+        {browseAll ? (
+          <>
+            <div className="flex flex-col gap-3 px-4 pt-4 pb-2 shrink-0 pr-12">
+              <SheetHeader className="p-0 space-y-1">
+                <SheetTitle className="flex items-center gap-2">
+                  <BookOpen className="size-5 shrink-0" />
+                  Exercise library
+                </SheetTitle>
+              </SheetHeader>
 
-          <Input
-            placeholder="Search…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="rounded-xl"
-            aria-label="Search exercises"
-          />
+              <Input
+                placeholder="Search…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                className="rounded-xl"
+                aria-label="Search exercises"
+              />
 
-          <div className="flex flex-wrap gap-1">
-            {tags.map((t) => (
-              <Badge
-                key={t}
-                variant={tagFilter === t ? "default" : "secondary"}
-                className="cursor-pointer min-h-9 px-2.5"
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setTagFilter((f) => (f === t ? null : t));
-                  }
-                }}
-                onClick={() => setTagFilter((f) => (f === t ? null : t))}
-              >
-                {t}
-              </Badge>
-            ))}
-          </div>
-        </div>
-
-        <ScrollArea className="flex-1 min-h-0 px-4">
-          <ul className="space-y-2 pb-4">
-            {exercises.isLoading && (
-              <li className="flex items-center gap-2 text-muted-foreground text-sm py-4">
-                <Loader2 className="size-4 animate-spin" />
-                Loading exercises…
-              </li>
-            )}
-            {exercises.isError && (
-              <li className="text-destructive text-sm py-2">Could not load exercises.</li>
-            )}
-            {(exercises.data ?? [])
-              .filter((e) => !tagFilter || e.muscleTags.includes(tagFilter))
-              .map((e) => (
-                <li key={e.id}>
-                  <button
-                    type="button"
-                    className="w-full min-h-11 rounded-xl border bg-card px-4 py-3 text-left text-sm hover:bg-muted/60 active:bg-muted/80"
-                    onClick={() => openLibrary(e.slug)}
+              <div className="flex flex-wrap gap-1">
+                {tags.map((t) => (
+                  <Badge
+                    key={t}
+                    variant={tagFilter === t ? "default" : "secondary"}
+                    className="cursor-pointer min-h-9 px-2.5"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setTagFilter((f) => (f === t ? null : t));
+                      }
+                    }}
+                    onClick={() => setTagFilter((f) => (f === t ? null : t))}
                   >
-                    <div className="font-medium">{e.name}</div>
-                    <div className="text-muted-foreground text-xs">{e.muscleTags}</div>
-                  </button>
-                </li>
-              ))}
-          </ul>
-        </ScrollArea>
-
-        {historySlug && (
-          <div className="shrink-0 border-t px-4 py-4 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-muted/20">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-              <History className="size-3.5" aria-hidden />
-              History
-            </p>
-
-            {top.isPending && (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                Loading history…
+                    {t}
+                  </Badge>
+                ))}
               </div>
-            )}
+            </div>
 
-            {top.isError && (
-              <div className="space-y-2">
-                <p className="text-destructive text-sm">
-                  {(top.error as Error)?.message ?? "Could not load history."}
+            <ScrollArea className="flex-1 min-h-0 px-4">
+              <ul className="space-y-2 pb-4">
+                {exercises.isLoading && (
+                  <li className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+                    <Loader2 className="size-4 animate-spin" />
+                    Loading exercises…
+                  </li>
+                )}
+                {exercises.isError && (
+                  <li className="text-destructive text-sm py-2">Could not load exercises.</li>
+                )}
+                {(exercises.data ?? [])
+                  .filter((e) => !tagFilter || e.muscleTags.includes(tagFilter))
+                  .map((e) => (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        className="w-full min-h-11 rounded-xl border bg-card px-4 py-3 text-left text-sm hover:bg-muted/60 active:bg-muted/80"
+                        onClick={() => openLibrary(e.slug)}
+                      >
+                        <div className="font-medium">{e.name}</div>
+                        <div className="text-muted-foreground text-xs">{e.muscleTags}</div>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </ScrollArea>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-col gap-1 px-4 pt-4 pb-2 shrink-0 pr-12">
+              <SheetHeader className="p-0 space-y-1">
+                <SheetTitle className="flex items-center gap-2">
+                  <History className="size-5 shrink-0" />
+                  {top.data?.exercise.name ?? "Exercise history"}
+                </SheetTitle>
+                <p className="text-muted-foreground text-xs font-normal text-left">
+                  Past sets from completed sessions only
                 </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rounded-lg"
-                  onClick={() => top.refetch()}
-                >
-                  Try again
-                </Button>
-              </div>
-            )}
-
-            {top.data && !top.isPending && !top.isError && (
-              <>
-                {top.data.bestSet ? (
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Best est. set: </span>
-                    <span className="font-medium">
-                      {top.data.bestSet.weight}
-                      {top.data.bestSet.weightUnit} × {top.data.bestSet.reps}
-                      {top.data.bestSet.rpe != null ? ` @ ${top.data.bestSet.rpe} RPE` : ""}
-                    </span>
-                  </p>
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    No completed sets for this lift yet. Finish and complete a session with logged sets to
-                    build history.
-                  </p>
-                )}
-
-                {top.data.recent.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">Recent sessions</p>
-                    <ul className="space-y-2 max-h-40 overflow-y-auto pr-1" role="list">
-                      {top.data.recent.map((row, i) => (
-                        <li
-                          key={`${row.performedAt}-${i}`}
-                          className="text-sm rounded-lg border bg-card/80 px-3 py-2"
-                        >
-                          <div className="text-muted-foreground text-xs">
-                            {formatSessionDate(row.performedAt)}
-                          </div>
-                          <div>
-                            {row.weight}
-                            {row.weightUnit} × {row.reps}
-                            {row.rpe != null ? ` @ ${row.rpe} RPE` : ""}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+              </SheetHeader>
+            </div>
+            <ScrollArea className="flex-1 min-h-0">{historyPanel}</ScrollArea>
+          </>
         )}
       </SheetContent>
     </Sheet>

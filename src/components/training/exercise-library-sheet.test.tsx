@@ -57,7 +57,7 @@ describe("ExerciseLibrarySheet", () => {
 
   it("loads history and shows recent sets for a specific exercise", async () => {
     const performedAt = "2024-06-01T14:00:00.000Z";
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = typeof input === "string" ? input : (input as Request).url;
       if (url.includes("/api/exercises/top")) {
         return mockJsonResponse({
@@ -85,6 +85,8 @@ describe("ExerciseLibrarySheet", () => {
 
     useWorkoutSessionStore.setState({ libraryExerciseSlug: "bench-press" });
     renderWithClient(<ExerciseLibrarySheet />);
+
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/exercises?"))).toBe(false);
 
     expect(await screen.findByText("Recent sessions")).toBeInTheDocument();
     expect(screen.getAllByText(/225/).length).toBeGreaterThanOrEqual(1);

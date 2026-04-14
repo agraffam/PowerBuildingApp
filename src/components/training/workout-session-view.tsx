@@ -5,10 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BookOpen,
   Check,
   ChevronDown,
   Ellipsis,
+  History,
   Loader2,
   Minus,
   Plus,
@@ -217,8 +217,13 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const [exerciseActionsTarget, setExerciseActionsTarget] = useState<{
     id: string;
     name: string;
+    slug: string;
     kind: "STRENGTH" | "CARDIO";
     muscleTags?: string;
+  } | null>(null);
+  const [exerciseNotesDialogTarget, setExerciseNotesDialogTarget] = useState<{
+    programExerciseId: string;
+    notes: string | null;
   } | null>(null);
   const [exerciseSettingsTarget, setExerciseSettingsTarget] = useState<{
     id: string;
@@ -721,41 +726,30 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="space-y-8 pb-32 max-sm:pb-40 sm:space-y-6 sm:pb-28">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight leading-snug">{session.programDay.label}</h1>
-            {isHistorySession && (
-              <Badge variant="secondary" className="text-xs">
-                Completed
-              </Badge>
-            )}
-          </div>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            Week {session.weekIndex + 1}
-            {session.intensityMultiplier !== 1 && (
-              <span>
-                {" "}
-                · intensity ×{session.intensityMultiplier.toFixed(2)}
-              </span>
-            )}
-            {sessionBlockTypeLabel && <span> · {sessionBlockTypeLabel}</span>}
-          </p>
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight leading-snug">{session.programDay.label}</h1>
           {isHistorySession && (
-            <Link href="/history" className="mt-1 inline-block text-xs text-primary underline-offset-4 hover:underline">
-              ← All workouts
-            </Link>
+            <Badge variant="secondary" className="text-xs">
+              Completed
+            </Badge>
           )}
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-11 w-full shrink-0 rounded-xl sm:h-9 sm:w-auto"
-          onClick={() => openLibrary("__all__")}
-        >
-          <BookOpen className="size-4" />
-          Library
-        </Button>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Week {session.weekIndex + 1}
+          {session.intensityMultiplier !== 1 && (
+            <span>
+              {" "}
+              · intensity ×{session.intensityMultiplier.toFixed(2)}
+            </span>
+          )}
+          {sessionBlockTypeLabel && <span> · {sessionBlockTypeLabel}</span>}
+        </p>
+        {isHistorySession && (
+          <Link href="/history" className="mt-1 inline-block text-xs text-primary underline-offset-4 hover:underline">
+            ← All workouts
+          </Link>
+        )}
       </div>
       {keepAwakeEnabled && !wakeLockSupported && (
         <p className="text-xs text-muted-foreground">
@@ -832,10 +826,30 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 </div>
               ) : null;
 
+            const strengthTargets =
+              ex.exercise.kind !== "CARDIO" ? (
+                <>
+                  <Badge variant="secondary" className="shrink-0 text-xs">
+                    {ex.prescription.sets} sets
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="max-w-[min(100%,14rem)] shrink truncate text-xs whitespace-nowrap sm:max-w-none"
+                    title={
+                      ex.prescription.pctOf1rm != null
+                        ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
+                        : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
+                    }
+                  >
+                    Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
+                    {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
+                  </Badge>
+                </>
+              ) : null;
+
             return (
-            <div className="space-y-2">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
-                <div className="min-w-0 space-y-1 sm:flex-1">
+              <div className="space-y-2">
+                <div className="min-w-0 space-y-1">
                   <div className="rounded-xl bg-muted/60 px-3 py-2.5 text-left sm:py-2">
                     <CardTitle className="text-left text-lg leading-snug">{ex.exercise.name}</CardTitle>
                     {cardioLine}
@@ -851,42 +865,50 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                     </div>
                   )}
                 </div>
-                <div className="flex w-full items-center gap-1 sm:w-auto sm:shrink-0 sm:justify-end">
-                  {canCancel && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="min-h-11 flex-1 text-muted-foreground sm:flex-initial sm:px-3"
-                      onClick={() =>
-                        setExerciseActionsTarget({
-                          id: ex.id,
-                          name: ex.exercise.name,
-                          kind: ex.exercise.kind,
-                          muscleTags: ex.exercise.muscleTags,
-                        })
-                      }
-                      type="button"
-                    >
-                                           <Ellipsis className="size-4 sm:mr-1" />
-                      More
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="min-h-11 flex-1 text-muted-foreground sm:min-w-0 sm:flex-initial sm:px-3"
-                    onClick={() => openLibrary(ex.exercise.slug)}
-                  >
-                    History
-                  </Button>
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                    {strengthTargets}
+                  </div>
+                  <div className="flex shrink-0 items-center">
+                    {canCancel ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 shrink-0 px-2.5 text-muted-foreground sm:px-3"
+                        onClick={() =>
+                          setExerciseActionsTarget({
+                            id: ex.id,
+                            name: ex.exercise.name,
+                            slug: ex.exercise.slug,
+                            kind: ex.exercise.kind,
+                            muscleTags: ex.exercise.muscleTags,
+                          })
+                        }
+                        type="button"
+                      >
+                        <Ellipsis className="size-4 sm:mr-1" />
+                        More
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 shrink-0 px-2.5 text-muted-foreground sm:px-3"
+                        onClick={() => openLibrary(ex.exercise.slug)}
+                        type="button"
+                      >
+                        <History className="size-4 sm:mr-1" />
+                        History
+                      </Button>
+                    )}
+                  </div>
                 </div>
+                {!canCancel && (ex.notes?.trim() || ex.exercise.notes?.trim()) && (
+                  <p className="text-xs leading-relaxed text-muted-foreground border-l-2 border-primary/30 pl-2 py-1">
+                    {ex.notes?.trim() || ex.exercise.notes}
+                  </p>
+                )}
               </div>
-              {(ex.notes?.trim() || ex.exercise.notes?.trim()) && (
-                <p className="text-xs leading-relaxed text-muted-foreground border-l-2 border-primary/30 pl-2 py-1 mt-2">
-                  {ex.notes?.trim() || ex.exercise.notes}
-                </p>
-              )}
-            </div>
             );
           };
 
@@ -936,30 +958,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                             {done}/{total} {ex.exercise.kind === "CARDIO" ? "bouts" : "sets"} done
                           </span>
                         </p>
-                      ) : ex.exercise.kind !== "CARDIO" ? (
-                        <div className="flex flex-wrap items-center justify-start gap-2 text-xs text-muted-foreground">
-                          <Badge variant="secondary">{ex.prescription.sets} sets</Badge>
-                          <Badge
-                            variant="outline"
-                            className="max-w-full truncate whitespace-nowrap"
-                            title={
-                              ex.prescription.pctOf1rm != null
-                                ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
-                                : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
-                            }
-                          >
-                            Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
-                            {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
-                          </Badge>
-                          <ExerciseNotesButton
-                            programExerciseId={ex.id}
-                            notes={ex.notes}
-                            savePending={patch.isPending}
-                            onSave={(programExerciseId, notes) =>
-                              void commitExerciseNotes(programExerciseId, notes)
-                            }
-                          />
-                        </div>
                       ) : null}
                     </div>
                   </div>
@@ -1110,30 +1108,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           return (
                             <div key={ex.id} className="rounded-xl border bg-muted/20 p-3 space-y-2">
                               {renderExerciseHeader(ex)}
-                              {ex.exercise.kind !== "CARDIO" && (
-                                <div className="flex flex-wrap items-center justify-start gap-2 text-xs text-muted-foreground">
-                                  <Badge
-                                    variant="outline"
-                                    className="max-w-full truncate whitespace-nowrap"
-                                    title={
-                                      ex.prescription.pctOf1rm != null
-                                        ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
-                                        : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
-                                    }
-                                  >
-                                    Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
-                                    {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
-                                  </Badge>
-                                  <ExerciseNotesButton
-                                    programExerciseId={ex.id}
-                                    notes={ex.notes}
-                                    savePending={patch.isPending}
-                                    onSave={(programExerciseId, notes) =>
-                                      void commitExerciseNotes(programExerciseId, notes)
-                                    }
-                                  />
-                                </div>
-                              )}
                               <SetRowEditor
                                 row={row}
                                 idx={si}
@@ -1427,6 +1401,21 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       </Dialog>
 
       <ExerciseLibrarySheet />
+      <ExerciseNotesDialog
+        open={exerciseNotesDialogTarget != null}
+        onOpenChange={(o) => {
+          if (!o) setExerciseNotesDialogTarget(null);
+        }}
+        programExerciseId={exerciseNotesDialogTarget?.programExerciseId ?? ""}
+        notes={
+          exerciseNotesDialogTarget
+            ? (orderedExercises.find((e) => e.id === exerciseNotesDialogTarget.programExerciseId)
+                ?.notes ?? exerciseNotesDialogTarget.notes)
+            : null
+        }
+        savePending={patch.isPending}
+        onSave={(programExerciseId, notes) => void commitExerciseNotes(programExerciseId, notes)}
+      />
       <ExerciseSwapDialog
         open={swapTarget != null}
         onOpenChange={(o) => {
@@ -1461,6 +1450,36 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             <DialogDescription>Choose an exercise action.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start rounded-xl"
+              onClick={() => {
+                if (!exerciseActionsTarget) return;
+                openLibrary(exerciseActionsTarget.slug);
+                setExerciseActionsTarget(null);
+              }}
+            >
+              <History className="size-4" />
+              History
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start rounded-xl"
+              onClick={() => {
+                if (!exerciseActionsTarget) return;
+                const targetEx = orderedExercises.find((e) => e.id === exerciseActionsTarget.id);
+                setExerciseNotesDialogTarget({
+                  programExerciseId: exerciseActionsTarget.id,
+                  notes: targetEx?.notes ?? null,
+                });
+                setExerciseActionsTarget(null);
+              }}
+            >
+              <StickyNote className="size-4" />
+              Notes
+            </Button>
             {exerciseActionsTarget?.kind !== "CARDIO" && (
               <>
                 <Button
@@ -2010,75 +2029,65 @@ function SetRowEditor({
   );
 }
 
-function ExerciseNotesButton({
+function ExerciseNotesDialog({
+  open,
+  onOpenChange,
   programExerciseId,
   notes,
   savePending,
   onSave,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   programExerciseId: string;
   notes: string | null;
   savePending: boolean;
   onSave: (programExerciseId: string, notes: string | null) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(notes ?? "");
 
   useEffect(() => {
     setDraft(notes ?? "");
-  }, [notes]);
+  }, [notes, open]);
 
   return (
-    <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className={cn("h-6 rounded-md px-2 text-[11px]", notes?.trim() && "text-primary border-primary/40")}
-        disabled={savePending}
-        onClick={() => setOpen(true)}
-      >
-        <StickyNote className="size-3.5" />
-        Notes
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="rounded-2xl sm:max-w-md" showCloseButton>
-          <DialogHeader>
-            <DialogTitle>Exercise notes</DialogTitle>
-            <DialogDescription>Optional note for this exercise in your workout.</DialogDescription>
-          </DialogHeader>
-          <textarea
-            id={`exercise-notes-${programExerciseId}`}
-            className={cn(
-              "min-h-[108px] w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none",
-              "placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-              "dark:bg-input/30 disabled:opacity-50",
-            )}
-            maxLength={500}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value.slice(0, 500))}
-            placeholder="e.g. use straps for top set, keep bar path vertical..."
-          />
-          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="rounded-xl"
-              disabled={savePending}
-              onClick={() => {
-                const trimmed = draft.trim();
-                onSave(programExerciseId, trimmed === "" ? null : trimmed.slice(0, 500));
-                setOpen(false);
-              }}
-            >
-              Save note
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="rounded-2xl sm:max-w-md" showCloseButton>
+        <DialogHeader>
+          <DialogTitle>Exercise notes</DialogTitle>
+          <DialogDescription>Optional note for this exercise in your workout.</DialogDescription>
+        </DialogHeader>
+        <textarea
+          id={`exercise-notes-${programExerciseId}`}
+          className={cn(
+            "min-h-[108px] w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none",
+            "placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+            "dark:bg-input/30 disabled:opacity-50",
+          )}
+          maxLength={500}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.slice(0, 500))}
+          placeholder="e.g. use straps for top set, keep bar path vertical..."
+        />
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" className="rounded-xl" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            className="rounded-xl"
+            disabled={savePending}
+            onClick={() => {
+              const trimmed = draft.trim();
+              onSave(programExerciseId, trimmed === "" ? null : trimmed.slice(0, 500));
+              onOpenChange(false);
+            }}
+          >
+            Save note
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

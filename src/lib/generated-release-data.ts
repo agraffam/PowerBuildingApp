@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.053";
+export const GENERATED_APP_VERSION = "0.054";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "756ca89",
+    "date": "2026-04-14",
+    "subject": "Mobile-first shell, shared PageHeader, and test fixes",
+    "title": "Mobile-first shell, shared PageHeader, and test fixes",
+    "version": "0.054"
+  },
   {
     "hash": "1ae53c2",
     "date": "2026-04-14",
