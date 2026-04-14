@@ -224,7 +224,7 @@ export function RestTimerRing({ sessionId: propSessionId }: Props) {
     <div
       className={cn(
         "fixed z-50 flex max-w-[min(100vw-2rem,280px)] flex-col items-center gap-2",
-        "right-4 max-sm:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] bottom-6 sm:right-6",
+        "right-4 bottom-[max(1.5rem,env(safe-area-inset-bottom))] sm:right-6",
       )}
     >
       <button

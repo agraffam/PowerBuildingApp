@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, LogOut, Trophy } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,7 @@ type SettingsPatchBody = {
 };
 
 export default function SettingsPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const { theme, setTheme } = useTheme();
   const { data, isLoading } = useQuery({
@@ -141,6 +143,13 @@ export default function SettingsPage() {
     save.mutate(body);
   };
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    await qc.invalidateQueries({ queryKey: ["auth", "me"] });
+    router.push("/login");
+    router.refresh();
+  }
+
   if (isLoading || !data) {
     return (
       <div className="flex justify-center py-20">
@@ -156,6 +165,22 @@ export default function SettingsPage() {
         meta={`v${versionData?.version ?? "0.000"}`}
         description="Appearance, units, and timer defaults"
       />
+
+      <Link
+        href="/board"
+        className="group relative flex min-h-[4.5rem] items-center gap-4 overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 via-card to-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md active:scale-[0.99]"
+      >
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/20">
+          <Trophy className="size-6" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="font-heading text-base font-semibold tracking-tight">The Board</p>
+          <p className="text-sm text-muted-foreground">
+            Monthly leaderboards, Big 3 est. 1RM, and training momentum.
+          </p>
+        </div>
+        <span className="shrink-0 text-sm font-medium text-primary group-hover:underline">Open</span>
+      </Link>
 
       <Card>
         <CardHeader>
@@ -349,7 +374,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Settings menu</CardTitle>
-          <CardDescription>Additional pages moved here to keep the top header uncluttered.</CardDescription>
+          <CardDescription>Account, help, and admin tools.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <Link
@@ -394,6 +419,13 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <Link
+            href="/board"
+            className="col-span-2 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 text-center text-sm font-medium hover:bg-primary/10 active:bg-muted/80 sm:col-span-1"
+          >
+            <Trophy className="size-4 shrink-0 text-primary" aria-hidden />
+            The Board
+          </Link>
+          <Link
             href="/programs"
             className="flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-center text-sm font-medium hover:bg-muted active:bg-muted/80"
           >
@@ -417,6 +449,24 @@ export default function SettingsPage() {
           >
             1RM
           </Link>
+        </CardContent>
+      </Card>
+
+      <Card className="border-destructive/25">
+        <CardHeader>
+          <CardTitle>Session</CardTitle>
+          <CardDescription>Sign out on this device.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
+            onClick={() => void logout()}
+          >
+            <LogOut className="mr-2 size-4" aria-hidden />
+            Log out
+          </Button>
         </CardContent>
       </Card>
 

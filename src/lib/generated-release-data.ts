@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.057";
+export const GENERATED_APP_VERSION = "0.058";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "0dfef1f",
+    "date": "2026-04-14",
+    "subject": "Set row: keep Done on same line as Set n (move Last time below)",
+    "title": "keep Done on same line as Set n (move Last time below)",
+    "version": "0.058"
+  },
   {
     "hash": "8635c3b",
     "date": "2026-04-14",

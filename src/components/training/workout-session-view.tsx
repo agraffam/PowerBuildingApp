@@ -824,7 +824,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     !warmupDismissed;
 
   return (
-    <div className="space-y-8 pb-32 max-sm:pb-40 sm:space-y-6 sm:pb-28">
+    <div className="space-y-8 pb-24 max-sm:pb-28 sm:space-y-6 sm:pb-20">
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight leading-snug">{session.programDay.label}</h1>

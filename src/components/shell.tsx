@@ -1,15 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dumbbell, LogOut, Settings, Trophy } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { Dumbbell, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const baseLinks = [
+const navLinks = [
   { href: "/", label: "Train", icon: Dumbbell },
-  { href: "/board", label: "Board", icon: Trophy },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -19,8 +17,6 @@ type MePayload = {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const qc = useQueryClient();
   const isAuthPage = pathname === "/login" || pathname === "/register";
 
   const { data: me } = useQuery({
@@ -35,18 +31,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
     enabled: !isAuthPage,
   });
 
-  const navLinks = [...baseLinks];
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    await qc.invalidateQueries({ queryKey: ["auth", "me"] });
-    router.push("/login");
-    router.refresh();
-  }
-
-  const trainTabActive = pathname === "/" || pathname.startsWith("/workout/");
-  const boardTabActive = pathname === "/board";
-  const settingsTabActive = pathname === "/settings";
+  const trainActive = pathname === "/" || pathname.startsWith("/workout/");
+  const settingsActive = pathname === "/settings" || pathname.startsWith("/settings/");
 
   return (
     <div className="min-h-svh flex flex-col">
@@ -66,14 +52,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
               {pathname === "/login" ? (
                 <Link
                   href="/register"
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "rounded-xl")}
+                  className="rounded-xl border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-muted"
                 >
                   Register
                 </Link>
               ) : (
                 <Link
                   href="/login"
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "rounded-xl")}
+                  className="rounded-xl border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-muted"
                 >
                   Sign in
                 </Link>
@@ -82,41 +68,34 @@ export function Shell({ children }: { children: React.ReactNode }) {
           ) : (
             <>
               <nav
-                className="hidden flex-1 items-center justify-end gap-0.5 overflow-x-auto text-sm sm:flex sm:pr-2"
+                className="flex min-w-0 flex-1 items-center justify-end gap-0.5 overflow-x-auto text-sm sm:pr-2"
                 aria-label="Main navigation"
               >
-                {navLinks.map((l) => (
-                  <Link
-                    key={l.href}
-                    href={l.href}
-                    className={cn(
-                      "min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80",
-                      pathname === l.href && "bg-muted text-foreground",
-                    )}
-                  >
-                    {l.label}
-                  </Link>
-                ))}
+                {navLinks.map((l) => {
+                  const Icon = l.icon;
+                  const active =
+                    l.href === "/" ? trainActive : l.href === "/settings" ? settingsActive : false;
+                  return (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      className={cn(
+                        "flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80 sm:min-h-11 sm:px-3 sm:py-2.5",
+                        active && "bg-muted text-foreground",
+                      )}
+                    >
+                      <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
+                      <span>{l.label}</span>
+                    </Link>
+                  );
+                })}
               </nav>
-              <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
-                <span
-                  className="hidden max-w-[9rem] truncate text-xs text-muted-foreground lg:inline"
-                  title={me?.user?.email}
-                >
-                  {me?.user?.name ?? me?.user?.email}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl shrink-0 max-sm:aspect-square max-sm:p-0 max-sm:size-9"
-                  onClick={logout}
-                  aria-label="Log out"
-                >
-                  <LogOut className="size-4 sm:hidden" aria-hidden />
-                  <span className="hidden sm:inline">Log out</span>
-                </Button>
-              </div>
+              <span
+                className="hidden max-w-[10rem] truncate text-xs text-muted-foreground lg:inline"
+                title={me?.user?.email}
+              >
+                {me?.user?.name ?? me?.user?.email}
+              </span>
             </>
           )}
         </div>
@@ -124,48 +103,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <main
         className={cn(
           "mx-auto w-full max-w-5xl flex-1 px-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-5 sm:pt-6",
-          "pb-[max(1.25rem,env(safe-area-inset-bottom))] max-sm:pb-[max(calc(5rem+env(safe-area-inset-bottom)),1.25rem)] sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]",
+          "pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]",
           "text-pretty",
         )}
       >
         {children}
       </main>
-      {!isAuthPage && (
-        <nav
-          className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-border/80 bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] pt-1 sm:hidden"
-          aria-label="Primary"
-        >
-          {navLinks.map((l) => {
-            const Icon = l.icon;
-            const active =
-              l.href === "/"
-                ? trainTabActive
-                : l.href === "/board"
-                  ? boardTabActive
-                  : settingsTabActive;
-            return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={cn(
-                  "flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors",
-                  active && "text-foreground",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex size-9 items-center justify-center rounded-xl transition-colors",
-                    active ? "bg-muted text-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  <Icon className="size-[1.125rem]" aria-hidden />
-                </span>
-                {l.label}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
     </div>
   );
 }
