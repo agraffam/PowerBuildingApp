@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.050";
+export const GENERATED_APP_VERSION = "0.051";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "0d4e834",
+    "date": "2026-04-14",
+    "subject": "feat(training): add quick increment controls for set weight",
+    "title": "add quick increment controls for set weight",
+    "version": "0.051"
+  },
   {
     "hash": "327590d",
     "date": "2026-04-13",

@@ -1894,28 +1894,27 @@ function SetRowEditor({
           className={
             bodyweight
               ? "grid grid-cols-2 gap-3"
-              : "grid gap-2 sm:gap-3 max-[430px]:grid-cols-2 min-[431px]:grid-cols-[minmax(0,4.25rem)_minmax(0,3.25rem)_minmax(0,1fr)]"
+              : "grid gap-2 sm:gap-3 max-[430px]:grid-cols-2 min-[431px]:grid-cols-[minmax(0,7.75rem)_minmax(0,3.25rem)_minmax(0,1fr)]"
           }
         >
           {!bodyweight && (
-            <div className="min-w-0 space-y-1">
+            <div className="min-w-0 space-y-1 max-[430px]:col-span-2">
               <Label className="text-xs">Weight ({unit})</Label>
-              <div className="flex items-center gap-1">
+              <div className="flex max-w-[11rem] items-center gap-0.5 sm:max-w-none">
                 <Button
                   type="button"
-                  size="icon"
                   variant="outline"
-                  className="h-9 w-9 rounded-lg shrink-0"
+                  className="h-7 w-7 shrink-0 rounded-md p-0 touch-manipulation"
                   onClick={() => adjustWeightByStep(-1)}
                   disabled={savePending}
                   aria-label="Decrease weight"
                 >
-                  <Minus className="size-4" />
+                  <Minus className="size-3" aria-hidden />
                 </Button>
                 <Input
                   type="text"
                   inputMode="decimal"
-                  className="rounded-lg w-full max-w-[4.5rem] px-2 text-center font-mono tabular-nums text-base"
+                  className="min-w-0 flex-1 rounded-lg px-1.5 text-center font-mono tabular-nums text-sm sm:max-w-[4.25rem] sm:flex-none sm:px-2 sm:text-base"
                   maxLength={5}
                   value={local.weight}
                   placeholder={ghost ? `${ghost.weight}` : "0"}
@@ -1936,14 +1935,13 @@ function SetRowEditor({
                 />
                 <Button
                   type="button"
-                  size="icon"
                   variant="outline"
-                  className="h-9 w-9 rounded-lg shrink-0"
+                  className="h-7 w-7 shrink-0 rounded-md p-0 touch-manipulation"
                   onClick={() => adjustWeightByStep(1)}
                   disabled={savePending}
                   aria-label="Increase weight"
                 >
-                  <Plus className="size-4" />
+                  <Plus className="size-3" aria-hidden />
                 </Button>
               </div>
             </div>
@@ -1954,7 +1952,7 @@ function SetRowEditor({
               <p className="text-sm font-medium rounded-lg border bg-muted/40 px-3 py-2">Bodyweight</p>
             </div>
           )}
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 space-y-1 max-[430px]:col-span-2">
             <Label className="text-xs">Reps</Label>
             <Input
               type="text"
