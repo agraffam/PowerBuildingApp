@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.055";
+export const GENERATED_APP_VERSION = "0.056";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "a42470e",
+    "date": "2026-04-14",
+    "subject": "Fix workout scroll: baseline top, transition-only auto-collapse",
+    "title": "baseline top, transition-only auto-collapse",
+    "version": "0.056"
+  },
   {
     "hash": "9263ab7",
     "date": "2026-04-14",

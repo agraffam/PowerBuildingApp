@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -192,6 +192,14 @@ function blockSetProgress(
   return { done, total };
 }
 
+/** iOS Safari and layout timing can ignore a single scrollTo; clear both window and element scrollers. */
+function forceDocumentScrollTop() {
+  if (typeof window === "undefined") return;
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+
 export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -241,6 +249,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const prevBlockProgressRef = useRef<Map<string, { done: number; total: number }>>(new Map());
   /** After first progress sync for this session, we only auto-collapse/scroll on real completions (not on mount). */
   const workoutProgressBaselineReadyRef = useRef(false);
+  /** Tracks readiness/warmup gate so we scroll to top when the exercise list first appears. */
+  const workoutGatedRef = useRef<boolean | null>(null);
+  /** One scroll-to-top per session when the exercise list is visible (handles direct /workout links). */
+  const ungatedListScrollTokenRef = useRef<string | null>(null);
   const blockAnchorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const setBlockAnchorRef = useCallback((blockId: string, node: HTMLDivElement | null) => {
     if (node) blockAnchorRefs.current.set(blockId, node);
@@ -475,6 +487,8 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     workoutProgressBaselineReadyRef.current = false;
     prevBlockProgressRef.current = new Map();
+    workoutGatedRef.current = null;
+    ungatedListScrollTokenRef.current = null;
   }, [sessionId]);
 
   useEffect(() => {
@@ -501,6 +515,47 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const blocks = useMemo(() => clusterSupersetBlocks(orderedExercises), [orderedExercises]);
   const blockIds = useMemo(() => blocks.map((b) => b.map((e) => e.id).join("|")), [blocks]);
 
+  const readinessGate = useMemo(() => {
+    const s = q.data?.session;
+    if (!s) return false;
+    return s.sleep == null && (s.status === "PLANNED" || s.status === "IN_PROGRESS");
+  }, [q.data?.session]);
+
+  const warmupGate = useMemo(() => {
+    const s = q.data?.session;
+    if (!s || s.status === "COMPLETED") return false;
+    if (!(s.status === "PLANNED" || s.status === "IN_PROGRESS")) return false;
+    if (readinessGate) return false;
+    return orderedExercises.length > 0 && !warmupDismissed;
+  }, [q.data?.session, readinessGate, orderedExercises.length, warmupDismissed]);
+
+  useLayoutEffect(() => {
+    if (!q.data?.session || q.data.session.status === "COMPLETED") {
+      workoutGatedRef.current = null;
+      return;
+    }
+    const gated = readinessGate || warmupGate;
+    const prev = workoutGatedRef.current;
+    if (prev === true && gated === false) {
+      forceDocumentScrollTop();
+      queueMicrotask(forceDocumentScrollTop);
+      setTimeout(forceDocumentScrollTop, 0);
+      setTimeout(forceDocumentScrollTop, 120);
+    }
+    workoutGatedRef.current = gated;
+  }, [q.data?.session, readinessGate, warmupGate]);
+
+  /** Direct navigation to /workout/... with no readiness/warmup: scroll before first paint. */
+  useLayoutEffect(() => {
+    if (!q.data?.session || q.data.session.status === "COMPLETED") return;
+    if (readinessGate || warmupGate) return;
+    const token = `${sessionId}:ungated-list`;
+    if (ungatedListScrollTokenRef.current === token) return;
+    ungatedListScrollTokenRef.current = token;
+    forceDocumentScrollTop();
+    queueMicrotask(forceDocumentScrollTop);
+  }, [sessionId, q.data?.session, readinessGate, warmupGate]);
+
   useEffect(() => {
     if (!sessionEarly || sessionEarly.status === "COMPLETED") return;
     if (blocks.length === 0) return;
@@ -519,7 +574,9 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       workoutProgressBaselineReadyRef.current = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+          forceDocumentScrollTop();
+          setTimeout(forceDocumentScrollTop, 0);
+          setTimeout(forceDocumentScrollTop, 120);
         });
       });
       return;
@@ -829,7 +886,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         (() => {
           const canReorderBlocks = canCancel && blocks.length > 1;
 
-          const renderExerciseHeader = (ex: ProgramExerciseRow) => {
+          const renderExerciseTitleStack = (ex: ProgramExerciseRow) => {
             const cardioLine =
               ex.exercise.kind === "CARDIO" ? (
                 <div
@@ -868,91 +925,92 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 </div>
               ) : null;
 
-            const strengthTargets =
-              ex.exercise.kind !== "CARDIO" ? (
-                <>
-                  <Badge variant="secondary" className="shrink-0 text-xs">
-                    {ex.prescription.sets} sets
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="max-w-[min(100%,14rem)] shrink truncate text-xs whitespace-nowrap sm:max-w-none"
-                    title={
-                      ex.prescription.pctOf1rm != null
-                        ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
-                        : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`
-                    }
-                  >
-                    Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
-                    {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
-                  </Badge>
-                </>
-              ) : null;
-
             return (
-              <div className="space-y-2">
-                <div className="min-w-0 space-y-1">
-                  <div className="rounded-xl bg-muted/60 px-3 py-2.5 text-left sm:py-2">
-                    <CardTitle className="text-left text-lg leading-snug">{ex.exercise.name}</CardTitle>
-                    {cardioLine}
-                  </div>
-                  {ex.exercise.kind !== "CARDIO" && ex.prescription.isDeloadWeek && (
-                    <div className="flex flex-wrap gap-1">
-                      <Badge
-                        variant="outline"
-                        className="text-xs border-amber-500/50 text-amber-800 dark:text-amber-400"
-                      >
-                        Deload week
-                      </Badge>
-                    </div>
-                  )}
+              <div className="min-w-0 space-y-1">
+                <div className="rounded-xl bg-muted/60 px-3 py-2.5 text-left sm:py-2">
+                  <CardTitle className="text-left text-lg leading-snug">{ex.exercise.name}</CardTitle>
+                  {cardioLine}
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                    {strengthTargets}
+                {ex.exercise.kind !== "CARDIO" && ex.prescription.isDeloadWeek && (
+                  <div className="flex flex-wrap gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-xs border-amber-500/50 text-amber-800 dark:text-amber-400"
+                    >
+                      Deload week
+                    </Badge>
                   </div>
-                  <div className="flex shrink-0 items-center">
-                    {canCancel ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 shrink-0 px-2.5 text-muted-foreground sm:px-3"
-                        onClick={() =>
-                          setExerciseActionsTarget({
-                            id: ex.id,
-                            name: ex.exercise.name,
-                            slug: ex.exercise.slug,
-                            kind: ex.exercise.kind,
-                            muscleTags: ex.exercise.muscleTags,
-                          })
-                        }
-                        type="button"
-                      >
-                        <Ellipsis className="size-4 sm:mr-1" />
-                        More
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 shrink-0 px-2.5 text-muted-foreground sm:px-3"
-                        onClick={() => openLibrary(ex.exercise.slug)}
-                        type="button"
-                      >
-                        <History className="size-4 sm:mr-1" />
-                        History
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {!canCancel && (ex.notes?.trim() || ex.exercise.notes?.trim()) && (
-                  <p className="text-xs leading-relaxed text-muted-foreground border-l-2 border-primary/30 pl-2 py-1">
-                    {ex.notes?.trim() || ex.exercise.notes}
-                  </p>
                 )}
               </div>
             );
           };
+
+          const targetLineTitle =
+            (ex: ProgramExerciseRow) =>
+              ex.prescription.pctOf1rm != null
+                ? `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE · ${ex.prescription.pctOf1rm}% 1RM`
+                : `Target ${ex.prescription.repTarget} reps @ ~${ex.prescription.targetRpe} RPE`;
+
+          const renderExerciseMetaRow = (ex: ProgramExerciseRow) => (
+            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+                {ex.exercise.kind === "CARDIO" ? (
+                  <span className="truncate text-xs text-muted-foreground tabular-nums">
+                    {ex.prescription.sets} bouts
+                    {ex.prescription.targetDurationSec != null &&
+                      ` · ${formatSecAsMmSs(ex.prescription.targetDurationSec)}`}
+                    {ex.prescription.targetCalories != null && ` · ~${ex.prescription.targetCalories} kcal`}
+                  </span>
+                ) : (
+                  <>
+                    <Badge variant="secondary" className="shrink-0 text-xs tabular-nums">
+                      {ex.prescription.sets} sets
+                    </Badge>
+                    <span
+                      className="min-w-0 truncate text-xs text-muted-foreground tabular-nums"
+                      title={targetLineTitle(ex)}
+                    >
+                      Target {ex.prescription.repTarget} reps @ ~{ex.prescription.targetRpe} RPE
+                      {ex.prescription.pctOf1rm != null ? ` · ${ex.prescription.pctOf1rm}% 1RM` : ""}
+                    </span>
+                  </>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center">
+                {canCancel ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 shrink-0 px-2 text-muted-foreground sm:px-2.5"
+                    onClick={() =>
+                      setExerciseActionsTarget({
+                        id: ex.id,
+                        name: ex.exercise.name,
+                        slug: ex.exercise.slug,
+                        kind: ex.exercise.kind,
+                        muscleTags: ex.exercise.muscleTags,
+                      })
+                    }
+                    type="button"
+                  >
+                    <Ellipsis className="size-4 sm:mr-1" />
+                    More
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 shrink-0 px-2 text-muted-foreground sm:px-2.5"
+                    onClick={() => openLibrary(ex.exercise.slug)}
+                    type="button"
+                  >
+                    <History className="size-4 sm:mr-1" />
+                    History
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
 
           const renderSoloCard = (
             ex: ProgramExerciseRow,
@@ -993,8 +1051,16 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                         />
                       </Button>
                       {dragHandle ? <div className="mt-0.5 shrink-0">{dragHandle}</div> : null}
-                      <div className="flex-1 min-w-0 space-y-1">{renderExerciseHeader(ex)}</div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        {renderExerciseTitleStack(ex)}
+                        {!canCancel && (ex.notes?.trim() || ex.exercise.notes?.trim()) && (
+                          <p className="text-xs leading-relaxed text-muted-foreground border-l-2 border-primary/30 pl-2 py-1">
+                            {ex.notes?.trim() || ex.exercise.notes}
+                          </p>
+                        )}
+                      </div>
                     </div>
+                    {!collapsed ? renderExerciseMetaRow(ex) : null}
                     {collapsed ? (
                       <p className="text-xs text-muted-foreground">
                         <span className="font-medium text-foreground">
@@ -1152,7 +1218,13 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                 });
                           return (
                             <div key={ex.id} className="rounded-xl border bg-muted/20 p-3 space-y-2">
-                              {renderExerciseHeader(ex)}
+                              {renderExerciseTitleStack(ex)}
+                              {renderExerciseMetaRow(ex)}
+                              {!canCancel && (ex.notes?.trim() || ex.exercise.notes?.trim()) && (
+                                <p className="text-xs leading-relaxed text-muted-foreground border-l-2 border-primary/30 pl-2 py-1">
+                                  {ex.notes?.trim() || ex.exercise.notes}
+                                </p>
+                              )}
                               <SetRowEditor
                                 row={row}
                                 idx={si}
