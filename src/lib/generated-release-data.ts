@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.061";
+export const GENERATED_APP_VERSION = "0.062";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "7f48bb6",
+    "date": "2026-04-15",
+    "subject": "fix board mobile list to preserve name width",
+    "title": "fix board mobile list to preserve name width",
+    "version": "0.062"
+  },
   {
     "hash": "651eabb",
     "date": "2026-04-15",

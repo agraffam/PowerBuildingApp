@@ -18,9 +18,10 @@ const podiumTint = [
 function PodiumPreview({ entries, unitLabel }: { entries: MonthlyBoardEntry[]; unitLabel: string }) {
   const top = entries.slice(0, 3);
   const order = [top[1], top[0], top[2]].filter(Boolean) as MonthlyBoardEntry[];
-  const heights = ["h-14", "h-[4.5rem]", "h-11"];
+  /** Equal-width columns; no tiny max-width cap (was crushing names like “Anonymous”). */
+  const minHeights = ["min-h-[4rem]", "min-h-[5rem]", "min-h-[3.75rem]"] as const;
   return (
-    <div className="flex items-end justify-center gap-2 pb-1 pt-3">
+    <div className="flex items-end justify-center gap-1.5 pb-1 pt-3 sm:gap-2">
       {order.map((row, i) => {
         const rank = row.rank;
         const tint = rank <= 3 ? podiumTint[rank - 1] : "from-muted/40 to-transparent border-border";
@@ -28,14 +29,16 @@ function PodiumPreview({ entries, unitLabel }: { entries: MonthlyBoardEntry[]; u
           <div
             key={`${row.userId}-${rank}`}
             className={cn(
-              "flex w-[30%] max-w-[6.5rem] flex-col items-center justify-end rounded-xl border bg-gradient-to-b px-1.5 pb-2 pt-2 text-center",
+              "flex min-w-0 flex-1 basis-0 flex-col items-center justify-end rounded-xl border bg-gradient-to-b px-1 py-2 text-center sm:px-1.5 sm:py-2.5",
               tint,
-              heights[i],
+              minHeights[i],
             )}
           >
-            <span className="text-[10px] font-bold tabular-nums text-muted-foreground">{rank}</span>
-            <span className="line-clamp-2 w-full text-[10px] font-semibold leading-tight">{row.displayName}</span>
-            <span className="mt-0.5 text-[10px] font-bold tabular-nums text-primary">
+            <span className="text-[11px] font-bold tabular-nums text-muted-foreground sm:text-xs">{rank}</span>
+            <span className="mt-0.5 w-full max-w-full break-words px-0.5 text-xs font-semibold leading-snug">
+              {row.displayName}
+            </span>
+            <span className="mt-1 text-[11px] font-bold tabular-nums text-primary sm:text-xs">
               {row.value}
               {unitLabel}
             </span>
@@ -104,7 +107,7 @@ function Big3LiftCard({
                     )}
                   >
                     <span className="tabular-nums text-muted-foreground">{row.rank}</span>
-                    <span className="min-w-0 truncate text-[11px] font-medium sm:text-xs">
+                    <span className="min-w-0 break-words text-[11px] font-medium leading-snug sm:text-xs">
                       {row.displayName}
                       {isYou && <span className="ml-1 font-normal text-muted-foreground">· you</span>}
                     </span>
@@ -168,7 +171,7 @@ function BoardCard({
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="w-6 shrink-0 tabular-nums text-muted-foreground">{row.rank}</span>
-                    <span className="min-w-0 truncate font-medium">
+                    <span className="min-w-0 break-words font-medium leading-snug">
                       {row.displayName}
                       {isYou && <span className="ml-1.5 font-normal text-muted-foreground">(you)</span>}
                     </span>
