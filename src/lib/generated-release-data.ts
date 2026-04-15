@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.058";
+export const GENERATED_APP_VERSION = "0.059";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "165d24e",
+    "date": "2026-04-14",
+    "subject": "Move nav to header; Board in settings; Big 3 monthly board",
+    "title": "Move nav to header; Board in settings; Big 3 monthly board",
+    "version": "0.059"
+  },
   {
     "hash": "0dfef1f",
     "date": "2026-04-14",

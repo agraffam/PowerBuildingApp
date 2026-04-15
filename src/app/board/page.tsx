@@ -78,8 +78,8 @@ function Big3LiftCard({
         )}
       />
       <CardHeader className="relative space-y-1 pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base font-heading tracking-tight">{column.label}</CardTitle>
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="pr-1 text-sm font-heading tracking-tight sm:text-base">{column.label}</CardTitle>
           <Badge variant="outline" className="shrink-0 text-[10px] font-normal">
             Est. 1RM
           </Badge>
@@ -99,18 +99,18 @@ function Big3LiftCard({
                   <li
                     key={`${column.slug}-${row.userId}-${row.rank}`}
                     className={cn(
-                      "flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs",
+                      "flex items-center justify-between gap-1.5 rounded-lg px-2 py-2 text-xs",
                       isYou && "bg-primary/8 ring-1 ring-primary/25",
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="w-5 shrink-0 tabular-nums text-muted-foreground">{row.rank}</span>
-                      <span className="min-w-0 truncate font-medium">
+                      <span className="w-4 shrink-0 tabular-nums text-muted-foreground">{row.rank}</span>
+                      <span className="min-w-0 truncate text-[11px] font-medium sm:text-xs">
                         {row.displayName}
                         {isYou && <span className="ml-1 font-normal text-muted-foreground">· you</span>}
                       </span>
                     </div>
-                    <span className="shrink-0 tabular-nums font-semibold text-foreground">
+                    <span className="shrink-0 text-[11px] tabular-nums font-semibold text-foreground sm:text-xs">
                       {row.value}
                       {unitLabel}
                     </span>

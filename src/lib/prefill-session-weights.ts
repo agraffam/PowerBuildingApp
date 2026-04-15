@@ -91,7 +91,7 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
       },
       orderBy: { performedAt: "desc" },
       include: {
-        sets: { where: { programExerciseId: peId }, orderBy: { setIndex: "asc" } },
+        sets: { where: { programExerciseId: peId, done: true }, orderBy: { setIndex: "asc" } },
       },
     });
 
@@ -106,6 +106,7 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
     if (!prevSession || prevSession.sets.length === 0) continue;
 
     const prevSets = prevSession.sets;
+    if (prevSets.length === 0) continue;
     const last = prevSets[prevSets.length - 1]!;
     const mPrev = prevSession.intensityMultiplier ?? 1;
     const scale = mPrev > 0 ? mNow / mPrev : 1;

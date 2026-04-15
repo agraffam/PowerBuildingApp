@@ -36,9 +36,9 @@ export type MonthlyBoardPayload = {
 const TOP_N = 10;
 
 const BIG3_SPECS = [
-  { slug: "squat", label: "Squat" },
-  { slug: "bench-press", label: "Bench" },
-  { slug: "deadlift", label: "Deadlift" },
+  { slug: "squat", label: "Squat", exerciseSlugs: ["squat", "low-bar-squat"] },
+  { slug: "bench-press", label: "Bench Press", exerciseSlugs: ["bench-press", "close-grip-bench"] },
+  { slug: "deadlift", label: "Deadlift", exerciseSlugs: ["deadlift", "sumo-deadlift"] },
 ] as const;
 
 /** Start/end of the calendar month in local time, plus a display label. */
@@ -159,15 +159,27 @@ export async function buildMonthlyBoard(currentUserId: string): Promise<MonthlyB
   const athleteCount = athleteIds.length;
 
   const big3Exercises = await prisma.exercise.findMany({
-    where: { slug: { in: [...BIG3_SPECS.map((s) => s.slug)] } },
+    where: { slug: { in: [...new Set(BIG3_SPECS.flatMap((s) => s.exerciseSlugs))] } },
     select: { id: true, slug: true, name: true },
   });
-  const labelBySlug = new Map(BIG3_SPECS.map((s) => [s.slug, s.label]));
-  const exBySlug = new Map(big3Exercises.map((e) => [e.slug, e]));
-  const big3Ids = big3Exercises.map((e) => e.id);
+  const groupSlugByExerciseSlug = new Map<string, string>();
+  for (const spec of BIG3_SPECS) {
+    for (const exSlug of spec.exerciseSlugs) {
+      groupSlugByExerciseSlug.set(exSlug, spec.slug);
+    }
+  }
+  const groupSlugByExerciseId = new Map(
+    big3Exercises
+      .map((e) => {
+        const groupSlug = groupSlugByExerciseSlug.get(e.slug);
+        return groupSlug ? ([e.id, groupSlug] as const) : null;
+      })
+      .filter((v): v is readonly [string, string] => v != null),
+  );
+  const big3Ids = [...groupSlugByExerciseId.keys()];
 
-  const maxE1KgByExerciseAndUser = new Map<string, Map<string, number>>();
-  for (const id of big3Ids) maxE1KgByExerciseAndUser.set(id, new Map());
+  const maxE1KgByGroupAndUser = new Map<string, Map<string, number>>();
+  for (const spec of BIG3_SPECS) maxE1KgByGroupAndUser.set(spec.slug, new Map());
 
   if (sessionIds.length > 0 && big3Ids.length > 0) {
     const liftSets = await prisma.loggedSet.findMany({
@@ -193,7 +205,9 @@ export async function buildMonthlyBoard(currentUserId: string): Promise<MonthlyB
 
     for (const ls of liftSets) {
       const exerciseId = ls.loggedExerciseId ?? ls.programExercise.exerciseId;
-      const perUser = maxE1KgByExerciseAndUser.get(exerciseId);
+      const groupSlug = groupSlugByExerciseId.get(exerciseId);
+      if (!groupSlug) continue;
+      const perUser = maxE1KgByGroupAndUser.get(groupSlug);
       if (!perUser) continue;
       const uid = userBySessionId.get(ls.workoutSessionId);
       if (!uid) continue;
@@ -206,9 +220,7 @@ export async function buildMonthlyBoard(currentUserId: string): Promise<MonthlyB
 
   const collectUserIdsForBig3 = new Set<string>();
   for (const spec of BIG3_SPECS) {
-    const ex = exBySlug.get(spec.slug);
-    if (!ex) continue;
-    const m = maxE1KgByExerciseAndUser.get(ex.id);
+    const m = maxE1KgByGroupAndUser.get(spec.slug);
     if (!m) continue;
     const topUids = [...m.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -227,11 +239,7 @@ export async function buildMonthlyBoard(currentUserId: string): Promise<MonthlyB
   const big3NameById = new Map(big3NameUsers.map((u) => [u.id, displayNameFromUser(u.name)]));
 
   const big3: Big3BoardColumn[] = BIG3_SPECS.map((spec) => {
-    const ex = exBySlug.get(spec.slug);
-    if (!ex) {
-      return { slug: spec.slug, label: spec.label, entries: [] };
-    }
-    const m = maxE1KgByExerciseAndUser.get(ex.id) ?? new Map();
+    const m = maxE1KgByGroupAndUser.get(spec.slug) ?? new Map();
     const topUserIds = [...m.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, TOP_N)
@@ -244,7 +252,7 @@ export async function buildMonthlyBoard(currentUserId: string): Promise<MonthlyB
     }));
     return {
       slug: spec.slug,
-      label: ex.name ?? labelBySlug.get(spec.slug) ?? spec.label,
+      label: spec.label,
       entries,
     };
   });

@@ -204,6 +204,9 @@ export function suggestNextWeekLoad(input: ProgressionInput): {
 } {
   const { currentWeight, repGoal, actualReps, prescribedRpe, actualRpe, plateIncrement } = input;
   if (!(currentWeight > 0)) return { suggested: currentWeight, bumped: false, bumpPct: 0 };
+  if (actualRpe != null && actualRpe > 9) {
+    return { suggested: currentWeight, bumped: false, bumpPct: 0 };
+  }
   const rpeOk =
     actualRpe == null ? actualReps >= repGoal : actualReps >= repGoal && actualRpe <= prescribedRpe + 0.5;
   if (!rpeOk) return { suggested: currentWeight, bumped: false, bumpPct: 0 };

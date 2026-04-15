@@ -95,4 +95,17 @@ describe("suggestNextWeekLoad", () => {
     expect(r.suggested % 2.5).toBe(0);
     expect(r.suggested).toBeGreaterThan(201);
   });
+
+  it("does not bump when actual RPE is above 9", () => {
+    const r = suggestNextWeekLoad({
+      currentWeight: 200,
+      repGoal: 8,
+      actualReps: 8,
+      prescribedRpe: 8,
+      actualRpe: 9.5,
+      plateIncrement: 5,
+    });
+    expect(r.bumped).toBe(false);
+    expect(r.suggested).toBe(200);
+  });
 });
