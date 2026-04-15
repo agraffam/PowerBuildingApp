@@ -99,7 +99,7 @@ function Big3LiftCard({
                   <li
                     key={`${column.slug}-${row.userId}-${row.rank}`}
                     className={cn(
-                      "grid grid-cols-[0.9rem_minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-lg px-2 py-2 text-xs",
+                      "grid grid-cols-[0.9rem_minmax(0,1fr)] gap-x-1.5 gap-y-0.5 rounded-lg px-2 py-2 text-xs sm:grid-cols-[0.9rem_minmax(0,1fr)_auto] sm:items-center sm:gap-y-0",
                       isYou && "bg-primary/8 ring-1 ring-primary/25",
                     )}
                   >
@@ -108,7 +108,7 @@ function Big3LiftCard({
                       {row.displayName}
                       {isYou && <span className="ml-1 font-normal text-muted-foreground">· you</span>}
                     </span>
-                    <span className="pl-1 text-[10px] tabular-nums font-semibold text-foreground sm:text-xs">
+                    <span className="col-start-2 text-[10px] tabular-nums font-semibold text-foreground sm:col-start-auto sm:pl-1 sm:text-xs">
                       {row.value}
                       {unitLabel}
                     </span>

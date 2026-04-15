@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.060";
+export const GENERATED_APP_VERSION = "0.061";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "651eabb",
+    "date": "2026-04-15",
+    "subject": "fix board mobile row spacing for long names",
+    "title": "fix board mobile row spacing for long names",
+    "version": "0.061"
+  },
   {
     "hash": "e01e44a",
     "date": "2026-04-15",
