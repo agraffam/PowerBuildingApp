@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.059";
+export const GENERATED_APP_VERSION = "0.060";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "e01e44a",
+    "date": "2026-04-15",
+    "subject": "fix board lift grouping and tighten progression bumps",
+    "title": "fix board lift grouping and tighten progression bumps",
+    "version": "0.060"
+  },
   {
     "hash": "165d24e",
     "date": "2026-04-14",

@@ -99,18 +99,16 @@ function Big3LiftCard({
                   <li
                     key={`${column.slug}-${row.userId}-${row.rank}`}
                     className={cn(
-                      "flex items-center justify-between gap-1.5 rounded-lg px-2 py-2 text-xs",
+                      "grid grid-cols-[0.9rem_minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-lg px-2 py-2 text-xs",
                       isYou && "bg-primary/8 ring-1 ring-primary/25",
                     )}
                   >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="w-4 shrink-0 tabular-nums text-muted-foreground">{row.rank}</span>
-                      <span className="min-w-0 truncate text-[11px] font-medium sm:text-xs">
-                        {row.displayName}
-                        {isYou && <span className="ml-1 font-normal text-muted-foreground">· you</span>}
-                      </span>
-                    </div>
-                    <span className="shrink-0 text-[11px] tabular-nums font-semibold text-foreground sm:text-xs">
+                    <span className="tabular-nums text-muted-foreground">{row.rank}</span>
+                    <span className="min-w-0 truncate text-[11px] font-medium sm:text-xs">
+                      {row.displayName}
+                      {isYou && <span className="ml-1 font-normal text-muted-foreground">· you</span>}
+                    </span>
+                    <span className="pl-1 text-[10px] tabular-nums font-semibold text-foreground sm:text-xs">
                       {row.value}
                       {unitLabel}
                     </span>
