@@ -326,7 +326,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {rpeRestDraft && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
               {RPE_REST_BAND_IDS.map((band) => {
                 const sk = String(rpeKeysForBand(band)[0]!);
                 const sec = rpeRestDraft[sk] ?? 60;

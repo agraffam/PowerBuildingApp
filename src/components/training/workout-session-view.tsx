@@ -11,6 +11,7 @@ import {
   History,
   Loader2,
   Minus,
+  Pencil,
   Plus,
   Replace,
   SkipForward,
@@ -35,6 +36,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useWorkoutSessionStore } from "@/stores/workout-session-store";
+import { DayProgramEditSheet } from "@/components/training/day-program-edit-sheet";
 import { ExerciseLibrarySheet } from "@/components/training/exercise-library-sheet";
 import { ExerciseSwapDialog } from "@/components/training/exercise-swap-dialog";
 import { BodyweightScopeDialog } from "@/components/training/bodyweight-scope-dialog";
@@ -135,6 +137,8 @@ type SessionPayload = {
   session: {
     id: string;
     programInstanceId: string;
+    programDayId: string;
+    programId: string;
     status: string;
     sleep: number | null;
     stress: number | null;
@@ -222,6 +226,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const [completeSplash, setCompleteSplash] = useState<SessionCompleteSummaryPayload | null>(null);
   const [weekSplashQueued, setWeekSplashQueued] = useState<WeekCompletionSummaryPayload | null>(null);
   const [weekSplash, setWeekSplash] = useState<WeekCompletionSummaryPayload | null>(null);
+  const [dayEditOpen, setDayEditOpen] = useState(false);
   const [exerciseActionsTarget, setExerciseActionsTarget] = useState<{
     id: string;
     name: string;
@@ -243,7 +248,6 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const [exerciseOneRmDraft, setExerciseOneRmDraft] = useState("");
   const [exerciseIncrementDraft, setExerciseIncrementDraft] = useState("2.5");
   const [keepAwakeEnabled, setKeepAwakeEnabled] = useState(false);
-  const [wakeLockSupported, setWakeLockSupported] = useState(true);
   const wakeLockRef = useRef<{ release: () => Promise<void>; released?: boolean } | null>(null);
   const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
   const prevBlockProgressRef = useRef<Map<string, { done: number; total: number }>>(new Map());
@@ -309,9 +313,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         request: (type: "screen") => Promise<{ release: () => Promise<void>; released?: boolean }>;
       };
     };
-    const supported = typeof nav.wakeLock?.request === "function";
-    setWakeLockSupported(supported);
-    if (!supported) return;
+    if (typeof nav.wakeLock?.request !== "function") return;
 
     let cancelled = false;
 
@@ -825,36 +827,46 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="space-y-8 pb-24 max-sm:pb-28 sm:space-y-6 sm:pb-20">
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight leading-snug">{session.programDay.label}</h1>
+      <div className="min-w-0 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0 space-y-1 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight leading-snug">{session.programDay.label}</h1>
+            {isHistorySession && (
+              <Badge variant="secondary" className="text-xs">
+                Completed
+              </Badge>
+            )}
+          </div>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Week {session.weekIndex + 1}
+            {session.intensityMultiplier !== 1 && (
+              <span>
+                {" "}
+                · intensity ×{session.intensityMultiplier.toFixed(2)}
+              </span>
+            )}
+            {sessionBlockTypeLabel && <span> · {sessionBlockTypeLabel}</span>}
+          </p>
           {isHistorySession && (
-            <Badge variant="secondary" className="text-xs">
-              Completed
-            </Badge>
+            <Link href="/history" className="mt-1 inline-block text-xs text-primary underline-offset-4 hover:underline">
+              ← All workouts
+            </Link>
           )}
         </div>
-        <p className="text-muted-foreground text-sm leading-relaxed">
-          Week {session.weekIndex + 1}
-          {session.intensityMultiplier !== 1 && (
-            <span>
-              {" "}
-              · intensity ×{session.intensityMultiplier.toFixed(2)}
-            </span>
-          )}
-          {sessionBlockTypeLabel && <span> · {sessionBlockTypeLabel}</span>}
-        </p>
-        {isHistorySession && (
-          <Link href="/history" className="mt-1 inline-block text-xs text-primary underline-offset-4 hover:underline">
-            ← All workouts
-          </Link>
-        )}
+        <div className="flex shrink-0 justify-end sm:pt-0.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => setDayEditOpen(true)}
+          >
+            <Pencil className="size-4 sm:mr-1" />
+            <span className="hidden sm:inline">Edit day</span>
+            <span className="sm:hidden">Edit</span>
+          </Button>
+        </div>
       </div>
-      {keepAwakeEnabled && !wakeLockSupported && (
-        <p className="text-xs text-muted-foreground">
-          Keep Awake is not supported in this browser version (common on some iPhone Safari builds).
-        </p>
-      )}
 
       {readinessNeeded && (
         <ReadinessCard
@@ -1519,6 +1531,15 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         </DialogContent>
       </Dialog>
 
+      <DayProgramEditSheet
+        open={dayEditOpen}
+        onOpenChange={setDayEditOpen}
+        programId={session.programId}
+        programDayId={session.programDayId}
+        dayLabel={session.programDay.label}
+        sessionId={sessionId}
+        blockStructuralEdits={session.status === "PLANNED" || session.status === "IN_PROGRESS"}
+      />
       <ExerciseLibrarySheet />
       <ExerciseNotesDialog
         open={exerciseNotesDialogTarget != null}

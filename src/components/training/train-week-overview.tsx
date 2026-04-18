@@ -14,10 +14,11 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ChevronDown, Loader2, Play, Replace, RotateCcw } from "lucide-react";
+import { ChevronDown, Loader2, Pencil, Play, Replace, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DayProgramEditSheet } from "@/components/training/day-program-edit-sheet";
 import { ExerciseSwapDialog } from "@/components/training/exercise-swap-dialog";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,7 @@ type TrainingActiveCache = {
 
 type Props = {
   instanceId: string;
+  programId: string;
   durationWeeks: number;
   weekIndex: number;
   nextDaySortOrder: number;
@@ -77,6 +79,7 @@ type Props = {
 
 export function TrainWeekOverview({
   instanceId,
+  programId,
   durationWeeks,
   weekIndex,
   nextDaySortOrder,
@@ -89,6 +92,7 @@ export function TrainWeekOverview({
 }: Props) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [editDay, setEditDay] = useState<{ id: string; label: string } | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -293,6 +297,16 @@ export function TrainWeekOverview({
                     <DayStatusBadge status={status} />
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="rounded-lg"
+                      onClick={() => setEditDay({ id: day.id, label: day.label })}
+                    >
+                      <Pencil className="size-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Edit day</span>
+                    </Button>
                     {skipped ? (
                       <Button
                         type="button"
@@ -442,6 +456,24 @@ export function TrainWeekOverview({
             : null
         }
         onSuccess={() => void qc.invalidateQueries({ queryKey: ["training-active"] })}
+      />
+
+      <DayProgramEditSheet
+        open={editDay != null}
+        onOpenChange={(o) => {
+          if (!o) setEditDay(null);
+        }}
+        programId={programId}
+        programDayId={editDay?.id ?? ""}
+        dayLabel={editDay?.label ?? ""}
+        sessionId={
+          editDay && inProgressSession?.programDayId === editDay.id ? inProgressSession.id : null
+        }
+        blockStructuralEdits={
+          editDay != null &&
+          inProgressSession != null &&
+          inProgressSession.programDayId === editDay.id
+        }
       />
     </div>
   );

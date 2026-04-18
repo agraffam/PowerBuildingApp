@@ -38,7 +38,15 @@ export async function GET(
                 orderBy: { sortOrder: "asc" },
                 include: {
                   exercise: {
-                    select: { id: true, name: true, slug: true, notes: true, kind: true, isBodyweight: true },
+                    select: {
+                      id: true,
+                      name: true,
+                      slug: true,
+                      notes: true,
+                      kind: true,
+                      isBodyweight: true,
+                      muscleTags: true,
+                    },
                   },
                 },
               },
@@ -175,7 +183,15 @@ export async function PATCH(
                 orderBy: { sortOrder: "asc" },
                 include: {
                   exercise: {
-                    select: { id: true, name: true, slug: true, notes: true, kind: true, isBodyweight: true },
+                    select: {
+                      id: true,
+                      name: true,
+                      slug: true,
+                      notes: true,
+                      kind: true,
+                      isBodyweight: true,
+                      muscleTags: true,
+                    },
                   },
                 },
               },
@@ -284,7 +300,15 @@ export async function PATCH(
                 orderBy: { sortOrder: "asc" },
                 include: {
                   exercise: {
-                    select: { id: true, name: true, slug: true, notes: true, kind: true, isBodyweight: true },
+                    select: {
+                      id: true,
+                      name: true,
+                      slug: true,
+                      notes: true,
+                      kind: true,
+                      isBodyweight: true,
+                      muscleTags: true,
+                    },
                   },
                 },
               },

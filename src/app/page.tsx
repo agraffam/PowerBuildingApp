@@ -147,6 +147,7 @@ export default function HomePage() {
 
       <TrainWeekOverview
         instanceId={inst.id}
+        programId={inst.programId}
         durationWeeks={inst.program.durationWeeks}
         weekIndex={inst.weekIndex}
         nextDaySortOrder={inst.nextDaySortOrder}
