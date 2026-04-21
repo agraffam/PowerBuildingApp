@@ -139,7 +139,12 @@ function setsFromMrvMev(params: {
 }): number {
   const factor = normalizedVolumeFactor(params.style, params.weekInBlock, params.blockLength);
   const maxBump = MAX_SET_BUMP_BY_BLOCK[params.blockType];
-  const desiredBump = Math.round(factor * maxBump);
+  const desiredBump =
+    params.blockType === "PEAKING"
+      ? factor >= 0.85
+        ? 0
+        : -1
+      : Math.round((factor - 0.5) * 2 * maxBump);
   const roleCap =
     params.role === "ISOLATION" ? 8 : params.role === "ACCESSORY" ? 7 : 6;
   return clamp(params.baseSets + desiredBump, 1, roleCap);
@@ -308,7 +313,8 @@ export function resolveProgramExercisePrescription(params: {
 
   const blockPos = getWeekIndexWithinBlock(params.blocks, calendarWeek);
   if (blockPos) {
-    sets = setsFromMrvMev({
+    const baselineSets = sets;
+    const mrvMevSets = setsFromMrvMev({
       baseSets: sets,
       role,
       blockType,
@@ -316,6 +322,8 @@ export function resolveProgramExercisePrescription(params: {
       weekInBlock: blockPos.index,
       blockLength: blockPos.length,
     });
+    // Keep session length stable: only allow a small nudge from baseline.
+    sets = clamp(mrvMevSets, Math.max(1, baselineSets - 1), baselineSets + 1);
     const fatigueBias = normalizedVolumeFactor(periodizationStyle, blockPos.index, blockPos.length);
     rpe = roundHalf(clamp(rpe + (fatigueBias - 0.5) * 0.5, 6, 10));
     if (pct != null) {
