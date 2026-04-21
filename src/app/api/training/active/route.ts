@@ -92,18 +92,32 @@ export async function GET() {
     const daysWithResolvedPreview = daysOrdered.map((day) => ({
       ...day,
       exercises: day.exercises.map((ex) => {
+        const exRx = ex as unknown as Record<string, unknown>;
+        const toNullableNumber = (value: unknown): number | null => {
+          if (value == null) return null;
+          return typeof value === "number" && Number.isFinite(value) ? value : null;
+        };
+        const loadRoleValue = exRx.loadRole;
+        const loadRole =
+          loadRoleValue === "COMPOUND" ||
+          loadRoleValue === "ACCESSORY" ||
+          loadRoleValue === "ISOLATION" ||
+          loadRoleValue === "CARDIO"
+            ? loadRoleValue
+            : null;
+        const exKind = (exRx.exercise as { kind?: unknown } | undefined)?.kind;
         const rx = resolveProgramExercisePrescription({
           programExercise: {
-            sets: ex.sets,
-            repTarget: ex.repTarget,
-            targetRpe: ex.targetRpe,
-            pctOf1rm: ex.pctOf1rm,
-            restSec: ex.restSec,
-            targetDurationSec: ex.targetDurationSec,
-            targetCalories: ex.targetCalories,
-            loadRole: ex.loadRole,
+            sets: typeof exRx.sets === "number" && Number.isFinite(exRx.sets) ? exRx.sets : 1,
+            repTarget: toNullableNumber(exRx.repTarget),
+            targetRpe: toNullableNumber(exRx.targetRpe),
+            pctOf1rm: toNullableNumber(exRx.pctOf1rm),
+            restSec: toNullableNumber(exRx.restSec),
+            targetDurationSec: toNullableNumber(exRx.targetDurationSec),
+            targetCalories: toNullableNumber(exRx.targetCalories),
+            loadRole,
           },
-          exerciseKind: ex.exercise.kind,
+          exerciseKind: exKind === "CARDIO" ? "CARDIO" : "STRENGTH",
           autoBlockPrescriptions: instance.program.autoBlockPrescriptions,
           deloadIntervalWeeks: instance.program.deloadIntervalWeeks,
           blocks: instance.program.blocks,
