@@ -12,6 +12,7 @@ import {
 } from "@/lib/program-week-state";
 import { buildWeekCompletionSummary } from "@/lib/week-completion-summary";
 import { getAppVersionTicker } from "@/lib/app-version";
+import { resolveProgramExercisePrescription } from "@/lib/block-prescription";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +29,23 @@ export async function GET() {
       include: {
         program: {
           include: {
+            blocks: { orderBy: { sortOrder: "asc" } },
             days: {
               orderBy: { sortOrder: "asc" },
               include: {
                 exercises: {
                   orderBy: { sortOrder: "asc" },
                   include: {
-                    exercise: { select: { id: true, name: true, slug: true, barIncrementLb: true, muscleTags: true } },
+                    exercise: {
+                      select: {
+                        id: true,
+                        name: true,
+                        slug: true,
+                        barIncrementLb: true,
+                        muscleTags: true,
+                        kind: true,
+                      },
+                    },
                   },
                 },
               },
@@ -78,8 +89,40 @@ export async function GET() {
         exercises: order.map((id) => byId.get(id)!),
       };
     });
+    const daysWithResolvedPreview = daysOrdered.map((day) => ({
+      ...day,
+      exercises: day.exercises.map((ex) => {
+        const rx = resolveProgramExercisePrescription({
+          programExercise: {
+            sets: ex.sets,
+            repTarget: ex.repTarget,
+            targetRpe: ex.targetRpe,
+            pctOf1rm: ex.pctOf1rm,
+            restSec: ex.restSec,
+            targetDurationSec: ex.targetDurationSec,
+            targetCalories: ex.targetCalories,
+            loadRole: ex.loadRole,
+          },
+          exerciseKind: ex.exercise.kind,
+          autoBlockPrescriptions: instance.program.autoBlockPrescriptions,
+          deloadIntervalWeeks: instance.program.deloadIntervalWeeks,
+          blocks: instance.program.blocks,
+          instanceWeekIndex: instance.weekIndex,
+          periodizationStyle:
+            (instance.program as { periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING" })
+              .periodizationStyle ?? "LINEAR",
+        });
+        return {
+          ...ex,
+          sets: rx.sets,
+          repTarget: rx.repTarget,
+          targetRpe: rx.targetRpe,
+          pctOf1rm: rx.pctOf1rm,
+        };
+      }),
+    }));
 
-    const nextDay = daysOrdered[instance.nextDaySortOrder] ?? null;
+    const nextDay = daysWithResolvedPreview[instance.nextDaySortOrder] ?? null;
 
     const inProgressSession = await prisma.workoutSession.findFirst({
       where: {
@@ -121,7 +164,7 @@ export async function GET() {
 
     const instanceOut = {
       ...instance,
-      program: { ...instance.program, days: daysOrdered },
+      program: { ...instance.program, days: daysWithResolvedPreview },
     };
 
     return NextResponse.json(
