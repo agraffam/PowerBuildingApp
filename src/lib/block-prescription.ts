@@ -100,29 +100,10 @@ export type ResolvedPrescription = {
 
 export type PeriodizationStyle = "LINEAR" | "ALTERNATING" | "UNDULATING";
 
-type VolumeLandmarks = { mev: number; mrv: number };
-
-const VOLUME_LANDMARKS: Record<PrescriptionLoadRole, Record<BlockType, VolumeLandmarks>> = {
-  COMPOUND: {
-    HYPERTROPHY: { mev: 8, mrv: 16 },
-    STRENGTH: { mev: 6, mrv: 12 },
-    PEAKING: { mev: 4, mrv: 8 },
-  },
-  ACCESSORY: {
-    HYPERTROPHY: { mev: 10, mrv: 20 },
-    STRENGTH: { mev: 8, mrv: 14 },
-    PEAKING: { mev: 6, mrv: 10 },
-  },
-  ISOLATION: {
-    HYPERTROPHY: { mev: 12, mrv: 22 },
-    STRENGTH: { mev: 8, mrv: 16 },
-    PEAKING: { mev: 6, mrv: 12 },
-  },
-  CARDIO: {
-    HYPERTROPHY: { mev: 1, mrv: 6 },
-    STRENGTH: { mev: 1, mrv: 5 },
-    PEAKING: { mev: 1, mrv: 4 },
-  },
+const MAX_SET_BUMP_BY_BLOCK: Record<BlockType, number> = {
+  HYPERTROPHY: 2,
+  STRENGTH: 1,
+  PEAKING: 0,
 };
 
 function getWeekIndexWithinBlock(
@@ -156,15 +137,12 @@ function setsFromMrvMev(params: {
   weekInBlock: number;
   blockLength: number;
 }): number {
-  const lm = VOLUME_LANDMARKS[params.role][params.blockType];
   const factor = normalizedVolumeFactor(params.style, params.weekInBlock, params.blockLength);
-  const targetWeeklySets = lm.mev + (lm.mrv - lm.mev) * factor;
-  // Map per-exercise base sets onto a similar relative intensity band from MEV->MRV.
-  const baseRelative = clamp((params.baseSets - 2) / 4, 0, 1);
-  const scaledRelative = clamp((baseRelative + factor) / 2, 0, 1);
-  const scaled = lm.mev + (lm.mrv - lm.mev) * scaledRelative;
-  const blended = Math.round((scaled + targetWeeklySets) / 2);
-  return Math.max(1, blended);
+  const maxBump = MAX_SET_BUMP_BY_BLOCK[params.blockType];
+  const desiredBump = Math.round(factor * maxBump);
+  const roleCap =
+    params.role === "ISOLATION" ? 8 : params.role === "ACCESSORY" ? 7 : 6;
+  return clamp(params.baseSets + desiredBump, 1, roleCap);
 }
 
 function defaultStyleForBlock(blockType: BlockType | null): PeriodizationStyle {

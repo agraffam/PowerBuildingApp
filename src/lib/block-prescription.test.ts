@@ -183,4 +183,27 @@ describe("resolveProgramExercisePrescription", () => {
     });
     expect(w1.sets).not.toBe(w2.sets);
   });
+
+  it("keeps per-exercise sets in a sane range", () => {
+    const r = resolveProgramExercisePrescription({
+      programExercise: {
+        sets: 4,
+        repTarget: 10,
+        targetRpe: 8,
+        pctOf1rm: null,
+        restSec: 90,
+        targetDurationSec: null,
+        targetCalories: null,
+        loadRole: "ACCESSORY",
+      },
+      exerciseKind: "STRENGTH",
+      autoBlockPrescriptions: true,
+      deloadIntervalWeeks: null,
+      blocks: strengthBlocks,
+      instanceWeekIndex: 7,
+      periodizationStyle: "LINEAR",
+    });
+    expect(r.sets).toBeLessThanOrEqual(7);
+    expect(r.sets).toBeGreaterThanOrEqual(1);
+  });
 });
