@@ -132,6 +132,9 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
       deloadIntervalWeeks: instCtx.program.deloadIntervalWeeks,
       blocks: instCtx.program.blocks,
       instanceWeekIndex: full.weekIndex,
+      periodizationStyle:
+        (instCtx.program as { periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING" })
+          .periodizationStyle ?? "LINEAR",
     });
 
     const prog = rx.isDeloadWeek
@@ -373,6 +376,9 @@ export async function prefillPctWeightsForSession(sessionId: string, userId: str
       deloadIntervalWeeks: pctInst.program.deloadIntervalWeeks,
       blocks: pctInst.program.blocks,
       instanceWeekIndex: session.weekIndex,
+      periodizationStyle:
+        (pctInst.program as { periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING" })
+          .periodizationStyle ?? "LINEAR",
     });
     const pct = rxPct.pctOf1rm;
     const effId = row.loggedExerciseId ?? pe.exerciseId;

@@ -27,6 +27,7 @@ type ProgramDetail = {
   durationWeeks: number;
   deloadIntervalWeeks: number | null;
   autoBlockPrescriptions: boolean;
+  periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING";
   blocks: { blockType: string; startWeek: number; endWeek: number }[];
   days: {
     label: string;
@@ -222,6 +223,8 @@ export default function ProgramDetailPage() {
                 {program.autoBlockPrescriptions
                   ? "Auto block prescriptions: on"
                   : "Auto block prescriptions: off"}
+                {" · "}
+                {`Periodization: ${(program.periodizationStyle ?? "LINEAR").toLowerCase()}`}
               </p>
             </>
           }

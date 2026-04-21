@@ -47,6 +47,7 @@ type WizardBody = {
   durationWeeks: number;
   deloadIntervalWeeks?: number | null;
   autoBlockPrescriptions?: boolean;
+  periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING";
   blocks: { blockType: keyof typeof BlockType; startWeek: number; endWeek: number }[];
   days: {
     label: string;
@@ -65,6 +66,13 @@ type WizardBody = {
     }[];
   }[];
 };
+
+function normalizePeriodizationStyle(
+  value: unknown,
+): "LINEAR" | "ALTERNATING" | "UNDULATING" {
+  if (value === "ALTERNATING" || value === "UNDULATING") return value;
+  return "LINEAR";
+}
 
 export async function POST(req: Request) {
   const auth = await requireUserId();
@@ -112,6 +120,7 @@ export async function POST(req: Request) {
           deloadIntervalWeeks:
             body.deloadIntervalWeeks === undefined ? 5 : body.deloadIntervalWeeks,
           autoBlockPrescriptions: body.autoBlockPrescriptions !== false,
+          periodizationStyle: normalizePeriodizationStyle(body.periodizationStyle),
           ownerId: userId,
           blocks: {
             create: body.blocks.map((b, sortOrder) => ({
@@ -149,7 +158,7 @@ export async function POST(req: Request) {
               },
             })),
           },
-        },
+        } as never,
       });
     });
     return NextResponse.json(program);

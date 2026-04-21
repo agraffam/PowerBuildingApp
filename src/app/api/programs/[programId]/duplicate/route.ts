@@ -34,6 +34,7 @@ export async function POST(
       durationWeeks: src.durationWeeks,
       deloadIntervalWeeks: src.deloadIntervalWeeks,
       autoBlockPrescriptions: src.autoBlockPrescriptions,
+      periodizationStyle: (src as { periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING" }).periodizationStyle ?? "LINEAR",
       ownerId: userId,
       blocks: {
         create: src.blocks.map((b) => ({
@@ -66,7 +67,7 @@ export async function POST(
           },
         })),
       },
-    },
+    } as never,
   });
 
   return NextResponse.json({ program: copy });

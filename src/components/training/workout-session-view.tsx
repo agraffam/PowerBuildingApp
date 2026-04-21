@@ -1378,7 +1378,17 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
               className="h-12 w-full rounded-xl"
               onClick={async () => {
                 try {
-                  const res = (await patch.mutateAsync({ action: "complete" })) as {
+                  const total = session.sets.length;
+                  const done = session.sets.filter((s) => s.done).length;
+                  const allowPartial =
+                    done > 0 && done < total
+                      ? window.confirm("Some sets are incomplete. Complete this workout anyway?")
+                      : false;
+                  if (done > 0 && done < total && !allowPartial) return;
+                  const res = (await patch.mutateAsync({
+                    action: "complete",
+                    ...(allowPartial ? { allowPartial: true } : {}),
+                  })) as {
                     summary?: SessionCompleteSummaryPayload;
                     weekSummary?: WeekCompletionSummaryPayload | null;
                   };
@@ -1999,7 +2009,7 @@ function SetRowEditor({
                         weightUnit: unit,
                         reps: local.reps === "" ? null : Number(local.reps),
                         rpe: local.rpe === "" ? null : Number(local.rpe),
-                        propagateWeight: true,
+                        propagateWeight: !bodyweight,
                         propagateRpeReps: true,
                         done: true,
                       });
@@ -2044,6 +2054,11 @@ function SetRowEditor({
               placeholder="5:00"
               value={local.durationSec}
               onChange={(e) => setLocal((l) => ({ ...l, durationSec: e.target.value }))}
+              onBlur={() => {
+                const parsed = parseDurationInputToSec(local.durationSec);
+                if (parsed == null) return;
+                setLocal((l) => ({ ...l, durationSec: formatSecAsMmSs(parsed) }));
+              }}
             />
           </div>
           <div className="space-y-1">
@@ -2072,7 +2087,7 @@ function SetRowEditor({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-7 w-7 shrink-0 rounded-md p-0 touch-manipulation"
+                  className="h-10 w-10 shrink-0 rounded-md p-0 touch-manipulation"
                   onClick={() => adjustWeightByStep(-1)}
                   disabled={savePending}
                   aria-label="Decrease weight"
@@ -2104,7 +2119,7 @@ function SetRowEditor({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-7 w-7 shrink-0 rounded-md p-0 touch-manipulation"
+                  className="h-10 w-10 shrink-0 rounded-md p-0 touch-manipulation"
                   onClick={() => adjustWeightByStep(1)}
                   disabled={savePending}
                   aria-label="Increase weight"

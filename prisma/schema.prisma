@@ -13,6 +13,12 @@ enum BlockType {
   PEAKING
 }
 
+enum ProgramPeriodizationStyle {
+  LINEAR
+  ALTERNATING
+  UNDULATING
+}
+
 /** Slot classification for block-based prescription scaling (optional on each ProgramExercise). */
 enum PrescriptionLoadRole {
   COMPOUND
@@ -131,6 +137,8 @@ model Program {
   deloadIntervalWeeks Int?
   /** When false, use stored ProgramExercise targets only (legacy). */
   autoBlockPrescriptions Boolean @default(true)
+  /** Weekly progression style for MRV/MEV autoregulation. */
+  periodizationStyle ProgramPeriodizationStyle @default(LINEAR)
   createdAt      DateTime          @default(now())
   ownerId        String?
   owner          User?             @relation("OwnedPrograms", fields: [ownerId], references: [id], onDelete: SetNull)

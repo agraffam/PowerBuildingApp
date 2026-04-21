@@ -17,6 +17,13 @@ import {
   userCanViewProgram,
 } from "@/lib/program-access";
 
+function normalizePeriodizationStyle(
+  value: unknown,
+): "LINEAR" | "ALTERNATING" | "UNDULATING" {
+  if (value === "ALTERNATING" || value === "UNDULATING") return value;
+  return "LINEAR";
+}
+
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ programId: string }> },
@@ -170,8 +177,11 @@ export async function PATCH(
         ...(body.autoBlockPrescriptions !== undefined && {
           autoBlockPrescriptions: body.autoBlockPrescriptions,
         }),
+        ...(body.periodizationStyle !== undefined && {
+          periodizationStyle: normalizePeriodizationStyle(body.periodizationStyle),
+        }),
       },
-    });
+    } as never);
     const fresh = await prisma.program.findUnique({
       where: { id: programId },
       include: {
@@ -249,6 +259,7 @@ export async function PATCH(
           deloadIntervalWeeks:
             full.deloadIntervalWeeks === undefined ? 5 : full.deloadIntervalWeeks,
           autoBlockPrescriptions: full.autoBlockPrescriptions !== false,
+          periodizationStyle: normalizePeriodizationStyle(full.periodizationStyle),
           blocks: {
             create: full.blocks.map((b, sortOrder) => ({
               blockType:
@@ -285,7 +296,7 @@ export async function PATCH(
               },
             })),
           },
-        },
+        } as never,
       });
     });
 

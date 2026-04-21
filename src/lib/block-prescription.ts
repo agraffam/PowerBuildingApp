@@ -98,6 +98,81 @@ export type ResolvedPrescription = {
   isDeloadWeek: boolean;
 };
 
+export type PeriodizationStyle = "LINEAR" | "ALTERNATING" | "UNDULATING";
+
+type VolumeLandmarks = { mev: number; mrv: number };
+
+const VOLUME_LANDMARKS: Record<PrescriptionLoadRole, Record<BlockType, VolumeLandmarks>> = {
+  COMPOUND: {
+    HYPERTROPHY: { mev: 8, mrv: 16 },
+    STRENGTH: { mev: 6, mrv: 12 },
+    PEAKING: { mev: 4, mrv: 8 },
+  },
+  ACCESSORY: {
+    HYPERTROPHY: { mev: 10, mrv: 20 },
+    STRENGTH: { mev: 8, mrv: 14 },
+    PEAKING: { mev: 6, mrv: 10 },
+  },
+  ISOLATION: {
+    HYPERTROPHY: { mev: 12, mrv: 22 },
+    STRENGTH: { mev: 8, mrv: 16 },
+    PEAKING: { mev: 6, mrv: 12 },
+  },
+  CARDIO: {
+    HYPERTROPHY: { mev: 1, mrv: 6 },
+    STRENGTH: { mev: 1, mrv: 5 },
+    PEAKING: { mev: 1, mrv: 4 },
+  },
+};
+
+function getWeekIndexWithinBlock(
+  blocks: { blockType: BlockType; startWeek: number; endWeek: number }[],
+  calendarWeek: number,
+): { index: number; length: number } | null {
+  const b = blocks.find((x) => calendarWeek >= x.startWeek && calendarWeek <= x.endWeek);
+  if (!b) return null;
+  return { index: calendarWeek - b.startWeek, length: b.endWeek - b.startWeek + 1 };
+}
+
+function normalizedVolumeFactor(style: PeriodizationStyle, weekInBlock: number, blockLength: number): number {
+  if (blockLength <= 1) return 0.75;
+  const linear = weekInBlock / (blockLength - 1);
+  if (style === "LINEAR") return linear;
+  if (style === "ALTERNATING") {
+    const base = 0.45 + linear * 0.35;
+    return weekInBlock % 2 === 0 ? Math.max(0.25, base - 0.2) : Math.min(1, base + 0.2);
+  }
+  // UNDULATING: low/medium/high wave with mild upward trend across block.
+  const wave = [0.2, 0.55, 0.9, 0.55];
+  const cyc = wave[weekInBlock % wave.length] ?? 0.55;
+  return clamp(cyc * 0.8 + linear * 0.2, 0.1, 1);
+}
+
+function setsFromMrvMev(params: {
+  baseSets: number;
+  role: PrescriptionLoadRole;
+  blockType: BlockType;
+  style: PeriodizationStyle;
+  weekInBlock: number;
+  blockLength: number;
+}): number {
+  const lm = VOLUME_LANDMARKS[params.role][params.blockType];
+  const factor = normalizedVolumeFactor(params.style, params.weekInBlock, params.blockLength);
+  const targetWeeklySets = lm.mev + (lm.mrv - lm.mev) * factor;
+  // Map per-exercise base sets onto a similar relative intensity band from MEV->MRV.
+  const baseRelative = clamp((params.baseSets - 2) / 4, 0, 1);
+  const scaledRelative = clamp((baseRelative + factor) / 2, 0, 1);
+  const scaled = lm.mev + (lm.mrv - lm.mev) * scaledRelative;
+  const blended = Math.round((scaled + targetWeeklySets) / 2);
+  return Math.max(1, blended);
+}
+
+function defaultStyleForBlock(blockType: BlockType | null): PeriodizationStyle {
+  if (blockType === "STRENGTH") return "ALTERNATING";
+  if (blockType === "PEAKING") return "UNDULATING";
+  return "LINEAR";
+}
+
 function applyMesoStrength(
   role: PrescriptionLoadRole,
   block: BlockType,
@@ -179,6 +254,7 @@ export function resolveProgramExercisePrescription(params: {
   deloadIntervalWeeks: number | null | undefined;
   blocks: { blockType: BlockType; startWeek: number; endWeek: number }[];
   instanceWeekIndex: number;
+  periodizationStyle?: PeriodizationStyle;
 }): ResolvedPrescription {
   const pe = params.programExercise;
   const calendarWeek = calendarWeekFromInstanceWeekIndex(params.instanceWeekIndex);
@@ -244,12 +320,30 @@ export function resolveProgramExercisePrescription(params: {
   let rpe = baseRpe;
   let pct = pe.pctOf1rm;
   let sets = pe.sets;
+  const periodizationStyle = params.periodizationStyle ?? defaultStyleForBlock(blockType);
 
   const meso = applyMesoStrength(role, blockType, rep, rpe, pct, sets);
   rep = meso.rep;
   rpe = meso.rpe;
   pct = meso.pct;
   sets = meso.sets;
+
+  const blockPos = getWeekIndexWithinBlock(params.blocks, calendarWeek);
+  if (blockPos) {
+    sets = setsFromMrvMev({
+      baseSets: sets,
+      role,
+      blockType,
+      style: periodizationStyle,
+      weekInBlock: blockPos.index,
+      blockLength: blockPos.length,
+    });
+    const fatigueBias = normalizedVolumeFactor(periodizationStyle, blockPos.index, blockPos.length);
+    rpe = roundHalf(clamp(rpe + (fatigueBias - 0.5) * 0.5, 6, 10));
+    if (pct != null) {
+      pct = clamp(pct + (fatigueBias - 0.5) * 4, 50, 100);
+    }
+  }
 
   if (deload) {
     const d = applyDeloadStrength(role, rep, rpe, pct, sets);

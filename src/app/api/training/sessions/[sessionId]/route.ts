@@ -132,6 +132,9 @@ export async function GET(
         deloadIntervalWeeks: progFull.deloadIntervalWeeks,
         blocks: progFull.blocks,
         instanceWeekIndex: session.weekIndex,
+        periodizationStyle:
+          (progFull as { periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING" })
+            .periodizationStyle ?? "LINEAR",
       }),
     })),
   };
@@ -226,7 +229,6 @@ export async function PATCH(
     }
     const instanceId = session.programInstanceId;
     const programDayId = session.programDayId;
-    await prisma.workoutSession.delete({ where: { id: sessionId } });
     try {
       await skipProgramDayForInstance(instanceId, userId, programDayId);
     } catch (e) {
@@ -316,7 +318,7 @@ export async function PATCH(
       data.completedAt = body.done ? new Date() : null;
     }
     await prisma.loggedSet.update({
-      where: { id: body.setId },
+      where: { id: row.id },
       data,
     });
     return NextResponse.json({ ok: true });
@@ -412,51 +414,71 @@ export async function PATCH(
       include: { exercise: true },
     });
     if (!pe) return NextResponse.json({ error: "Exercise not found in this workout" }, { status: 404 });
+    const dayExercises = await prisma.programExercise.findMany({
+      where: { programDayId: full.programDayId },
+      orderBy: { sortOrder: "asc" },
+      include: { exercise: true },
+    });
+    let targets = [pe];
+    if (pe.supersetGroup) {
+      const idx = dayExercises.findIndex((x) => x.id === pe.id);
+      if (idx >= 0) {
+        let start = idx;
+        let end = idx;
+        while (start - 1 >= 0 && dayExercises[start - 1]?.supersetGroup === pe.supersetGroup) start--;
+        while (end + 1 < dayExercises.length && dayExercises[end + 1]?.supersetGroup === pe.supersetGroup) end++;
+        targets = dayExercises.slice(start, end + 1);
+      }
+    }
 
     const { sessionMap, instanceMap } = await loadSwapMapsForSession(sessionId, full.programInstanceId);
-    const eff = resolveEffectiveFromMaps(pe.id, pe.exerciseId, sessionMap, instanceMap);
-    const loggedExerciseId = eff !== pe.exerciseId ? eff : undefined;
-
-    const maxIdx = full.sets.reduce((m, s) => Math.max(m, s.setIndex), -1);
-    const nextIdx = maxIdx + 1;
-
-    const rx = resolveProgramExercisePrescription({
-      programExercise: {
-        sets: pe.sets,
-        repTarget: pe.repTarget,
-        targetRpe: pe.targetRpe,
-        pctOf1rm: pe.pctOf1rm,
-        restSec: pe.restSec,
-        targetDurationSec: pe.targetDurationSec,
-        targetCalories: pe.targetCalories,
-        loadRole: pe.loadRole,
-      },
-      exerciseKind: pe.exercise.kind,
-      autoBlockPrescriptions: full.programInstance.program.autoBlockPrescriptions,
-      deloadIntervalWeeks: full.programInstance.program.deloadIntervalWeeks,
-      blocks: full.programInstance.program.blocks,
-      instanceWeekIndex: full.weekIndex,
-    });
-
     const settings = await prisma.userSettings.findUnique({ where: { userId } });
     const unit = settings?.preferredWeightUnit ?? "LB";
-    const cardio = pe.exercise.kind === "CARDIO";
-
-    await prisma.loggedSet.create({
-      data: {
-        workoutSessionId: sessionId,
-        programExerciseId: pe.id,
-        loggedExerciseId,
-        setIndex: nextIdx,
-        weight: 0,
-        weightUnit: unit,
-        reps: cardio ? null : rx.repTarget,
-        rpe: cardio ? null : rx.targetRpe,
-        durationSec: cardio ? rx.targetDurationSec : null,
-        calories: cardio ? rx.targetCalories ?? null : null,
-        done: false,
-      },
-    });
+    for (const target of targets) {
+      const eff = resolveEffectiveFromMaps(target.id, target.exerciseId, sessionMap, instanceMap);
+      const loggedExerciseId = eff !== target.exerciseId ? eff : undefined;
+      const maxIdx = await prisma.loggedSet.aggregate({
+        where: { workoutSessionId: sessionId, programExerciseId: target.id },
+        _max: { setIndex: true },
+      });
+      const nextIdx = (maxIdx._max.setIndex ?? -1) + 1;
+      const rx = resolveProgramExercisePrescription({
+        programExercise: {
+          sets: target.sets,
+          repTarget: target.repTarget,
+          targetRpe: target.targetRpe,
+          pctOf1rm: target.pctOf1rm,
+          restSec: target.restSec,
+          targetDurationSec: target.targetDurationSec,
+          targetCalories: target.targetCalories,
+          loadRole: target.loadRole,
+        },
+        exerciseKind: target.exercise.kind,
+        autoBlockPrescriptions: full.programInstance.program.autoBlockPrescriptions,
+        deloadIntervalWeeks: full.programInstance.program.deloadIntervalWeeks,
+        blocks: full.programInstance.program.blocks,
+        instanceWeekIndex: full.weekIndex,
+        periodizationStyle:
+          (full.programInstance.program as { periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING" })
+            .periodizationStyle ?? "LINEAR",
+      });
+      const cardio = target.exercise.kind === "CARDIO";
+      await prisma.loggedSet.create({
+        data: {
+          workoutSessionId: sessionId,
+          programExerciseId: target.id,
+          loggedExerciseId,
+          setIndex: nextIdx,
+          weight: 0,
+          weightUnit: unit,
+          reps: cardio ? null : rx.repTarget,
+          rpe: cardio ? null : rx.targetRpe,
+          durationSec: cardio ? rx.targetDurationSec : null,
+          calories: cardio ? rx.targetCalories ?? null : null,
+          done: false,
+        },
+      });
+    }
     await prefillPctWeightsForSession(sessionId, userId);
     await prefillHistoryWeightsForSession(sessionId, userId);
     return NextResponse.json({ ok: true });
@@ -497,6 +519,10 @@ export async function PATCH(
   }
 
   if (body.action === "set") {
+    const row = await prisma.loggedSet.findFirst({
+      where: { id: body.setId, workoutSessionId: sessionId },
+    });
+    if (!row) return NextResponse.json({ error: "Set not found" }, { status: 404 });
     const data: Record<string, unknown> = {};
     if (body.weight !== undefined) data.weight = body.weight;
     if (body.weightUnit != null) data.weightUnit = body.weightUnit;
@@ -510,7 +536,7 @@ export async function PATCH(
       data.completedAt = body.done ? new Date() : null;
     }
     await prisma.loggedSet.update({
-      where: { id: body.setId },
+      where: { id: row.id },
       data,
     });
     if (body.propagateWeight === true) {
@@ -526,6 +552,19 @@ export async function PATCH(
   }
 
   if (body.action === "complete") {
+    const [doneSets, totalSets] = await Promise.all([
+      prisma.loggedSet.count({ where: { workoutSessionId: sessionId, done: true } }),
+      prisma.loggedSet.count({ where: { workoutSessionId: sessionId } }),
+    ]);
+    if (doneSets === 0) {
+      return NextResponse.json({ error: "Log at least one set before completing the session." }, { status: 409 });
+    }
+    if (doneSets < totalSets && body.allowPartial !== true) {
+      return NextResponse.json(
+        { error: "Some sets are incomplete. Confirm partial completion to continue.", code: "PARTIAL_CONFIRM_REQUIRED" },
+        { status: 409 },
+      );
+    }
     const withDay = await prisma.workoutSession.findUnique({
       where: { id: sessionId },
       include: { programDay: { select: { sortOrder: true } } },

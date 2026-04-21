@@ -103,4 +103,84 @@ describe("resolveProgramExercisePrescription", () => {
       Math.max(30, Math.round(duration * DELOAD_CARDIO_DURATION_FACTOR)),
     );
   });
+
+  it("supports linear MRV/MEV progression across a block", () => {
+    const early = resolveProgramExercisePrescription({
+      programExercise: {
+        sets: 4,
+        repTarget: 8,
+        targetRpe: 8,
+        pctOf1rm: 72,
+        restSec: 150,
+        targetDurationSec: null,
+        targetCalories: null,
+        loadRole: "COMPOUND",
+      },
+      exerciseKind: "STRENGTH",
+      autoBlockPrescriptions: true,
+      deloadIntervalWeeks: null,
+      blocks: strengthBlocks,
+      instanceWeekIndex: 3,
+      periodizationStyle: "LINEAR",
+    });
+    const late = resolveProgramExercisePrescription({
+      programExercise: {
+        sets: 4,
+        repTarget: 8,
+        targetRpe: 8,
+        pctOf1rm: 72,
+        restSec: 150,
+        targetDurationSec: null,
+        targetCalories: null,
+        loadRole: "COMPOUND",
+      },
+      exerciseKind: "STRENGTH",
+      autoBlockPrescriptions: true,
+      deloadIntervalWeeks: null,
+      blocks: strengthBlocks,
+      instanceWeekIndex: 7,
+      periodizationStyle: "LINEAR",
+    });
+    expect(late.sets).toBeGreaterThanOrEqual(early.sets);
+  });
+
+  it("supports alternating weekly load behavior", () => {
+    const w1 = resolveProgramExercisePrescription({
+      programExercise: {
+        sets: 4,
+        repTarget: 8,
+        targetRpe: 8,
+        pctOf1rm: 72,
+        restSec: 150,
+        targetDurationSec: null,
+        targetCalories: null,
+        loadRole: "COMPOUND",
+      },
+      exerciseKind: "STRENGTH",
+      autoBlockPrescriptions: true,
+      deloadIntervalWeeks: null,
+      blocks: strengthBlocks,
+      instanceWeekIndex: 4,
+      periodizationStyle: "ALTERNATING",
+    });
+    const w2 = resolveProgramExercisePrescription({
+      programExercise: {
+        sets: 4,
+        repTarget: 8,
+        targetRpe: 8,
+        pctOf1rm: 72,
+        restSec: 150,
+        targetDurationSec: null,
+        targetCalories: null,
+        loadRole: "COMPOUND",
+      },
+      exerciseKind: "STRENGTH",
+      autoBlockPrescriptions: true,
+      deloadIntervalWeeks: null,
+      blocks: strengthBlocks,
+      instanceWeekIndex: 5,
+      periodizationStyle: "ALTERNATING",
+    });
+    expect(w1.sets).not.toBe(w2.sets);
+  });
 });

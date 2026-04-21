@@ -139,6 +139,9 @@ export async function POST(req: Request) {
               deloadIntervalWeeks: instance.program.deloadIntervalWeeks,
               blocks: instance.program.blocks,
               instanceWeekIndex: instance.weekIndex,
+              periodizationStyle:
+                (instance.program as { periodizationStyle?: "LINEAR" | "ALTERNATING" | "UNDULATING" })
+                  .periodizationStyle ?? "LINEAR",
             });
             const nSets = rx.sets;
             return Array.from({ length: nSets }, (_, setIndex) => ({

@@ -23,6 +23,7 @@ import type { ProgramWizardPayload, WizardDay, WizardExercise } from "@/lib/prog
 import { defaultMesocycleBlocks } from "@/lib/program-periodization";
 
 const BLOCK_TYPES = ["HYPERTROPHY", "STRENGTH", "PEAKING"] as const;
+const PERIODIZATION_STYLES = ["LINEAR", "ALTERNATING", "UNDULATING"] as const;
 
 function defaultDays(): WizardDay[] {
   return [
@@ -89,6 +90,9 @@ export function ProgramBuilderForm({
   const [autoBlockPrescriptions, setAutoBlockPrescriptions] = useState(
     initial?.autoBlockPrescriptions !== false,
   );
+  const [periodizationStyle, setPeriodizationStyle] = useState<
+    "LINEAR" | "ALTERNATING" | "UNDULATING"
+  >(initial?.periodizationStyle ?? "LINEAR");
   const [includePeaking, setIncludePeaking] = useState(
     () => initial?.blocks?.some((b) => b.blockType === "PEAKING") ?? false,
   );
@@ -109,6 +113,7 @@ export function ProgramBuilderForm({
         initial.deloadIntervalWeeks === undefined ? 5 : initial.deloadIntervalWeeks,
       );
       setAutoBlockPrescriptions(initial.autoBlockPrescriptions !== false);
+      setPeriodizationStyle(initial.periodizationStyle ?? "LINEAR");
       setIncludePeaking(initial.blocks?.some((b) => b.blockType === "PEAKING") ?? false);
     }
   }, [initial]);
@@ -212,6 +217,7 @@ export function ProgramBuilderForm({
     durationWeeks,
     deloadIntervalWeeks,
     autoBlockPrescriptions,
+    periodizationStyle,
     blocks,
     days,
   });
@@ -346,6 +352,24 @@ export function ProgramBuilderForm({
               <Label htmlFor="includePeaking" className="cursor-pointer font-normal leading-snug">
                 Include final peaking block (best for 10+ week programs)
               </Label>
+            </div>
+            <div className="space-y-2">
+              <Label>Periodization style</Label>
+              <Select value={periodizationStyle} onValueChange={(v) => setPeriodizationStyle(v as typeof periodizationStyle)}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PERIODIZATION_STYLES.map((style) => (
+                    <SelectItem key={style} value={style}>
+                      {style[0] + style.slice(1).toLowerCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Linear ramps weekly load, Alternating toggles hard/easy weeks, Undulating waves stress across the block.
+              </p>
             </div>
             <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-3">
               <input

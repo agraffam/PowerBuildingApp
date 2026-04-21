@@ -1,4 +1,5 @@
 export type WizardBlock = { blockType: string; startWeek: number; endWeek: number };
+export type ProgramPeriodizationStyle = "LINEAR" | "ALTERNATING" | "UNDULATING";
 
 export type WizardExercise = {
   exerciseSlug: string;
@@ -33,6 +34,8 @@ export type ProgramWizardPayload = {
   deloadIntervalWeeks?: number | null;
   /** Default true for new programs. */
   autoBlockPrescriptions?: boolean;
+  /** Weekly progression style used by MRV/MEV auto prescriptions. */
+  periodizationStyle?: ProgramPeriodizationStyle;
   blocks: WizardBlock[];
   days: WizardDay[];
 };

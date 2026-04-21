@@ -7,10 +7,17 @@ export function formatSecAsMmSs(sec: number | null | undefined): string {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
-/** Parse `m:ss` or plain integer seconds. */
+/** Parse `m:ss`, compact `mmss`-style digits, or plain integer seconds. */
 export function parseDurationInputToSec(raw: string): number | null {
   const t = raw.trim();
   if (!t) return null;
+  const digitsOnly = t.match(/^\d+$/);
+  if (digitsOnly && t.length >= 3) {
+    const min = parseInt(t.slice(0, -2), 10);
+    const sec = parseInt(t.slice(-2), 10);
+    if (sec >= 60 || min > 999) return null;
+    return Math.min(86400, Math.max(0, min * 60 + sec));
+  }
   const m = t.match(/^(\d+):(\d{1,2})$/);
   if (m) {
     const min = parseInt(m[1]!, 10);

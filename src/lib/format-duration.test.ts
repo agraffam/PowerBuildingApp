@@ -20,7 +20,14 @@ describe("parseDurationInputToSec", () => {
   });
 
   it("parses plain seconds", () => {
-    expect(parseDurationInputToSec("120")).toBe(120);
+    expect(parseDurationInputToSec("45")).toBe(45);
+    expect(parseDurationInputToSec("90")).toBe(90);
+  });
+
+  it("parses compact mmss shorthand", () => {
+    expect(parseDurationInputToSec("500")).toBe(300);
+    expect(parseDurationInputToSec("1234")).toBe(754);
+    expect(parseDurationInputToSec("045")).toBe(45);
   });
 
   it("returns null for empty", () => {
