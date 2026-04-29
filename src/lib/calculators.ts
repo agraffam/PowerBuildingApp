@@ -201,21 +201,25 @@ export function suggestNextWeekLoad(input: ProgressionInput): {
   suggested: number;
   bumped: boolean;
   bumpPct: number;
+  bumpBy: number;
 } {
   const { currentWeight, repGoal, actualReps, prescribedRpe, actualRpe, plateIncrement } = input;
-  if (!(currentWeight > 0)) return { suggested: currentWeight, bumped: false, bumpPct: 0 };
+  if (!(currentWeight > 0)) return { suggested: currentWeight, bumped: false, bumpPct: 0, bumpBy: 0 };
   if (actualRpe != null && actualRpe > 9) {
-    return { suggested: currentWeight, bumped: false, bumpPct: 0 };
+    return { suggested: currentWeight, bumped: false, bumpPct: 0, bumpBy: 0 };
   }
   const rpeOk =
     actualRpe == null ? actualReps >= repGoal : actualReps >= repGoal && actualRpe <= prescribedRpe + 0.5;
-  if (!rpeOk) return { suggested: currentWeight, bumped: false, bumpPct: 0 };
-  const bumpPct = 0.0375;
+  if (!rpeOk) return { suggested: currentWeight, bumped: false, bumpPct: 0, bumpBy: 0 };
   const inc = plateIncrement != null && plateIncrement > 0 ? plateIncrement : 2.5;
+  const suggested = roundWeightUpToIncrement(currentWeight + inc, inc);
+  const bumpBy = Math.max(0, suggested - currentWeight);
+  const bumpPct = currentWeight > 0 ? bumpBy / currentWeight : 0;
   return {
-    suggested: roundWeightUpToIncrement(currentWeight * (1 + bumpPct), inc),
+    suggested,
     bumped: true,
     bumpPct,
+    bumpBy,
   };
 }
 
@@ -232,8 +236,8 @@ export function readinessToIntensityScalar(
   const sleepN = s / 10;
   const stressN = (10 - t) / 10;
   const soreN = (10 - r) / 10;
-  const MIN_M = 0.85;
-  const MAX_M = 1.05;
+  const MIN_M = 0.8;
+  const MAX_M = 1.1;
   const composite = (sleepN + stressN + soreN) / 3;
   return MIN_M + composite * (MAX_M - MIN_M);
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   brzyckiOneRm,
   coerceDefaultBarIncrementLb,
+  readinessToIntensityScalar,
   resolveWorkingIncrementLb,
   roundToIncrement,
   suggestNextWeekLoad,
@@ -79,10 +80,10 @@ describe("suggestNextWeekLoad", () => {
     });
     expect(r.bumped).toBe(true);
     expect(r.suggested % 5).toBe(0);
-    expect(r.suggested).toBeGreaterThan(200);
+    expect(r.suggested).toBe(205);
   });
 
-  it("uses next plate up when nearest rounding would not exceed current weight", () => {
+  it("bumps by exactly one increment step", () => {
     const r = suggestNextWeekLoad({
       currentWeight: 201,
       repGoal: 8,
@@ -93,7 +94,7 @@ describe("suggestNextWeekLoad", () => {
     });
     expect(r.bumped).toBe(true);
     expect(r.suggested % 2.5).toBe(0);
-    expect(r.suggested).toBeGreaterThan(201);
+    expect(r.suggested).toBe(205);
   });
 
   it("does not bump when actual RPE is above 9", () => {
@@ -107,5 +108,12 @@ describe("suggestNextWeekLoad", () => {
     });
     expect(r.bumped).toBe(false);
     expect(r.suggested).toBe(200);
+  });
+});
+
+describe("readinessToIntensityScalar", () => {
+  it("has stronger lower and upper bounds", () => {
+    expect(readinessToIntensityScalar(0, 10, 10)).toBeCloseTo(0.8, 6);
+    expect(readinessToIntensityScalar(10, 0, 0)).toBeCloseTo(1.1, 6);
   });
 });

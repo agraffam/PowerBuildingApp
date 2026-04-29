@@ -526,7 +526,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const warmupGate = useMemo(() => {
     const s = q.data?.session;
     if (!s || s.status === "COMPLETED") return false;
-    if (!(s.status === "PLANNED" || s.status === "IN_PROGRESS")) return false;
+    if (s.status !== "PLANNED") return false;
     if (readinessGate) return false;
     return orderedExercises.length > 0 && !warmupDismissed;
   }, [q.data?.session, readinessGate, orderedExercises.length, warmupDismissed]);
@@ -821,7 +821,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
   const warmupNeeded =
     !readinessNeeded &&
     !isHistorySession &&
-    canCancel &&
+    session.status === "PLANNED" &&
     firstExercise != null &&
     !warmupDismissed;
 
@@ -1092,6 +1092,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                               bumped: false,
                               suggested: 0,
                               bumpPct: 0,
+                              bumpBy: 0,
                             }
                           : suggestNextWeekLoad({
                               currentWeight: row.weight,
@@ -1219,7 +1220,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           if (!row) return null;
                           const prog =
                             ex.exercise.kind === "CARDIO"
-                              ? { bumped: false, suggested: 0, bumpPct: 0 }
+                              ? { bumped: false, suggested: 0, bumpPct: 0, bumpBy: 0 }
                               : suggestNextWeekLoad({
                                   currentWeight: row.weight,
                                   repGoal: ex.prescription.repTarget,
@@ -1911,6 +1912,18 @@ function SetRowEditor({
   const weightForCommit = bodyweight || cardio ? 0 : Number(local.weight) || 0;
   const shouldPropagateWeight = !cardio && !bodyweight && local.weight !== baselineWeight;
   const shouldPropagateRpeReps = !cardio && (local.reps !== baselineReps || local.rpe !== baselineRpe);
+  const getPropagatedWeight = () => {
+    if (cardio || bodyweight) return null;
+    const parsedRpe = local.rpe === "" ? null : Number(local.rpe);
+    if (parsedRpe == null || !Number.isFinite(parsedRpe) || !Number.isFinite(targetRpe)) return null;
+    const delta = parsedRpe - targetRpe;
+    const halfStepCount = Math.round(Math.abs(delta) / 0.5);
+    if (halfStepCount <= 0) return null;
+    const step = progressionStep > 0 ? progressionStep : 2.5;
+    const direction = delta > 0 ? -1 : 1;
+    const adjusted = Math.max(0, weightForCommit + direction * step * halfStepCount);
+    return Math.round(adjusted * 10) / 10;
+  };
   const adjustWeightByStep = (dir: -1 | 1) => {
     if (cardio || bodyweight) return;
     const step = progressionStep > 0 ? progressionStep : 2.5;
@@ -2002,6 +2015,7 @@ function SetRowEditor({
                         done: true,
                       });
                     } else {
+                      const propagatedWeight = getPropagatedWeight();
                       onCommitSet({
                         action: "set",
                         setId: row.id,
@@ -2010,6 +2024,7 @@ function SetRowEditor({
                         reps: local.reps === "" ? null : Number(local.reps),
                         rpe: local.rpe === "" ? null : Number(local.rpe),
                         propagateWeight: !bodyweight,
+                        propagateWeightValue: propagatedWeight,
                         propagateRpeReps: true,
                         done: true,
                       });
@@ -2178,7 +2193,7 @@ function SetRowEditor({
       )}
       {!cardio && !bodyweight && prog.bumped && row.done && (
         <p className="text-xs text-muted-foreground">
-          Next week idea: ~{prog.suggested.toFixed(1)} {unit} (+{(prog.bumpPct * 100).toFixed(1)}%), nearest{" "}
+          Next week idea: ~{prog.suggested.toFixed(1)} {unit} (+{prog.bumpBy.toFixed(1)} {unit}), nearest{" "}
           {progressionStep % 1 === 0 ? progressionStep.toFixed(0) : progressionStep.toFixed(1)} {unit} step
         </p>
       )}

@@ -540,7 +540,17 @@ export async function PATCH(
       data,
     });
     if (body.propagateWeight === true) {
-      await mirrorSetWeightToFollowingUncompletedSets(sessionId, body.setId, userId);
+      await mirrorSetWeightToFollowingUncompletedSets(
+        sessionId,
+        body.setId,
+        userId,
+        body.propagateWeightValue != null
+          ? {
+              weight: body.propagateWeightValue,
+              weightUnit: (body.weightUnit ?? row.weightUnit) as "KG" | "LB",
+            }
+          : null,
+      );
     }
     if (body.propagateRpeReps === true) {
       await mirrorSetRpeRepsToFollowingUncompletedSets(sessionId, body.setId, userId);

@@ -7,10 +7,59 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.062";
+export const GENERATED_APP_VERSION = "0.069";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "c725aec",
+    "date": "2026-04-21",
+    "subject": "fix(training): limit periodized set changes to small nudges",
+    "title": "limit periodized set changes to small nudges",
+    "version": "0.069"
+  },
+  {
+    "hash": "e1ae5fe",
+    "date": "2026-04-21",
+    "subject": "fix(train): match preview prescriptions and restore CI type safety",
+    "title": "match preview prescriptions and restore CI type safety",
+    "version": "0.068"
+  },
+  {
+    "hash": "71c5e8c",
+    "date": "2026-04-21",
+    "subject": "fix(train): align next-session preview with workout prescriptions",
+    "title": "align next-session preview with workout prescriptions",
+    "version": "0.067"
+  },
+  {
+    "hash": "d671319",
+    "date": "2026-04-21",
+    "subject": "fix(training): cap MRV/MEV per-exercise set inflation",
+    "title": "cap MRV/MEV per-exercise set inflation",
+    "version": "0.066"
+  },
+  {
+    "hash": "e288162",
+    "date": "2026-04-21",
+    "subject": "Improve periodization engine and harden workout flow safety.",
+    "title": "Improve periodization engine and harden workout flow safety.",
+    "version": "0.065"
+  },
+  {
+    "hash": "ecf9d96",
+    "date": "2026-04-18",
+    "subject": "feat(train): edit day sheet, program exercise PATCH/DELETE, RPE grid",
+    "title": "edit day sheet, program exercise PATCH/DELETE, RPE grid",
+    "version": "0.064"
+  },
+  {
+    "hash": "4a5ca4b",
+    "date": "2026-04-15",
+    "subject": "fix board podium and name layout on mobile",
+    "title": "fix board podium and name layout on mobile",
+    "version": "0.063"
+  },
   {
     "hash": "7f48bb6",
     "date": "2026-04-15",

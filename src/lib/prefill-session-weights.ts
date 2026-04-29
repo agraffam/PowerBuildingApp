@@ -138,7 +138,7 @@ export async function prefillHistoryWeightsForSession(sessionId: string, userId:
     });
 
     const prog = rx.isDeloadWeek
-      ? { bumped: false, suggested: wRounded, bumpPct: 0 }
+      ? { bumped: false, suggested: wRounded, bumpPct: 0, bumpBy: 0 }
       : suggestNextWeekLoad({
           currentWeight: wRounded,
           repGoal: rx.repTarget,
@@ -224,6 +224,7 @@ export async function mirrorSetWeightToFollowingUncompletedSets(
   sessionId: string,
   sourceSetId: string,
   userId: string,
+  override?: { weight: number; weightUnit: PrismaWeightUnit } | null,
 ) {
   const row = await prisma.loggedSet.findUnique({
     where: { id: sourceSetId },
@@ -256,8 +257,8 @@ export async function mirrorSetWeightToFollowingUncompletedSets(
       setIndex: { gt: row.setIndex },
     },
     data: {
-      weight: row.weight,
-      weightUnit: row.weightUnit,
+      weight: override?.weight ?? row.weight,
+      weightUnit: override?.weightUnit ?? row.weightUnit,
     },
   });
 }

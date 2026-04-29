@@ -151,7 +151,7 @@ export function DayProgramEditSheet({
       next[ex.id] = emptyRowDraft(ex);
     }
     setDraftById(next);
-  }, [open, programDayId, exerciseSyncKey]);
+  }, [open, day, programDayId, exerciseSyncKey]);
 
   const invalidateTraining = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ["training-active"] });
