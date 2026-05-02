@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.070";
+export const GENERATED_APP_VERSION = "0.071";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "32549c2",
+    "date": "2026-05-02",
+    "subject": "fix: workout Save reliability and visibility",
+    "title": "workout Save reliability and visibility",
+    "version": "0.071"
+  },
   {
     "hash": "10d4a10",
     "date": "2026-04-29",

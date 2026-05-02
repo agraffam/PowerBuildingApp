@@ -20,7 +20,8 @@ const setBody = z
     calories: z.number().int().min(0).max(50000).nullable().optional(),
     done: z.boolean().optional(),
     propagateWeight: z.boolean().optional(),
-    propagateWeightValue: z.number().finite().min(0).optional(),
+    /** Omit when unused; older clients sent explicit `null`, which `.optional()` rejects. */
+    propagateWeightValue: z.number().finite().min(0).nullish(),
     propagateRpeReps: z.boolean().optional(),
     notes: z.union([z.string().max(500), z.null()]).optional(),
   })

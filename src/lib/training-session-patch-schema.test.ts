@@ -59,6 +59,19 @@ describe("trainingSessionPatchBodySchema", () => {
     });
     expect(r.success).toBe(true);
   });
+  it("accepts set with propagateWeightValue null (treated like omit)", () => {
+    const r = trainingSessionPatchBodySchema.safeParse({
+      action: "set",
+      setId: "c1",
+      weight: 185,
+      weightUnit: "LB",
+      reps: 5,
+      propagateWeight: true,
+      propagateWeightValue: null,
+      done: true,
+    });
+    expect(r.success).toBe(true);
+  });
   it("accepts set with notes only", () => {
     const r = trainingSessionPatchBodySchema.safeParse({
       action: "set",

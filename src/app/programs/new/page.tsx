@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ProgramWizardPayload } from "@/lib/program-wizard-types";
+import { parseProgramWizardJson } from "@/lib/program-wizard-import";
 
 type ProgramDetail = {
   id: string;
@@ -65,17 +66,6 @@ function toWizard(p: ProgramDetail): ProgramWizardPayload {
   };
 }
 
-function isProgramWizardPayload(value: unknown): value is ProgramWizardPayload {
-  if (!value || typeof value !== "object") return false;
-  const v = value as ProgramWizardPayload;
-  return (
-    typeof v.name === "string" &&
-    typeof v.durationWeeks === "number" &&
-    Array.isArray(v.blocks) &&
-    Array.isArray(v.days)
-  );
-}
-
 export default function NewProgramPage() {
   const [startMode, setStartMode] = useState<"choose" | "copy" | "json">("choose");
   const [startScratch, setStartScratch] = useState(false);
@@ -114,16 +104,12 @@ export default function NewProgramPage() {
 
   const applyJson = () => {
     setError(null);
-    try {
-      const parsed = JSON.parse(jsonText) as unknown;
-      if (!isProgramWizardPayload(parsed)) {
-        setError("JSON must match ProgramWizardPayload shape.");
-        return;
-      }
-      setInitial(parsed);
-    } catch {
-      setError("Invalid JSON.");
+    const result = parseProgramWizardJson(jsonText);
+    if (!result.ok) {
+      setError(result.error);
+      return;
     }
+    setInitial(result.data);
   };
 
   if (startScratch) {
@@ -186,7 +172,7 @@ export default function NewProgramPage() {
                 className="min-h-40 w-full rounded-lg border bg-background p-2 text-sm"
                 value={jsonText}
                 onChange={(e) => setJsonText(e.target.value)}
-                placeholder='{"name":"My Program","durationWeeks":8,"blocks":[],"days":[]}'
+                placeholder='Paste full wizard JSON: name, durationWeeks, blocks[], days[]. Must partition weeks and satisfy supersets.'
               />
               <Button type="button" onClick={applyJson}>Load JSON</Button>
             </div>

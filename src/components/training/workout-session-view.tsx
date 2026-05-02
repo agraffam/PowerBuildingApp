@@ -364,8 +364,13 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
     if (completeSplash) clearRest();
   }, [completeSplash, clearRest]);
 
-  const patch = useMutation({
-    mutationFn: async (body: object) => {
+  const invalidateTrainingSessionQueries = useCallback(() => {
+    void qc.invalidateQueries({ queryKey: ["session", sessionId] });
+    void qc.invalidateQueries({ queryKey: ["training-history"] });
+  }, [qc, sessionId]);
+
+  const sessionPatchMutationFn = useCallback(
+    async (body: object) => {
       const r = await fetch(`/api/training/sessions/${sessionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -382,11 +387,27 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       }
       return (await r.json()) as unknown;
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["session", sessionId] });
-      void qc.invalidateQueries({ queryKey: ["training-history"] });
-    },
+    [sessionId],
+  );
+
+  /** Logged-set PATCH only — keeps Save/Toggle from blocking on readiness/reorder/complete. */
+  const sessionSetMutation = useMutation({
+    mutationFn: sessionPatchMutationFn,
+    onSuccess: invalidateTrainingSessionQueries,
   });
+
+  /** Readiness, reorder, notes, complete, cancel, metadata, addSet, etc. */
+  const sessionOtherMutation = useMutation({
+    mutationFn: sessionPatchMutationFn,
+    onSuccess: invalidateTrainingSessionQueries,
+  });
+
+  const sessionMutationError =
+    (sessionSetMutation.isError ? sessionSetMutation.error : null) ??
+    (sessionOtherMutation.isError ? sessionOtherMutation.error : null);
+
+  const sessionBlockingPending =
+    sessionSetMutation.isPending || sessionOtherMutation.isPending;
   const patchProgramExercise = useMutation({
     mutationFn: async (payload: { programExerciseId: string; restSec: number | null }) => {
       const r = await fetch(`/api/program-exercises/${payload.programExerciseId}`, {
@@ -636,7 +657,11 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
 
   const commitSet = useCallback(
     async (body: object) => {
-      await patch.mutateAsync(body);
+      try {
+        await sessionSetMutation.mutateAsync(body);
+      } catch {
+        return;
+      }
       const st = qc.getQueryData<SessionPayload>(["session", sessionId])?.session.status;
       if (st === "COMPLETED") return;
       const b = body as { action?: string; setId?: string; done?: boolean; rpe?: number | null };
@@ -716,14 +741,14 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         });
       }
     },
-    [patch, qc, sessionId, startRest],
+    [sessionSetMutation, qc, sessionId, startRest],
   );
 
   const commitExerciseNotes = useCallback(
     async (programExerciseId: string, notes: string | null) => {
-      await patch.mutateAsync({ action: "setExerciseNotes", programExerciseId, notes });
+      await sessionOtherMutation.mutateAsync({ action: "setExerciseNotes", programExerciseId, notes });
     },
-    [patch],
+    [sessionOtherMutation],
   );
 
   const onDragEndBlocks = useCallback(
@@ -736,9 +761,12 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       if (oldIndex < 0 || newIndex < 0) return;
       const next = arrayMove(blocks, oldIndex, newIndex);
       const flat = flattenBlockOrder(next);
-      await patch.mutateAsync({ action: "reorderExercises", orderedProgramExerciseIds: flat });
+      await sessionOtherMutation.mutateAsync({
+        action: "reorderExercises",
+        orderedProgramExerciseIds: flat,
+      });
     },
-    [blockIds, blocks, patch],
+    [blockIds, blocks, sessionOtherMutation],
   );
 
 
@@ -873,10 +901,21 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
-      {patch.isError && canCancel && (
+      {sessionMutationError != null && canCancel && (
         <div className="flex flex-col gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-destructive text-sm">{(patch.error as Error).message}</p>
-          <Button type="button" variant="outline" size="sm" className="shrink-0 rounded-lg" onClick={() => patch.reset()}>
+          <p className="text-destructive text-sm">
+            {sessionMutationError instanceof Error ? sessionMutationError.message : String(sessionMutationError)}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 rounded-lg"
+            onClick={() => {
+              sessionSetMutation.reset();
+              sessionOtherMutation.reset();
+            }}
+          >
             Dismiss
           </Button>
         </div>
@@ -885,9 +924,9 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
       {readinessNeeded && (
         <ReadinessCard
           onSubmit={(sleep, stress, soreness) =>
-            patch.mutate({ action: "readiness", sleep, stress, soreness })
+            sessionOtherMutation.mutate({ action: "readiness", sleep, stress, soreness })
           }
-          loading={patch.isPending}
+          loading={sessionOtherMutation.isPending}
         />
       )}
 
@@ -1127,7 +1166,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           ghost={ghost}
                           prog={prog}
                           progressionStep={plateInc}
-                          savePending={patch.isPending}
+                          savePending={sessionSetMutation.isPending}
                           bodyweight={ex.useBodyweightEffective}
                           isCardio={ex.exercise.kind === "CARDIO"}
                           onCommitSet={(body) => void commitSet(body)}
@@ -1141,8 +1180,13 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                           variant="outline"
                           size="sm"
                           className="rounded-xl"
-                          disabled={patch.isPending}
-                          onClick={() => void patch.mutateAsync({ action: "addSet", programExerciseId: ex.id })}
+                          disabled={sessionOtherMutation.isPending}
+                          onClick={() =>
+                            void sessionOtherMutation.mutateAsync({
+                              action: "addSet",
+                              programExerciseId: ex.id,
+                            })
+                          }
                         >
                           Add set
                         </Button>
@@ -1261,7 +1305,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                                 ghost={ghost}
                                 prog={prog}
                                 progressionStep={plateInc}
-                                savePending={patch.isPending}
+                                savePending={sessionSetMutation.isPending}
                                 bodyweight={ex.useBodyweightEffective}
                                 isCardio={ex.exercise.kind === "CARDIO"}
                                 onCommitSet={(body) => void commitSet(body)}
@@ -1334,7 +1378,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 className="rounded-xl max-w-xs"
                 value={performedAtLocal}
                 onChange={(e) => setPerformedAtLocal(e.target.value)}
-                disabled={patch.isPending}
+                disabled={sessionOtherMutation.isPending}
               />
             </div>
             <Button
@@ -1342,14 +1386,17 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
               size="sm"
               className="rounded-xl"
               disabled={
-                patch.isPending ||
+                sessionOtherMutation.isPending ||
                 !performedAtLocal ||
                 performedAtLocal === toDatetimeLocalValue(session.performedAt ?? "")
               }
               onClick={() => {
                 const d = new Date(performedAtLocal);
                 if (Number.isNaN(d.getTime())) return;
-                patch.mutate({ action: "updateMetadata", performedAt: d.toISOString() });
+                sessionOtherMutation.mutate({
+                  action: "updateMetadata",
+                  performedAt: d.toISOString(),
+                });
               }}
             >
               Save date
@@ -1369,7 +1416,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             variant="destructive"
             className="h-12 w-full rounded-xl gap-2"
             onClick={() => setDeleteOpen(true)}
-            disabled={del.isPending || patch.isPending}
+            disabled={del.isPending || sessionBlockingPending}
           >
             <Trash2 className="size-4" />
             Delete workout
@@ -1384,7 +1431,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             variant="outline"
             className="h-12 w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={() => setCancelOpen(true)}
-            disabled={patch.isPending}
+            disabled={sessionBlockingPending}
           >
             Cancel session
           </Button>
@@ -1400,7 +1447,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                       ? window.confirm("Some sets are incomplete. Complete this workout anyway?")
                       : false;
                   if (done > 0 && done < total && !allowPartial) return;
-                  const res = (await patch.mutateAsync({
+                  const res = (await sessionOtherMutation.mutateAsync({
                     action: "complete",
                     ...(allowPartial ? { allowPartial: true } : {}),
                   })) as {
@@ -1416,7 +1463,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                   /* PATCH error surfaced via mutation state */
                 }
               }}
-              disabled={patch.isPending}
+              disabled={sessionBlockingPending}
             >
               Complete session
             </Button>
@@ -1426,10 +1473,11 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             variant="ghost"
             className="h-10 w-full rounded-xl text-muted-foreground text-sm hover:text-foreground"
             onClick={() => {
-              patch.reset();
+              sessionSetMutation.reset();
+              sessionOtherMutation.reset();
               setSkipDayOpen(true);
             }}
-            disabled={patch.isPending}
+            disabled={sessionBlockingPending}
           >
             <SkipForward className="size-4 mr-1.5 shrink-0" />
             Skip this day for the week
@@ -1476,9 +1524,9 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             <Button
               variant="destructive"
               className="w-full rounded-xl"
-              disabled={patch.isPending}
+              disabled={sessionBlockingPending}
               onClick={() => {
-                patch.mutate(
+                sessionOtherMutation.mutate(
                   { action: "cancel" },
                   {
                     onSuccess: () => {
@@ -1491,7 +1539,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 );
               }}
             >
-              {patch.isPending ? <Loader2 className="size-4 animate-spin" /> : "Yes, cancel session"}
+              {sessionOtherMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : "Yes, cancel session"}
             </Button>
             <Button
               variant="outline"
@@ -1509,7 +1557,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
         open={skipDayOpen}
         onOpenChange={(open) => {
           setSkipDayOpen(open);
-          if (!open) patch.reset();
+          if (!open) {
+            sessionSetMutation.reset();
+            sessionOtherMutation.reset();
+          }
         }}
       >
         <DialogContent className="rounded-2xl" showCloseButton={false}>
@@ -1524,9 +1575,9 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
             <Button
               variant="destructive"
               className="w-full rounded-xl"
-              disabled={patch.isPending}
+              disabled={sessionBlockingPending}
               onClick={() => {
-                patch.mutate(
+                sessionOtherMutation.mutate(
                   { action: "skipDay" },
                   {
                     onSuccess: () => {
@@ -1539,7 +1590,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 );
               }}
             >
-              {patch.isPending ? <Loader2 className="size-4 animate-spin" /> : "Yes, skip this day"}
+              {sessionOtherMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : "Yes, skip this day"}
             </Button>
             <Button
               variant="outline"
@@ -1550,8 +1601,10 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
               Keep going
             </Button>
           </DialogFooter>
-          {patch.isError && (
-            <p className="text-destructive text-sm">{(patch.error as Error).message}</p>
+          {sessionMutationError != null && (
+            <p className="text-destructive text-sm">
+              {sessionMutationError instanceof Error ? sessionMutationError.message : String(sessionMutationError)}
+            </p>
           )}
         </DialogContent>
       </Dialog>
@@ -1578,7 +1631,7 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
                 ?.notes ?? exerciseNotesDialogTarget.notes)
             : null
         }
-        savePending={patch.isPending}
+        savePending={sessionOtherMutation.isPending}
         onSave={(programExerciseId, notes) => void commitExerciseNotes(programExerciseId, notes)}
       />
       <ExerciseSwapDialog
@@ -2097,7 +2150,9 @@ function SetRowEditor({
                         reps: local.reps === "" ? null : Number(local.reps),
                         rpe: local.rpe === "" ? null : Number(local.rpe),
                         propagateWeight: !bodyweight,
-                        propagateWeightValue: propagatedWeight,
+                        ...(propagatedWeight != null
+                          ? { propagateWeightValue: propagatedWeight }
+                          : {}),
                         propagateRpeReps: true,
                         done: true,
                       });

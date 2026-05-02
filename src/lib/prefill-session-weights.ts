@@ -234,7 +234,9 @@ export async function mirrorSetWeightToFollowingUncompletedSets(
     },
   });
   if (!row || row.workoutSession.programInstance.userId !== userId) return;
-  if (!(row.weight > 0)) return;
+  const overridePositive =
+    override != null && Number.isFinite(override.weight) && override.weight > 0;
+  if (!(row.weight > 0) && !overridePositive) return;
   const sid = row.workoutSessionId;
   const iid = row.workoutSession.programInstanceId;
   const peId = row.programExerciseId;
