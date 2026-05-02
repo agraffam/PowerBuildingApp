@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.069";
+export const GENERATED_APP_VERSION = "0.070";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "10d4a10",
+    "date": "2026-04-29",
+    "subject": "feat: workout resume, increment progression, readiness, template import",
+    "title": "workout resume, increment progression, readiness, template import",
+    "version": "0.070"
+  },
   {
     "hash": "c725aec",
     "date": "2026-04-21",

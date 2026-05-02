@@ -64,7 +64,12 @@ import {
   parseExerciseOrderJson,
 } from "@/lib/workout-blocks";
 import { formatSecAsMmSs, parseDurationInputToSec } from "@/lib/format-duration";
-import { restSecForRpe, rpeToBandId, snapToLoggedRpeStep } from "@/lib/rest-by-rpe";
+import {
+  isLoggedRpeStep,
+  restSecForRpe,
+  rpeToBandId,
+  snapToLoggedRpeStep,
+} from "@/lib/rest-by-rpe";
 import { SortableWorkoutBlock } from "@/components/training/sortable-workout-block";
 import {
   getWarmupContent,
@@ -867,6 +872,15 @@ export function WorkoutSessionView({ sessionId }: { sessionId: string }) {
           </Button>
         </div>
       </div>
+
+      {patch.isError && canCancel && (
+        <div className="flex flex-col gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-destructive text-sm">{(patch.error as Error).message}</p>
+          <Button type="button" variant="outline" size="sm" className="shrink-0 rounded-lg" onClick={() => patch.reset()}>
+            Dismiss
+          </Button>
+        </div>
+      )}
 
       {readinessNeeded && (
         <ReadinessCard
@@ -1866,6 +1880,7 @@ function SetRowEditor({
   onCommitSet: (body: object) => void;
 }) {
   const cardio = Boolean(isCardio);
+  const [saveFieldError, setSaveFieldError] = useState<string | null>(null);
   const [local, setLocal] = useState(() => {
     const rpeStep = snapToLoggedRpeStep(row.rpe ?? targetRpe);
     return {
@@ -1897,21 +1912,54 @@ function SetRowEditor({
     bodyweight,
   ]);
 
-  const baselineWeight = bodyweight ? "0" : String(row.weight || "");
-  const baselineReps = row.reps != null ? String(row.reps) : String(repTarget);
-  const baselineRpe = String(snapToLoggedRpeStep(row.rpe ?? targetRpe));
+  useEffect(() => {
+    setSaveFieldError(null);
+  }, [local.weight, local.reps, local.rpe, row.id]);
+
+  const baselineRpeSnapped = snapToLoggedRpeStep(row.rpe ?? targetRpe);
+  const baselineRpe = String(baselineRpeSnapped);
   const baselineDur = row.durationSec != null ? formatSecAsMmSs(row.durationSec) : "";
   const baselineCal = row.calories != null ? String(row.calories) : "";
 
+  /** Avoid treating `225` vs `225.0` as different when comparing to server weight. */
+  const weightNumericDirty =
+    !cardio &&
+    !bodyweight &&
+    (() => {
+      const trimmed = local.weight.trim();
+      if (trimmed === "") return row.weight !== 0;
+      const lw = Number(trimmed);
+      if (!Number.isFinite(lw)) return true;
+      return Math.abs(lw - row.weight) > 1e-6;
+    })();
+
+  const repsBaselineValue = row.reps ?? repTarget;
+  const repsParsedForDirty =
+    local.reps.trim() === "" ? null : Number(local.reps);
+  const repsNumericDirty =
+    !cardio &&
+    (repsParsedForDirty === null
+      ? row.reps != null
+      : !Number.isFinite(repsParsedForDirty)
+        ? true
+        : repsParsedForDirty !== repsBaselineValue);
+
+  const localRpeNum =
+    local.rpe.trim() === "" ? null : Number(local.rpe);
+  const rpeNumericDirty =
+    !cardio &&
+    (localRpeNum != null &&
+      Number.isFinite(localRpeNum) &&
+      Math.abs(snapToLoggedRpeStep(localRpeNum) - baselineRpeSnapped) > 1e-9);
+
   const dirty = cardio
     ? local.durationSec !== baselineDur || local.calories !== baselineCal
-    : local.reps !== baselineReps ||
-      local.rpe !== baselineRpe ||
-      (!bodyweight && local.weight !== baselineWeight);
+    : repsNumericDirty || rpeNumericDirty || weightNumericDirty;
 
   const weightForCommit = bodyweight || cardio ? 0 : Number(local.weight) || 0;
-  const shouldPropagateWeight = !cardio && !bodyweight && local.weight !== baselineWeight;
-  const shouldPropagateRpeReps = !cardio && (local.reps !== baselineReps || local.rpe !== baselineRpe);
+  const shouldPropagateWeight = weightNumericDirty;
+  const shouldPropagateRpeReps =
+    !cardio && (repsNumericDirty || rpeNumericDirty);
   const getPropagatedWeight = () => {
     if (cardio || bodyweight) return null;
     const parsedRpe = local.rpe === "" ? null : Number(local.rpe);
@@ -1936,6 +1984,7 @@ function SetRowEditor({
   };
 
   const saveFields = () => {
+    setSaveFieldError(null);
     if (cardio) {
       const parsedDur = parseDurationInputToSec(local.durationSec);
       onCommitSet({
@@ -1950,14 +1999,38 @@ function SetRowEditor({
       });
       return;
     }
+    const propagatedWeight = getPropagatedWeight();
+    const propagateWeightToFollowing =
+      !bodyweight && (shouldPropagateWeight || propagatedWeight != null);
+
+    const repsTrimmed = local.reps.trim();
+    const repsNum =
+      repsTrimmed === "" ? null : Number(repsTrimmed);
+    if (repsTrimmed !== "" && !Number.isFinite(repsNum as number)) {
+      setSaveFieldError("Enter a valid rep count.");
+      return;
+    }
+
+    const rpeTrimmed = local.rpe.trim();
+    const rpeNum =
+      rpeTrimmed === "" ? null : Number(rpeTrimmed);
+    if (
+      rpeTrimmed !== "" &&
+      (!Number.isFinite(rpeNum as number) || !isLoggedRpeStep(rpeNum as number))
+    ) {
+      setSaveFieldError("RPE must be between 6 and 10 in half-point steps.");
+      return;
+    }
+
     onCommitSet({
       action: "set",
       setId: row.id,
       weight: weightForCommit,
       weightUnit: unit,
-      reps: local.reps === "" ? null : Number(local.reps),
-      rpe: local.rpe === "" ? null : Number(local.rpe),
-      propagateWeight: shouldPropagateWeight,
+      reps: repsNum,
+      rpe: rpeNum,
+      propagateWeight: propagateWeightToFollowing,
+      ...(propagatedWeight != null ? { propagateWeightValue: propagatedWeight } : {}),
       propagateRpeReps: shouldPropagateRpeReps,
     });
   };
@@ -2057,6 +2130,11 @@ function SetRowEditor({
       </div>
       {dirty && (
         <p className="text-xs text-amber-600 dark:text-amber-500">Unsaved changes — Save or use Done to log the set.</p>
+      )}
+      {saveFieldError && (
+        <p className="text-xs text-destructive" role="alert">
+          {saveFieldError}
+        </p>
       )}
       {cardio ? (
         <div className="grid grid-cols-2 gap-3">
