@@ -118,6 +118,21 @@ export async function syncProgramInstanceCursor(instanceId: string, userId: stri
   return { weekFullyAccounted: false };
 }
 
+/**
+ * After confirming a week on Train, `ProgramInstance.weekIndex` moves forward immediately; completed
+ * sessions stay tagged with the prior index. Standalone week-end review must recap the week that has
+ * logs (sessions or skips), not the empty cursor week.
+ */
+export function pickWeekEndReviewWeekIndex(
+  cursorWeekIndex: number,
+  workoutSessionsForCursorWeek: number,
+  skippedDaysForCursorWeek: number,
+): number {
+  if (workoutSessionsForCursorWeek > 0 || skippedDaysForCursorWeek > 0) return cursorWeekIndex;
+  if (cursorWeekIndex > 0) return cursorWeekIndex - 1;
+  return cursorWeekIndex;
+}
+
 export async function finalizeProgramWeek(instanceId: string, userId: string) {
   const instance = await prisma.programInstance.findFirst({
     where: { id: instanceId, userId, status: "ACTIVE" },

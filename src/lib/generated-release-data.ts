@@ -7,10 +7,17 @@ export type ReleaseEntry = {
 };
 
 /** Generated from git history by scripts/generate-release-data.mjs */
-export const GENERATED_APP_VERSION = "0.071";
+export const GENERATED_APP_VERSION = "0.072";
 
 /** Newest first. */
 export const GENERATED_RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    "hash": "664cd7c",
+    "date": "2026-05-02",
+    "subject": "Training session PATCH UX; wizard JSON validation; deps",
+    "title": "Training session PATCH UX; wizard JSON validation; deps",
+    "version": "0.072"
+  },
   {
     "hash": "32549c2",
     "date": "2026-05-02",

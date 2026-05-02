@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth/require-user";
-import { getSkippedProgramDayIdsForWeek } from "@/lib/program-week-state";
+import {
+  getSkippedProgramDayIdsForWeek,
+  pickWeekEndReviewWeekIndex,
+} from "@/lib/program-week-state";
 import { normalizeWeightToKg, displayFromKg } from "@/lib/calculators";
 
 export async function GET() {
@@ -27,7 +30,20 @@ export async function GET() {
     });
   }
 
-  const weekIndex = activeInstance.weekIndex;
+  const cursorWeek = activeInstance.weekIndex;
+  const sessionsCountForCursor = await prisma.workoutSession.count({
+    where: { programInstanceId: activeInstance.id, weekIndex: cursorWeek },
+  });
+  const skippedForCursor = await getSkippedProgramDayIdsForWeek(activeInstance.id, cursorWeek);
+  const weekIndex = pickWeekEndReviewWeekIndex(
+    cursorWeek,
+    sessionsCountForCursor,
+    skippedForCursor.size,
+  );
+
+  const skippedForReview =
+    weekIndex === cursorWeek ? skippedForCursor : await getSkippedProgramDayIdsForWeek(activeInstance.id, weekIndex);
+
   const sessions = await prisma.workoutSession.findMany({
     where: {
       programInstanceId: activeInstance.id,
@@ -70,7 +86,7 @@ export async function GET() {
     }
   }
 
-  const skipped = await getSkippedProgramDayIdsForWeek(activeInstance.id, weekIndex);
+  const skipped = skippedForReview;
   const completedDayIds = new Set(sessions.map((s) => s.programDayId));
   const daysInWeek = activeInstance.program.days.length;
   const accounted = new Set([...completedDayIds, ...skipped]).size;
